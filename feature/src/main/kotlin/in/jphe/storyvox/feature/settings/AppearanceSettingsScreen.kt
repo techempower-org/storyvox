@@ -37,6 +37,9 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import `in`.jphe.storyvox.feature.api.CoverStyle
+import `in`.jphe.storyvox.feature.api.UiBrassPulseLevel
+import `in`.jphe.storyvox.feature.api.UiParticleIntensity
+import `in`.jphe.storyvox.feature.api.UiSkeletonStyle
 import `in`.jphe.storyvox.ui.component.CoverSourceFamily
 import `in`.jphe.storyvox.ui.component.CoverStyleLocal
 import `in`.jphe.storyvox.ui.component.FictionCoverThumb
@@ -179,6 +182,78 @@ fun AppearanceSettingsScreen(
                     selectedIndex = selectedIndex,
                     onSelected = { idx ->
                         viewModel.setAnimationSpeedScale(speedOptions[idx].first)
+                    },
+                )
+
+                // Issue #590 — particle/confetti intensity. Controls
+                // the brass-ember overlay density (the calm sparks
+                // that drift up from the cover during loading) and
+                // the chapter-completion confetti flare. None silences
+                // the decoration entirely; Lush doubles the count for
+                // a more vivid Library Nocturne ambiance.
+                val particleOptions = listOf(
+                    UiParticleIntensity.None to "None",
+                    UiParticleIntensity.Subtle to "Subtle",
+                    UiParticleIntensity.Lush to "Lush",
+                )
+                val particleIndex = particleOptions
+                    .indexOfFirst { it.first == s.particleIntensity }
+                    .let { if (it < 0) 1 else it }
+                SettingsSegmentedBlock(
+                    title = "Particle intensity",
+                    subtitle = "Brass-ember sparks + chapter-completion flare. " +
+                        "None silences decorative particles; Lush doubles the count.",
+                    options = particleOptions.map { it.second },
+                    selectedIndex = particleIndex,
+                    onSelected = { idx ->
+                        viewModel.setParticleIntensity(particleOptions[idx].first)
+                    },
+                )
+
+                // Issue #591 — skeleton-shimmer style. Off renders a
+                // plain rectangle placeholder; Pulse falls back to the
+                // pre-#650 alpha-shimmer; Sigil (the default) renders
+                // the 3-layered rotating brass sigil from
+                // [MagicSkeletonTile].
+                val skeletonOptions = listOf(
+                    UiSkeletonStyle.Off to "Off",
+                    UiSkeletonStyle.Pulse to "Pulse",
+                    UiSkeletonStyle.Sigil to "Sigil",
+                )
+                val skeletonIndex = skeletonOptions
+                    .indexOfFirst { it.first == s.skeletonStyle }
+                    .let { if (it < 0) 2 else it }
+                SettingsSegmentedBlock(
+                    title = "Skeleton style",
+                    subtitle = "How loading placeholders look. " +
+                        "Off = plain rectangle, Pulse = breathing rectangle, " +
+                        "Sigil = rotating brass sigil.",
+                    options = skeletonOptions.map { it.second },
+                    selectedIndex = skeletonIndex,
+                    onSelected = { idx ->
+                        viewModel.setSkeletonStyle(skeletonOptions[idx].first)
+                    },
+                )
+
+                // Issue #592 — brass alpha-pulse band. Subtle = 0.7..1.0
+                // (narrow breath), Standard = 0.55..1.0 (current),
+                // Bold = 0.4..1.0 (wide vivid pulse).
+                val pulseOptions = listOf(
+                    UiBrassPulseLevel.Subtle to "Subtle",
+                    UiBrassPulseLevel.Standard to "Standard",
+                    UiBrassPulseLevel.Bold to "Bold",
+                )
+                val pulseIndex = pulseOptions
+                    .indexOfFirst { it.first == s.brassPulseLevel }
+                    .let { if (it < 0) 1 else it }
+                SettingsSegmentedBlock(
+                    title = "Brass pulse",
+                    subtitle = "How deep the brass breath cycles on loading dots, " +
+                        "the player sigil, and skeleton tiles.",
+                    options = pulseOptions.map { it.second },
+                    selectedIndex = pulseIndex,
+                    onSelected = { idx ->
+                        viewModel.setBrassPulseLevel(pulseOptions[idx].first)
                     },
                 )
             }

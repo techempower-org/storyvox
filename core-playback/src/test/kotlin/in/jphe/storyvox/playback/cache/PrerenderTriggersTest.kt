@@ -8,6 +8,7 @@ import `in`.jphe.storyvox.data.repository.ContinueListeningEntry
 import `in`.jphe.storyvox.data.repository.PlaybackPositionRepository
 import `in`.jphe.storyvox.data.repository.playback.PlaybackChapter
 import `in`.jphe.storyvox.data.repository.playback.PlaybackModeConfig
+import `in`.jphe.storyvox.data.repository.playback.PrerenderChapterCountConfig
 import `in`.jphe.storyvox.data.repository.playback.RecentItem
 import `in`.jphe.storyvox.data.repository.playback.SavedPosition
 import `in`.jphe.storyvox.data.source.model.ChapterContent
@@ -67,6 +68,18 @@ class PrerenderTriggersTest {
         override suspend fun currentWarmupWait() = false
         override suspend fun currentCatchupPause() = true
         override suspend fun currentFullPrerender() = fullState.value
+    }
+
+    /**
+     * Issue #596 — fake [PrerenderChapterCountConfig] for tests.
+     * Default `count` mirrors [PrerenderTriggers.DEFAULT_PRERENDER_CHAPTERS]
+     * so pre-#596 tests keep their assertions verbatim.
+     */
+    private class FakePrerenderCount(
+        private val count: Int = PrerenderTriggers.DEFAULT_PRERENDER_CHAPTERS,
+    ) : PrerenderChapterCountConfig {
+        override val prerenderChapterCount: Flow<Int> = flowOf(count)
+        override suspend fun currentPrerenderChapterCount(): Int = count
     }
 
     /** Minimal ChapterRepo fake — implements just enough surface for
@@ -174,7 +187,7 @@ class PrerenderTriggersTest {
         // Issue #558 — DEFAULT_PRERENDER_CHAPTERS is 5 (up from 3); fiction
         // has 7 chapters so the slice is non-trivial.
         val repo = FakeChapterRepo(mapOf("f1" to (1..7).map { chapter(it, "f1") }))
-        val triggers = PrerenderTriggers(scheduler, repo, FakeModeConfig(full = false), FakePositionRepo())
+        val triggers = PrerenderTriggers(scheduler, repo, FakeModeConfig(full = false), FakePositionRepo(), FakePrerenderCount())
 
         triggers.onLibraryAdded("f1")
 
@@ -193,7 +206,7 @@ class PrerenderTriggersTest {
     fun `onLibraryAdded enqueues all chapters when fullPrerender on`() = runBlocking {
         val scheduler = RecordingScheduler()
         val repo = FakeChapterRepo(mapOf("f1" to (1..5).map { chapter(it, "f1") }))
-        val triggers = PrerenderTriggers(scheduler, repo, FakeModeConfig(full = true), FakePositionRepo())
+        val triggers = PrerenderTriggers(scheduler, repo, FakeModeConfig(full = true), FakePositionRepo(), FakePrerenderCount())
 
         triggers.onLibraryAdded("f1")
 
@@ -210,7 +223,7 @@ class PrerenderTriggersTest {
         // Fiction with only 2 chapters; default limit is 3 but we shouldn't
         // try to schedule beyond what exists.
         val repo = FakeChapterRepo(mapOf("f1" to (1..2).map { chapter(it, "f1") }))
-        val triggers = PrerenderTriggers(scheduler, repo, FakeModeConfig(full = false), FakePositionRepo())
+        val triggers = PrerenderTriggers(scheduler, repo, FakeModeConfig(full = false), FakePositionRepo(), FakePrerenderCount())
 
         triggers.onLibraryAdded("f1")
 
@@ -221,7 +234,7 @@ class PrerenderTriggersTest {
     fun `onLibraryAdded with empty chapter list is a no-op`() = runBlocking {
         val scheduler = RecordingScheduler()
         val repo = FakeChapterRepo(emptyMap())
-        val triggers = PrerenderTriggers(scheduler, repo, FakeModeConfig(full = false), FakePositionRepo())
+        val triggers = PrerenderTriggers(scheduler, repo, FakeModeConfig(full = false), FakePositionRepo(), FakePrerenderCount())
 
         triggers.onLibraryAdded("f1")
 
@@ -236,6 +249,7 @@ class PrerenderTriggersTest {
             FakeChapterRepo(emptyMap()),
             FakeModeConfig(),
             FakePositionRepo(),
+            FakePrerenderCount(),
         )
 
         triggers.onLibraryRemoved("f1")
@@ -261,7 +275,7 @@ class PrerenderTriggersTest {
                     coverUrl = null,
                 ) else null
         }
-        val triggers = PrerenderTriggers(scheduler, repo, FakeModeConfig(), FakePositionRepo())
+        val triggers = PrerenderTriggers(scheduler, repo, FakeModeConfig(), FakePositionRepo(), FakePrerenderCount())
 
         // Just-completed = c1 → next = c2 → next-next = c3 → schedule c3.
         triggers.onChapterCompleted("f1-c1")
@@ -275,7 +289,7 @@ class PrerenderTriggersTest {
         val scheduler = RecordingScheduler()
         // f1 has 3 chapters; completing c2 → next is c3 → next-next is null.
         val repo = FakeChapterRepo(mapOf("f1" to (1..3).map { chapter(it, "f1") }))
-        val triggers = PrerenderTriggers(scheduler, repo, FakeModeConfig(), FakePositionRepo())
+        val triggers = PrerenderTriggers(scheduler, repo, FakeModeConfig(), FakePositionRepo(), FakePrerenderCount())
 
         triggers.onChapterCompleted("f1-c2")
 
@@ -286,7 +300,7 @@ class PrerenderTriggersTest {
     fun `onChapterCompleted at last chapter is a no-op`() = runBlocking {
         val scheduler = RecordingScheduler()
         val repo = FakeChapterRepo(mapOf("f1" to (1..3).map { chapter(it, "f1") }))
-        val triggers = PrerenderTriggers(scheduler, repo, FakeModeConfig(), FakePositionRepo())
+        val triggers = PrerenderTriggers(scheduler, repo, FakeModeConfig(), FakePositionRepo(), FakePrerenderCount())
 
         triggers.onChapterCompleted("f1-c3")
 
@@ -302,7 +316,7 @@ class PrerenderTriggersTest {
                 "f2" to (1..4).map { chapter(it, "f2") },
             ),
         )
-        val triggers = PrerenderTriggers(scheduler, repo, FakeModeConfig(), FakePositionRepo())
+        val triggers = PrerenderTriggers(scheduler, repo, FakeModeConfig(), FakePositionRepo(), FakePrerenderCount())
 
         triggers.onFullPrerenderEnabled(listOf("f1", "f2"))
 
@@ -334,7 +348,7 @@ class PrerenderTriggersTest {
                 ),
             ),
         )
-        val triggers = PrerenderTriggers(scheduler, repo, FakeModeConfig(full = false), positions)
+        val triggers = PrerenderTriggers(scheduler, repo, FakeModeConfig(full = false), positions, FakePrerenderCount())
 
         triggers.onLibraryAdded("f1")
 
@@ -351,7 +365,7 @@ class PrerenderTriggersTest {
         val repo = FakeChapterRepo(mapOf("f1" to (1..10).map { chapter(it, "f1") }))
         // First-time add, no prior position. Should match the legacy
         // pre-#557 behavior — pre-render from the start.
-        val triggers = PrerenderTriggers(scheduler, repo, FakeModeConfig(full = false), FakePositionRepo())
+        val triggers = PrerenderTriggers(scheduler, repo, FakeModeConfig(full = false), FakePositionRepo(), FakePrerenderCount())
 
         triggers.onLibraryAdded("f1")
 
@@ -376,7 +390,7 @@ class PrerenderTriggersTest {
                 ),
             ),
         )
-        val triggers = PrerenderTriggers(scheduler, repo, FakeModeConfig(full = false), positions)
+        val triggers = PrerenderTriggers(scheduler, repo, FakeModeConfig(full = false), positions, FakePrerenderCount())
 
         triggers.onLibraryAdded("f1")
 
@@ -406,7 +420,7 @@ class PrerenderTriggersTest {
                 ),
             ),
         )
-        val triggers = PrerenderTriggers(scheduler, repo, FakeModeConfig(full = false), positions)
+        val triggers = PrerenderTriggers(scheduler, repo, FakeModeConfig(full = false), positions, FakePrerenderCount())
 
         triggers.onLibraryAdded("f1")
 
@@ -422,7 +436,7 @@ class PrerenderTriggersTest {
     fun `onChapterOpened queues body downloads for next BODY_PREFETCH_LOOKAHEAD chapters`() = runBlocking {
         val scheduler = RecordingScheduler()
         val repo = FakeChapterRepo(mapOf("f1" to (1..10).map { chapter(it, "f1") }))
-        val triggers = PrerenderTriggers(scheduler, repo, FakeModeConfig(full = false), FakePositionRepo())
+        val triggers = PrerenderTriggers(scheduler, repo, FakeModeConfig(full = false), FakePositionRepo(), FakePrerenderCount())
 
         // User just opened chapter 4 — prefetch should pull chapters 5, 6, 7.
         triggers.onChapterOpened("f1", "f1-c4")
@@ -451,7 +465,7 @@ class PrerenderTriggersTest {
         // 5-chapter fiction; user just opened chapter 3 → only c4, c5
         // exist downstream, so the prefetch should cap at 2.
         val repo = FakeChapterRepo(mapOf("f1" to (1..5).map { chapter(it, "f1") }))
-        val triggers = PrerenderTriggers(scheduler, repo, FakeModeConfig(full = false), FakePositionRepo())
+        val triggers = PrerenderTriggers(scheduler, repo, FakeModeConfig(full = false), FakePositionRepo(), FakePrerenderCount())
 
         triggers.onChapterOpened("f1", "f1-c3")
 
@@ -465,7 +479,7 @@ class PrerenderTriggersTest {
     fun `onChapterOpened at last chapter is a no-op`() = runBlocking {
         val scheduler = RecordingScheduler()
         val repo = FakeChapterRepo(mapOf("f1" to (1..3).map { chapter(it, "f1") }))
-        val triggers = PrerenderTriggers(scheduler, repo, FakeModeConfig(full = false), FakePositionRepo())
+        val triggers = PrerenderTriggers(scheduler, repo, FakeModeConfig(full = false), FakePositionRepo(), FakePrerenderCount())
 
         triggers.onChapterOpened("f1", "f1-c3")
 
@@ -486,7 +500,7 @@ class PrerenderTriggersTest {
         val repo = object : FakeChapterRepo(mapOf("f1" to (1..6).map { chapter(it, "f1") })) {
             override suspend fun getChapter(id: String): PlaybackChapter? = null
         }
-        val triggers = PrerenderTriggers(scheduler, repo, FakeModeConfig(full = false), FakePositionRepo())
+        val triggers = PrerenderTriggers(scheduler, repo, FakeModeConfig(full = false), FakePositionRepo(), FakePrerenderCount())
 
         triggers.onChapterOpened("f1", "f1-c1")
 
@@ -514,7 +528,7 @@ class PrerenderTriggersTest {
                     ),
                 ),
             )
-            val triggers = PrerenderTriggers(scheduler, repo, FakeModeConfig(full = true), positions)
+            val triggers = PrerenderTriggers(scheduler, repo, FakeModeConfig(full = true), positions, FakePrerenderCount())
 
             triggers.onLibraryAdded("f1")
 

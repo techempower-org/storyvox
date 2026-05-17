@@ -1255,6 +1255,71 @@ data class UiSettings(
      * Per-device pref (NOT synced).
      */
     val rewindToStartThresholdSec: Int = 3,
+    /**
+     * Issue #595 — sleep-timer shake-to-extend duration in minutes.
+     * When the sleep timer's fade tail starts and the user shakes the
+     * device, the timer extends by this many minutes. Pre-fix this was
+     * hardcoded at 15 (PlaybackService.SHAKE_EXTEND_MINUTES). Chip
+     * options: 5 / 10 / 15 / 30.
+     *
+     * Per-device pref (NOT synced).
+     */
+    val sleepShakeExtendMinutes: Int = 15,
+    /**
+     * Issue #596 — PCM-cache pre-render window size, in chapters.
+     * The pre-render scheduler caches the next N chapters ahead of the
+     * current position. Pre-fix this was hardcoded at 5
+     * (PrerenderTriggers.DEFAULT_PRERENDER_CHAPTERS, bumped from 3 in
+     * #558). Chip options: 1 / 2 / 3 / 5.
+     *
+     * Per-device pref (NOT synced) — disk + bandwidth vary per
+     * device.
+     */
+    val prerenderChapterCount: Int = 5,
+    /**
+     * Issue #590 — particle/confetti intensity preset. Controls the
+     * brass-ember overlay density + chapter-completion confetti
+     * flare. Stored as the enum's `name` under `pref_particle_intensity_v1`.
+     *
+     * Per-device pref (NOT synced).
+     */
+    val particleIntensity: UiParticleIntensity = UiParticleIntensity.Subtle,
+    /**
+     * Issue #591 — skeleton-shimmer style preset. `Off` renders a plain
+     * Box, `Pulse` renders an alpha-shimmer rectangle, `Sigil` (the
+     * default) renders the 3-layered rotating brass sigil.
+     *
+     * Per-device pref (NOT synced).
+     */
+    val skeletonStyle: UiSkeletonStyle = UiSkeletonStyle.Sigil,
+    /**
+     * Issue #592 — brass alpha-pulse intensity preset. Controls how
+     * deep the brass pulse breathes (e.g. on loading dots, the
+     * WhyAreWeWaitingPanel sigil, the MagicSkeletonTile center dot).
+     * `Subtle` = 0.7..1.0, `Standard` = 0.55..1.0 (current), `Bold` =
+     * 0.4..1.0.
+     *
+     * Per-device pref (NOT synced).
+     */
+    val brassPulseLevel: UiBrassPulseLevel = UiBrassPulseLevel.Standard,
+    /**
+     * Issue #597 — network-patience preset. Controls HTTP timeout
+     * budgets in source modules' OkHttp clients. `Aggressive` = 5s,
+     * `Default` = 10s, `Patient` = 30s.
+     *
+     * Per-device pref (NOT synced) — network conditions vary per
+     * device + carrier.
+     */
+    val networkPatience: UiNetworkPatience = UiNetworkPatience.Default,
+    /**
+     * Issue #598 — Android Auto bucket size. Each Auto category
+     * (Library / Follows / Recent / New) caps its children at this
+     * many items. Default 6 matches the HMI guideline; chips offer
+     * 4 / 6 / 8 / 12.
+     *
+     * Per-device pref (NOT synced) — Auto pairing is device-bound.
+     */
+    val autoItemsPerCategory: Int = 6,
 ) {
     /** Speed value the engine should run at right now — the active
      *  voice's override if set, otherwise the global default (#195). */
@@ -1564,6 +1629,59 @@ enum class ReadingDirection { FollowSystem, ForceLtr, ForceRtl }
  */
 enum class CoverStyle { Monogram, Branded, CoverOnly }
 
+/**
+ * Issue #590 — particle/confetti intensity. Feature-layer projection
+ * of the `:core-ui` `ParticleIntensity` enum; kept separate from the
+ * core-ui flavour so the Settings UI doesn't need to import `:core-ui`'s
+ * theme package for the chip-row picker.
+ *
+ * - [None] — no decorative particles. Brass-ember overlay short-circuits
+ *   to empty; chapter-completion confetti is suppressed.
+ * - [Subtle] — current 6-ember overlay; calm and atmospheric.
+ * - [Lush] — 12-ember overlay + extra chapter-completion flare.
+ *
+ * Stored as the enum's `name` under `pref_particle_intensity_v1`;
+ * unknown / future values fall back to [Subtle] on read.
+ */
+enum class UiParticleIntensity { None, Subtle, Lush }
+
+/**
+ * Issue #591 — skeleton-shimmer style. Feature-layer projection of
+ * `:core-ui`'s `SkeletonStyle`.
+ *
+ * - [Off] — plain Box placeholder, no animation.
+ * - [Pulse] — alpha-pulse rectangle.
+ * - [Sigil] — current 3-layered rotating brass sigil (the v0.5.66
+ *   default).
+ *
+ * Stored as the enum's `name` under `pref_skeleton_style_v1`.
+ */
+enum class UiSkeletonStyle { Off, Pulse, Sigil }
+
+/**
+ * Issue #592 — brass alpha-pulse intensity. Feature-layer projection
+ * of `:core-ui`'s `BrassPulseLevel`.
+ *
+ * - [Subtle] — narrow band, 0.7..1.0. Calmer pulse.
+ * - [Standard] — current band, 0.55..1.0.
+ * - [Bold] — wide band, 0.4..1.0. More vivid breath.
+ *
+ * Stored as the enum's `name` under `pref_brass_pulse_v1`.
+ */
+enum class UiBrassPulseLevel { Subtle, Standard, Bold }
+
+/**
+ * Issue #597 — network patience preset. Feature-layer projection of
+ * `:core-data`'s `NetworkPatience`.
+ *
+ * - [Aggressive] — 5 s timeout budget.
+ * - [Default] — 10 s (current).
+ * - [Patient] — 30 s.
+ *
+ * Stored as the enum's `name` under `pref_network_patience_v1`.
+ */
+enum class UiNetworkPatience { Aggressive, Default, Patient }
+
 interface SettingsRepositoryUi {
     val settings: Flow<UiSettings>
     suspend fun setTheme(override: ThemeOverride)
@@ -1588,6 +1706,43 @@ interface SettingsRepositoryUi {
      * compile without overrides.
      */
     suspend fun setRewindToStartThresholdSec(seconds: Int) = Unit
+    /**
+     * Issue #595 — set the sleep-timer shake-to-extend duration in
+     * minutes. Snapped to [5, 10, 15, 30] on write. Default impl is
+     * a no-op so existing test fakes compile without overrides.
+     */
+    suspend fun setSleepShakeExtendMinutes(minutes: Int) = Unit
+    /**
+     * Issue #596 — set the PCM-cache pre-render window size, in
+     * chapters. Snapped to [1, 2, 3, 5] on write. Default impl is a
+     * no-op.
+     */
+    suspend fun setPrerenderChapterCount(count: Int) = Unit
+    /**
+     * Issue #590 — set the particle/confetti intensity. Default impl
+     * is a no-op.
+     */
+    suspend fun setParticleIntensity(intensity: UiParticleIntensity) = Unit
+    /**
+     * Issue #591 — set the skeleton-shimmer style. Default impl is a
+     * no-op.
+     */
+    suspend fun setSkeletonStyle(style: UiSkeletonStyle) = Unit
+    /**
+     * Issue #592 — set the brass-pulse intensity. Default impl is a
+     * no-op.
+     */
+    suspend fun setBrassPulseLevel(level: UiBrassPulseLevel) = Unit
+    /**
+     * Issue #597 — set the network-patience preset. Default impl is
+     * a no-op.
+     */
+    suspend fun setNetworkPatience(patience: UiNetworkPatience) = Unit
+    /**
+     * Issue #598 — set the Android Auto bucket size. Snapped to
+     * [4, 6, 8, 12] on write. Default impl is a no-op.
+     */
+    suspend fun setAutoItemsPerCategory(count: Int) = Unit
     suspend fun setDefaultSpeed(speed: Float)
     suspend fun setDefaultPitch(pitch: Float)
     suspend fun setDefaultVoice(voiceId: String?)

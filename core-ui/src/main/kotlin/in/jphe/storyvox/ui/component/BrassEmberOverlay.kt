@@ -16,7 +16,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import `in`.jphe.storyvox.ui.theme.LocalAnimationSpeedScale
+import `in`.jphe.storyvox.ui.theme.LocalParticleIntensity
 import `in`.jphe.storyvox.ui.theme.LocalReducedMotion
+import `in`.jphe.storyvox.ui.theme.ParticleIntensity
 import `in`.jphe.storyvox.ui.theme.scaleDurationMs
 import kotlin.math.sin
 import kotlin.random.Random
@@ -78,17 +80,27 @@ fun BrassEmberOverlay(
     val reducedMotion = LocalReducedMotion.current
     val speedScale = LocalAnimationSpeedScale.current
     val frozen = reducedMotion || speedScale <= 0f
+    // Issue #590 — particle intensity. None short-circuits to an
+    // empty Canvas (no allocation, no draw); Subtle keeps the caller-
+    // supplied [emberCount] (default 6); Lush doubles it for a more
+    // vivid Library Nocturne ambiance.
+    val intensity = LocalParticleIntensity.current
+    if (intensity == ParticleIntensity.None) return
+    val effectiveEmberCount = (emberCount * intensity.emberCountMultiplier)
+        .toInt()
+        .coerceAtLeast(1)
 
     // Per-ember constants. Seeded so the constellation is stable. We
     // deliberately don't hoist this into a stable `data class` — the
     // arrays are local to the composable's lifetime and remembered
-    // across recompositions.
-    val random = remember { Random(0xBEEF) }
-    val xOffsets = remember { FloatArray(emberCount) { random.nextFloat() } }
-    val phaseOffsets = remember { FloatArray(emberCount) { random.nextFloat() } }
-    val swayFreqs = remember { FloatArray(emberCount) { 0.6f + random.nextFloat() * 0.8f } }
-    val swayAmps = remember { FloatArray(emberCount) { 0.04f + random.nextFloat() * 0.05f } }
-    val radiusScales = remember { FloatArray(emberCount) { 0.6f + random.nextFloat() * 0.4f } }
+    // across recompositions. Keyed on [effectiveEmberCount] so a
+    // ParticleIntensity flip reseeds the arrays cleanly.
+    val random = remember(effectiveEmberCount) { Random(0xBEEF) }
+    val xOffsets = remember(effectiveEmberCount) { FloatArray(effectiveEmberCount) { random.nextFloat() } }
+    val phaseOffsets = remember(effectiveEmberCount) { FloatArray(effectiveEmberCount) { random.nextFloat() } }
+    val swayFreqs = remember(effectiveEmberCount) { FloatArray(effectiveEmberCount) { 0.6f + random.nextFloat() * 0.8f } }
+    val swayAmps = remember(effectiveEmberCount) { FloatArray(effectiveEmberCount) { 0.04f + random.nextFloat() * 0.05f } }
+    val radiusScales = remember(effectiveEmberCount) { FloatArray(effectiveEmberCount) { 0.6f + random.nextFloat() * 0.4f } }
 
     val phase: Float = if (frozen) 0.10f else {
         val scaled = scaleDurationMs(riseDurationMs, speedScale).coerceAtLeast(1)
@@ -120,7 +132,7 @@ fun BrassEmberOverlay(
             )
             return@Canvas
         }
-        for (i in 0 until emberCount) {
+        for (i in 0 until effectiveEmberCount) {
             // Wrap each ember's progress so they're spread across the
             // cycle (not all rising in unison).
             val emberPhase = ((phase + phaseOffsets[i]) % 1f)

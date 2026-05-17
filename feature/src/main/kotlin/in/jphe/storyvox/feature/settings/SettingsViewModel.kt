@@ -6,6 +6,10 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import `in`.jphe.storyvox.feature.api.AzureProbeResult
 import `in`.jphe.storyvox.feature.api.CoverStyle
+import `in`.jphe.storyvox.feature.api.UiBrassPulseLevel
+import `in`.jphe.storyvox.feature.api.UiNetworkPatience
+import `in`.jphe.storyvox.feature.api.UiParticleIntensity
+import `in`.jphe.storyvox.feature.api.UiSkeletonStyle
 import `in`.jphe.storyvox.feature.api.PalaceProbeResult
 import `in`.jphe.storyvox.feature.api.ReadingDirection
 import `in`.jphe.storyvox.feature.api.SettingsRepositoryUi
@@ -520,6 +524,34 @@ class SettingsViewModel @Inject constructor(
      *  0 = disabled (always jumps to previous chapter). */
     fun setRewindToStartThresholdSec(seconds: Int) =
         viewModelScope.launch { repo.setRewindToStartThresholdSec(seconds) }
+
+    /** Issue #595 — sleep-timer shake-to-extend in minutes. */
+    fun setSleepShakeExtendMinutes(minutes: Int) =
+        viewModelScope.launch { repo.setSleepShakeExtendMinutes(minutes) }
+
+    /** Issue #596 — PCM-cache pre-render window size in chapters. */
+    fun setPrerenderChapterCount(count: Int) =
+        viewModelScope.launch { repo.setPrerenderChapterCount(count) }
+
+    /** Issue #590 — particle / confetti intensity. */
+    fun setParticleIntensity(intensity: UiParticleIntensity) =
+        viewModelScope.launch { repo.setParticleIntensity(intensity) }
+
+    /** Issue #591 — skeleton shimmer style. */
+    fun setSkeletonStyle(style: UiSkeletonStyle) =
+        viewModelScope.launch { repo.setSkeletonStyle(style) }
+
+    /** Issue #592 — brass alpha-pulse intensity. */
+    fun setBrassPulseLevel(level: UiBrassPulseLevel) =
+        viewModelScope.launch { repo.setBrassPulseLevel(level) }
+
+    /** Issue #597 — network patience preset. */
+    fun setNetworkPatience(patience: UiNetworkPatience) =
+        viewModelScope.launch { repo.setNetworkPatience(patience) }
+
+    /** Issue #598 — Android Auto bucket size. */
+    fun setAutoItemsPerCategory(count: Int) =
+        viewModelScope.launch { repo.setAutoItemsPerCategory(count) }
 }
 
 /** Map the feature-layer enum to the :core-llm enum. The two are

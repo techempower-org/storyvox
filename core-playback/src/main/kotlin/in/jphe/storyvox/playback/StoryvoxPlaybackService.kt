@@ -24,6 +24,7 @@ import androidx.media3.session.MediaSessionService
 import androidx.media3.session.MediaStyleNotificationHelper
 import androidx.media3.session.SimpleBitmapLoader
 import dagger.hilt.android.AndroidEntryPoint
+import `in`.jphe.storyvox.data.repository.playback.SleepTimerExtendConfig
 import `in`.jphe.storyvox.playback.diagnostics.AudioOutputMonitor
 import `in`.jphe.storyvox.playback.sleep.ShakeDetector
 import `in`.jphe.storyvox.playback.tts.EnginePlayer
@@ -73,6 +74,13 @@ class StoryvoxPlaybackService : MediaSessionService() {
      *  exposes a [WaitReason] flow that the reader UI surfaces in the
      *  brass diagnostic panel above the cover. */
     @Inject lateinit var audioOutputMonitor: AudioOutputMonitor
+
+    /** Issue #595 — user-tunable shake-to-extend duration (replaces
+     *  the legacy hardcoded [SHAKE_EXTEND_MINUTES] constant). Read at
+     *  shake-detect time via [SleepTimerExtendConfig.currentShakeExtendMinutes]
+     *  so a Settings flip takes effect on the very next shake without
+     *  restarting the service. */
+    @Inject lateinit var sleepExtendConfig: SleepTimerExtendConfig
 
     private lateinit var session: MediaSession
     private lateinit var player: EnginePlayer
@@ -158,7 +166,17 @@ class StoryvoxPlaybackService : MediaSessionService() {
             context = applicationContext,
             onShake = {
                 if (controller.state.value.sleepTimerRemainingMs?.let { it <= SHAKE_FADE_WINDOW_MS } == true) {
-                    controller.startSleepTimer(SleepTimerMode.Duration(SHAKE_EXTEND_MINUTES))
+                    // Issue #595 — read the user-tunable extend
+                    // duration from the config contract instead of the
+                    // legacy hardcoded constant. Off-main launch so the
+                    // suspend read doesn't block the accelerometer
+                    // callback. `currentShakeExtendMinutes` falls back
+                    // to 15 (the legacy value) when the store hasn't
+                    // emitted yet.
+                    scope.launch {
+                        val minutes = sleepExtendConfig.currentShakeExtendMinutes()
+                        controller.startSleepTimer(SleepTimerMode.Duration(minutes))
+                    }
                 }
             },
         )
@@ -383,9 +401,12 @@ class StoryvoxPlaybackService : MediaSessionService() {
          *  default for now; if the timer's fade duration ever moves
          *  to settings, plumb that through controller.state too. */
         private const val SHAKE_FADE_WINDOW_MS = 10_000L
-        /** Default extension on shake-detect — "previous duration"
-         *  (Listen Audiobook style) is a tracked enhancement; for v1
-         *  use a conservative 15-min extension (#150 spec). */
-        private const val SHAKE_EXTEND_MINUTES = 15
+        /** Legacy default extension on shake-detect. Pre-#595 this
+         *  was the hardcoded source of truth; v1 reads the
+         *  user-tunable value via [SleepTimerExtendConfig] at
+         *  shake-detect time. Kept as the doc'd fallback value that
+         *  matches the contract default when the store hasn't emitted
+         *  yet. */
+        const val LEGACY_SHAKE_EXTEND_MINUTES = 15
     }
 }

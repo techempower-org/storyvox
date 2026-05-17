@@ -30,6 +30,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import `in`.jphe.storyvox.ui.theme.LocalAnimationSpeedScale
+import `in`.jphe.storyvox.ui.theme.LocalBrassPulseRange
 import `in`.jphe.storyvox.ui.theme.LocalReducedMotion
 import `in`.jphe.storyvox.ui.theme.LocalSpacing
 import `in`.jphe.storyvox.ui.theme.scaleDurationMs
@@ -227,10 +228,18 @@ fun MagicCircularProgress(
         )
         v
     }
+    // #592 — brass-pulse range from user pref. Pre-#592 this was
+    // hardcoded at 0.65..1.0; v1 widens / narrows it to match the
+    // user's chosen amplitude. We bias the initial slightly toward
+    // the pulse range's lower bound but clamp to 0.5..end so the
+    // spinner pulse never collapses to invisible at "Subtle" or
+    // overshoots at "Bold".
+    val pulseRange = LocalBrassPulseRange.current
+    val pulseStart = (pulseRange.start + 0.1f).coerceIn(0.5f, pulseRange.endInclusive)
     val pulse: Float = if (frozen) 1.0f else {
         val v by transition.animateFloat(
-            initialValue = 0.65f,
-            targetValue = 1.0f,
+            initialValue = pulseStart,
+            targetValue = pulseRange.endInclusive,
             animationSpec = infiniteRepeatable(
                 animation = tween(
                     durationMillis = scaleDurationMs(1800, speedScale)

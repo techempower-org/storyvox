@@ -41,6 +41,7 @@ import `in`.jphe.storyvox.feature.reader.HybridReaderScreen
 import `in`.jphe.storyvox.feature.settings.AboutSettingsScreen
 import `in`.jphe.storyvox.feature.settings.AccessibilitySettingsScreen
 import `in`.jphe.storyvox.feature.settings.AccountSettingsScreen
+import `in`.jphe.storyvox.feature.settings.AdvancedSettingsScreen
 import `in`.jphe.storyvox.feature.settings.AppearanceSettingsScreen
 import `in`.jphe.storyvox.feature.settings.AiSettingsScreen
 import `in`.jphe.storyvox.feature.settings.MemoryPalaceSettingsScreen
@@ -116,6 +117,9 @@ object StoryvoxRoutes {
      *  fallback style picker (Monogram / Branded / Cover only) with a
      *  live preview chip-row. Future visual-style knobs land here. */
     const val SETTINGS_APPEARANCE = "settings/appearance"
+    /** Settings → Advanced (v1 settings-bundle-7). Power-user knobs:
+     *  Android Auto bucket size (#598) and future integration tunables. */
+    const val SETTINGS_ADVANCED = "settings/advanced"
     /** Settings → Account. Royal Road sign-in, GitHub OAuth + scope. */
     const val SETTINGS_ACCOUNT = "settings/account"
     /** Settings → Memory Palace. Daemon host, API key, test probe. */
@@ -813,6 +817,7 @@ private fun StoryvoxNavHostContent(
                     onOpenAccount = { navController.navigate(StoryvoxRoutes.SETTINGS_ACCOUNT) },
                     onOpenMemoryPalace = { navController.navigate(StoryvoxRoutes.SETTINGS_MEMORY_PALACE) },
                     onOpenAbout = { navController.navigate(StoryvoxRoutes.SETTINGS_ABOUT) },
+                    onOpenAdvanced = { navController.navigate(StoryvoxRoutes.SETTINGS_ADVANCED) },
                 )
             }
 
@@ -983,6 +988,20 @@ private fun StoryvoxNavHostContent(
                 popExitTransition = popExit,
             ) {
                 AppearanceSettingsScreen(
+                    onBack = { navController.popBackStack() },
+                )
+            }
+            // v1 settings-bundle-7 — Advanced subscreen. Power-user
+            // integration tunables. v1 ships #598 (Android Auto
+            // bucket size); future Advanced rows land here.
+            composable(
+                StoryvoxRoutes.SETTINGS_ADVANCED,
+                enterTransition = pushEnter,
+                exitTransition = pushExit,
+                popEnterTransition = popEnter,
+                popExitTransition = popExit,
+            ) {
+                AdvancedSettingsScreen(
                     onBack = { navController.popBackStack() },
                 )
             }

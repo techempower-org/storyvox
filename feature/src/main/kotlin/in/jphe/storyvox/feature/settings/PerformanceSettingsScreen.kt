@@ -23,6 +23,7 @@ import androidx.compose.ui.Modifier
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import `in`.jphe.storyvox.feature.api.CacheQuotaOptions
+import `in`.jphe.storyvox.feature.api.UiNetworkPatience
 import `in`.jphe.storyvox.feature.api.formatBytes
 import `in`.jphe.storyvox.ui.component.BrassButton
 import `in`.jphe.storyvox.ui.component.BrassButtonVariant
@@ -119,6 +120,52 @@ fun PerformanceSettingsScreen(
                     usedBytes = s.cacheUsedBytes,
                     quotaBytes = s.cacheQuotaBytes,
                     onClearCache = viewModel::clearCache,
+                )
+
+                // Issue #596 — PCM-cache pre-render window. Caches
+                // the next N chapters ahead of the current position.
+                // Pre-#596 hardcoded at 5; users on tight disk can
+                // shrink to 1-2, users with Wi-Fi-only Notion guides
+                // can keep the wider window.
+                val prerenderOptions = listOf(1, 2, 3, 5)
+                val prerenderIndex = prerenderOptions
+                    .indexOfFirst { it == s.prerenderChapterCount }
+                    .let { if (it < 0) prerenderOptions.indexOf(5) else it }
+                SettingsSegmentedBlock(
+                    title = "Pre-render window",
+                    subtitle = "How many chapters ahead the cache renders. " +
+                        "Smaller = less disk + bandwidth; larger = more chapters " +
+                        "ready for instant playback.",
+                    options = prerenderOptions.map { "N+$it" },
+                    selectedIndex = prerenderIndex,
+                    onSelected = { idx ->
+                        viewModel.setPrerenderChapterCount(prerenderOptions[idx])
+                    },
+                )
+
+                // Issue #597 — network patience preset. Controls HTTP
+                // timeouts in source-module OkHttp clients (royalroad,
+                // notion, rss in v1; other modules adopt
+                // incrementally). Aggressive favors fast-fail on
+                // flaky cellular; Patient is forgiving on slow Notion
+                // walks or large EPUB downloads.
+                val patienceOptions = listOf(
+                    UiNetworkPatience.Aggressive to "Aggressive (5s)",
+                    UiNetworkPatience.Default to "Default (10s)",
+                    UiNetworkPatience.Patient to "Patient (30s)",
+                )
+                val patienceIndex = patienceOptions
+                    .indexOfFirst { it.first == s.networkPatience }
+                    .let { if (it < 0) 1 else it }
+                SettingsSegmentedBlock(
+                    title = "Network patience",
+                    subtitle = "Network timeout budget for source plugins. Aggressive " +
+                        "fails fast on flaky links; Patient gives slow APIs more room.",
+                    options = patienceOptions.map { it.second },
+                    selectedIndex = patienceIndex,
+                    onSelected = { idx ->
+                        viewModel.setNetworkPatience(patienceOptions[idx].first)
+                    },
                 )
 
                 var perfAdvancedOpen by remember { mutableStateOf(false) }

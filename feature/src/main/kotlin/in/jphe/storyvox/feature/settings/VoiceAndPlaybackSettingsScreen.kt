@@ -177,6 +177,28 @@ fun VoiceAndPlaybackSettingsScreen(
                     selectedIndex = rewindSelectedIndex,
                     onSelected = { idx -> viewModel.setRewindToStartThresholdSec(rewindOptions[idx]) },
                 )
+
+                // Issue #595 — sleep-timer shake-to-extend duration.
+                // When the timer's 10-second fade tail starts and the
+                // user shakes the device, the timer extends by this
+                // many minutes. Pre-fix this was hardcoded at 15
+                // (StoryvoxPlaybackService.LEGACY_SHAKE_EXTEND_MINUTES);
+                // listeners who fall asleep quickly often want 5, and
+                // those on a slower wind-down often want 30.
+                val shakeOptions = listOf(5, 10, 15, 30)
+                val shakeIndex = shakeOptions
+                    .indexOfFirst { it == s.sleepShakeExtendMinutes }
+                    .let { if (it < 0) shakeOptions.indexOf(15) else it }
+                SettingsSegmentedBlock(
+                    title = "Sleep timer: shake-to-extend",
+                    subtitle = "Minutes the timer extends when you shake during the " +
+                        "10-second fade tail.",
+                    options = shakeOptions.map { "${it} min" },
+                    selectedIndex = shakeIndex,
+                    onSelected = { idx ->
+                        viewModel.setSleepShakeExtendMinutes(shakeOptions[idx])
+                    },
+                )
             }
         }
     }

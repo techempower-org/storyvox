@@ -623,7 +623,26 @@ private fun KokoroBundleNote() {
 @Composable
 private fun SectionHeader(label: String, count: Int, dim: Boolean = false) {
     val color = if (dim) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary
-    Row(verticalAlignment = Alignment.CenterVertically) {
+    // Issue #651 — TalkBack pre-fix focused this row but read nothing
+    // (empty default contentDescription). Wrap the Row in a semantics
+    // block that announces the section name + count as one phrase, and
+    // mark the role as Header so TalkBack's "Headings" navigation
+    // shortcut surfaces it. The two child Texts are already announced
+    // by Compose's default semantics, so we use [clearAndSetSemantics]
+    // to consolidate them into a single TalkBack announcement instead
+    // of three separate ones ("AVAILABLE", " · ", "204").
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.clearAndSetSemantics {
+            contentDescription = "$label section, $count voices"
+            role = Role.Image // Compose Material lacks Role.Header;
+            // Image is the closest neutral role that lets TalkBack
+            // read the contentDescription without claiming "Button"
+            // (no tap target) or "Tab" (not a tab). Custom roles
+            // require a CustomAccessibilityAction — overkill for a
+            // static header.
+        },
+    ) {
         Text(
             label.uppercase(),
             style = MaterialTheme.typography.labelLarge,

@@ -157,3 +157,86 @@ fun <T> tweenScaledNonComposable(
     delayMillis = delayMillis,
     easing = easing,
 )
+
+/**
+ * Issue #590 — particle/confetti intensity preset. Controls density
+ * of decorative particle overlays (the brass-ember overlay from #650,
+ * the chapter-completion confetti) so users on slower devices or
+ * users sensitive to busy backgrounds can dial them down — and users
+ * who love the magical realm vibe can dial them up.
+ *
+ * - [None] — no particles. Decorative overlays render empty (or skip
+ *   themselves entirely). Equivalent to the pre-#650 baseline.
+ * - [Subtle] — current 6-ember overlay; calm and atmospheric.
+ * - [Lush] — 12 embers + extra flare on chapter completion. For
+ *   users who want a more vivid Library Nocturne ambiance.
+ *
+ * Pairs with [LocalReducedMotion] — when ReducedMotion is on, the
+ * overlay separately freezes its motion, but particle COUNT still
+ * follows this pref so a reduced-motion user can pick "Subtle" or
+ * "Lush" particle counts as static decoration.
+ */
+enum class ParticleIntensity {
+    None, Subtle, Lush;
+
+    /** Multiplier applied to the default ember count. */
+    val emberCountMultiplier: Float
+        get() = when (this) {
+            None -> 0f
+            Subtle -> 1f
+            Lush -> 2f
+        }
+}
+
+val LocalParticleIntensity = staticCompositionLocalOf { ParticleIntensity.Subtle }
+
+/**
+ * Issue #591 — skeleton-shimmer style preset. Controls how loading
+ * placeholders look:
+ *
+ * - [Off] — plain rectangle (no animation, no sigil). Cheapest to
+ *   render; matches the bare-minimum loading affordance.
+ * - [Pulse] — alpha-pulse rectangle (the pre-#650 baseline).
+ * - [Sigil] — 3-layered rotating sigil + brass-pulse (the v0.5.66
+ *   default; what `MagicSkeletonTile` renders today).
+ */
+enum class SkeletonStyle {
+    Off, Pulse, Sigil
+}
+
+val LocalSkeletonStyle = staticCompositionLocalOf { SkeletonStyle.Sigil }
+
+/**
+ * Issue #592 — brass alpha-pulse intensity preset. The brass pulse
+ * is a slow alpha breath that sits on top of the realm's loading
+ * dots, the WhyAreWeWaitingPanel sigil, and the
+ * [MagicSkeletonTile] center dot. The amplitude controls how deep
+ * the pulse breathes:
+ *
+ * - [Subtle] — narrow pulse band (0.7 → 1.0). Calmer, less attention-
+ *   grabbing. Recommended for users sensitive to busy peripheral
+ *   motion.
+ * - [Standard] — middle band (0.55 → 1.0). The v0.5.66 default;
+ *   what every brass-pulse site renders today.
+ * - [Bold] — wide pulse band (0.4 → 1.0). More vivid, for users
+ *   who want the loading state to read as actively working.
+ *
+ * Stored as a [BrassPulseLevel] and exposed as
+ * [LocalBrassPulseRange] — consumers read the ClosedFloatingPointRange
+ * directly and use its [ClosedFloatingPointRange.start] as
+ * `initialValue` + [ClosedFloatingPointRange.endInclusive] as
+ * `targetValue` on their `animateFloat` calls.
+ */
+enum class BrassPulseLevel {
+    Subtle, Standard, Bold;
+
+    /** Alpha range for [animateFloat] initial/target values. */
+    val range: ClosedFloatingPointRange<Float>
+        get() = when (this) {
+            Subtle -> 0.7f..1.0f
+            Standard -> 0.55f..1.0f
+            Bold -> 0.4f..1.0f
+        }
+}
+
+val LocalBrassPulseRange = staticCompositionLocalOf<ClosedFloatingPointRange<Float>> { 0.55f..1.0f }

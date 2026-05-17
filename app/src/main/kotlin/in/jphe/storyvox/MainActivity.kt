@@ -29,6 +29,15 @@ import `in`.jphe.storyvox.feature.api.ReadingDirection
 import `in`.jphe.storyvox.feature.api.SettingsRepositoryUi
 import `in`.jphe.storyvox.feature.api.SpeakChapterMode
 import `in`.jphe.storyvox.feature.api.ThemeOverride
+import `in`.jphe.storyvox.feature.api.UiBrassPulseLevel
+import `in`.jphe.storyvox.feature.api.UiParticleIntensity
+import `in`.jphe.storyvox.feature.api.UiSkeletonStyle
+import `in`.jphe.storyvox.ui.theme.BrassPulseLevel
+import `in`.jphe.storyvox.ui.theme.LocalBrassPulseRange
+import `in`.jphe.storyvox.ui.theme.LocalParticleIntensity
+import `in`.jphe.storyvox.ui.theme.LocalSkeletonStyle
+import `in`.jphe.storyvox.ui.theme.ParticleIntensity
+import `in`.jphe.storyvox.ui.theme.SkeletonStyle
 import `in`.jphe.storyvox.feature.settings.AccessibilityState
 import `in`.jphe.storyvox.feature.settings.AccessibilityStateBridge
 import `in`.jphe.storyvox.ui.a11y.A11ySpeakChapterMode
@@ -255,11 +264,36 @@ class MainActivity : ComponentActivity() {
                     CoverStyle.Branded -> CoverStyleLocal.Branded
                     CoverStyle.CoverOnly -> CoverStyleLocal.CoverOnly
                 }
+                // v1 Settings polish bundle — propagate the new
+                // animation / particle / pulse / shimmer prefs to
+                // :core-ui via the matching CompositionLocals. Each
+                // mapping mirrors the [coverStyle] shape: project the
+                // feature/api enum to its :core-ui flavour, then push
+                // the CompositionLocal value at the NavHost root.
+                // Defaults preserve pre-PR behavior on fresh installs.
+                val particleIntensity = when (settings?.particleIntensity ?: UiParticleIntensity.Subtle) {
+                    UiParticleIntensity.None -> ParticleIntensity.None
+                    UiParticleIntensity.Subtle -> ParticleIntensity.Subtle
+                    UiParticleIntensity.Lush -> ParticleIntensity.Lush
+                }
+                val skeletonStyle = when (settings?.skeletonStyle ?: UiSkeletonStyle.Sigil) {
+                    UiSkeletonStyle.Off -> SkeletonStyle.Off
+                    UiSkeletonStyle.Pulse -> SkeletonStyle.Pulse
+                    UiSkeletonStyle.Sigil -> SkeletonStyle.Sigil
+                }
+                val brassPulseRange = when (settings?.brassPulseLevel ?: UiBrassPulseLevel.Standard) {
+                    UiBrassPulseLevel.Subtle -> BrassPulseLevel.Subtle.range
+                    UiBrassPulseLevel.Standard -> BrassPulseLevel.Standard.range
+                    UiBrassPulseLevel.Bold -> BrassPulseLevel.Bold.range
+                }
                 val providers = buildList {
                     add(LocalAccessibleTouchTargets provides effectiveLargerTouchTargets)
                     add(LocalA11ySpeakChapterMode provides speakChapterMode)
                     add(LocalIsTalkBackActive provides a11yState.isTalkBackActive)
                     add(LocalCoverStyle provides coverStyle)
+                    add(LocalParticleIntensity provides particleIntensity)
+                    add(LocalSkeletonStyle provides skeletonStyle)
+                    add(LocalBrassPulseRange provides brassPulseRange)
                     if (forcedDirection != null) {
                         add(LocalLayoutDirection provides forcedDirection)
                     }

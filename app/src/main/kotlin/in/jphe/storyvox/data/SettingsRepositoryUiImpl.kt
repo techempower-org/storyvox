@@ -38,6 +38,15 @@ import `in`.jphe.storyvox.feature.api.PUNCTUATION_PAUSE_NORMAL_MULTIPLIER
 import `in`.jphe.storyvox.feature.api.PUNCTUATION_PAUSE_OFF_MULTIPLIER
 import `in`.jphe.storyvox.feature.api.AzureProbeResult
 import `in`.jphe.storyvox.feature.api.CoverStyle
+import `in`.jphe.storyvox.feature.api.UiBrassPulseLevel
+import `in`.jphe.storyvox.feature.api.UiNetworkPatience
+import `in`.jphe.storyvox.feature.api.UiParticleIntensity
+import `in`.jphe.storyvox.feature.api.UiSkeletonStyle
+import `in`.jphe.storyvox.data.repository.net.NetworkPatience
+import `in`.jphe.storyvox.data.repository.net.NetworkPatienceConfig
+import `in`.jphe.storyvox.data.repository.playback.AutoBrowserConfig
+import `in`.jphe.storyvox.data.repository.playback.PrerenderChapterCountConfig
+import `in`.jphe.storyvox.data.repository.playback.SleepTimerExtendConfig
 import `in`.jphe.storyvox.feature.api.PalaceProbeResult
 import `in`.jphe.storyvox.feature.api.ReadingDirection
 import `in`.jphe.storyvox.feature.api.SettingsRepositoryUi
@@ -444,6 +453,50 @@ private object Keys {
      *  every major player. */
     val REWIND_TO_START_THRESHOLD_SEC = intPreferencesKey("pref_rewind_to_start_threshold_sec_v1")
 
+    /** Issue #595 — sleep-timer shake-to-extend duration in minutes
+     *  (Int). Per-device, NOT synced. Default 15 matches the legacy
+     *  `SHAKE_EXTEND_MINUTES` constant in StoryvoxPlaybackService. */
+    val SLEEP_SHAKE_EXTEND_MINUTES =
+        intPreferencesKey("pref_sleep_shake_extend_min_v1")
+
+    /** Issue #596 — PCM-cache pre-render window size in chapters
+     *  (Int). Per-device, NOT synced. Default 5 matches the legacy
+     *  `DEFAULT_PRERENDER_CHAPTERS` constant in PrerenderTriggers
+     *  (bumped 3 → 5 in #558). */
+    val PRERENDER_CHAPTER_COUNT =
+        intPreferencesKey("pref_prerender_chapter_count_v1")
+
+    /** Issue #590 — particle / confetti intensity preset, stored as
+     *  the UiParticleIntensity enum's `name` ("None"/"Subtle"/"Lush").
+     *  Per-device, NOT synced. Default Subtle preserves the current
+     *  6-ember overlay on a fresh install. */
+    val PARTICLE_INTENSITY = stringPreferencesKey("pref_particle_intensity_v1")
+
+    /** Issue #591 — skeleton-shimmer style preset, stored as the
+     *  UiSkeletonStyle enum's `name` ("Off"/"Pulse"/"Sigil"). Per-
+     *  device, NOT synced. Default Sigil preserves the v0.5.66
+     *  MagicSkeletonTile look on a fresh install. */
+    val SKELETON_STYLE = stringPreferencesKey("pref_skeleton_style_v1")
+
+    /** Issue #592 — brass alpha-pulse intensity preset, stored as
+     *  the UiBrassPulseLevel enum's `name` ("Subtle"/"Standard"/
+     *  "Bold"). Per-device, NOT synced. Default Standard preserves
+     *  the current 0.55..1.0 pulse band. */
+    val BRASS_PULSE_LEVEL = stringPreferencesKey("pref_brass_pulse_v1")
+
+    /** Issue #597 — network-patience preset, stored as the
+     *  UiNetworkPatience enum's `name` ("Aggressive"/"Default"/
+     *  "Patient"). Per-device, NOT synced. Default `Default`
+     *  preserves the 10 s baseline timeout budget. */
+    val NETWORK_PATIENCE = stringPreferencesKey("pref_network_patience_v1")
+
+    /** Issue #598 — Android Auto bucket size in items (Int). Per-
+     *  device, NOT synced. Default 6 matches the HMI guideline + the
+     *  legacy `MAX_PER_CATEGORY` constant in
+     *  StoryvoxAutoBrowserService. */
+    val AUTO_ITEMS_PER_CATEGORY =
+        intPreferencesKey("pref_auto_items_per_category_v1")
+
     // ── AI / LLM (issue #81) ────────────────────────────────────────
     /** Active provider — stored as the [ProviderId] enum's name.
      *  Empty/missing = AI disabled. */
@@ -777,6 +830,36 @@ internal val REWIND_TO_START_TIERS_SEC: List<Int> = listOf(0, 1, 3, 5, 10)
 internal fun snapRewindToStartThresholdSec(seconds: Int): Int =
     REWIND_TO_START_TIERS_SEC.minBy { kotlin.math.abs(it - seconds) }
 
+/**
+ * Issue #595 — supported sleep-timer shake-to-extend tiers in
+ * minutes. Chip-row: 5 / 10 / 15 / 30. Default 15 matches the
+ * legacy hardcoded constant.
+ */
+internal val SLEEP_SHAKE_EXTEND_TIERS_MIN: List<Int> = listOf(5, 10, 15, 30)
+
+internal fun snapSleepShakeExtendMinutes(minutes: Int): Int =
+    SLEEP_SHAKE_EXTEND_TIERS_MIN.minBy { kotlin.math.abs(it - minutes) }
+
+/**
+ * Issue #596 — supported pre-render chapter-count tiers. Chip-row
+ * spec is "N+1 / N+2 / N+3 / N+5"; we store the raw integer count
+ * directly (1/2/3/5). Default 5 matches the legacy
+ * `DEFAULT_PRERENDER_CHAPTERS` constant.
+ */
+internal val PRERENDER_CHAPTER_COUNT_TIERS: List<Int> = listOf(1, 2, 3, 5)
+
+internal fun snapPrerenderChapterCount(count: Int): Int =
+    PRERENDER_CHAPTER_COUNT_TIERS.minBy { kotlin.math.abs(it - count) }
+
+/**
+ * Issue #598 — supported Android Auto bucket-size tiers. Chip-row:
+ * 4 / 6 / 8 / 12. Default 6 matches the HMI guideline.
+ */
+internal val AUTO_ITEMS_PER_CATEGORY_TIERS: List<Int> = listOf(4, 6, 8, 12)
+
+internal fun snapAutoItemsPerCategory(count: Int): Int =
+    AUTO_ITEMS_PER_CATEGORY_TIERS.minBy { kotlin.math.abs(it - count) }
+
 private fun encodeVoiceFloatMap(map: Map<String, Float>): String =
     map.entries.joinToString(";") { (k, v) -> "$k=$v" }
 
@@ -869,6 +952,10 @@ class SettingsRepositoryUiImpl(
     ParallelSynthConfig,
     PlaybackResumePolicyConfig,
     `in`.jphe.storyvox.data.repository.playback.PlaybackSkipConfig,
+    SleepTimerExtendConfig,
+    PrerenderChapterCountConfig,
+    AutoBrowserConfig,
+    NetworkPatienceConfig,
     PronunciationDictRepository,
     LlmConfigProvider,
     GitHubScopePreferences,
@@ -1219,6 +1306,37 @@ class SettingsRepositoryUiImpl(
             rewindToStartThresholdSec = snapRewindToStartThresholdSec(
                 prefs[Keys.REWIND_TO_START_THRESHOLD_SEC] ?: 3,
             ),
+            // Issue #595 — sleep-timer shake-to-extend duration in
+            // minutes. Snap to a supported chip tier on read.
+            sleepShakeExtendMinutes = snapSleepShakeExtendMinutes(
+                prefs[Keys.SLEEP_SHAKE_EXTEND_MINUTES] ?: 15,
+            ),
+            // Issue #596 — pre-render window in chapters.
+            prerenderChapterCount = snapPrerenderChapterCount(
+                prefs[Keys.PRERENDER_CHAPTER_COUNT] ?: 5,
+            ),
+            // Issue #590 — particle / confetti intensity. Unknown or
+            // legacy values fall back to Subtle.
+            particleIntensity = prefs[Keys.PARTICLE_INTENSITY]
+                ?.let { runCatching { UiParticleIntensity.valueOf(it) }.getOrNull() }
+                ?: UiParticleIntensity.Subtle,
+            // Issue #591 — skeleton shimmer style. Fallback Sigil.
+            skeletonStyle = prefs[Keys.SKELETON_STYLE]
+                ?.let { runCatching { UiSkeletonStyle.valueOf(it) }.getOrNull() }
+                ?: UiSkeletonStyle.Sigil,
+            // Issue #592 — brass pulse intensity. Fallback Standard.
+            brassPulseLevel = prefs[Keys.BRASS_PULSE_LEVEL]
+                ?.let { runCatching { UiBrassPulseLevel.valueOf(it) }.getOrNull() }
+                ?: UiBrassPulseLevel.Standard,
+            // Issue #597 — network patience preset. Fallback Default.
+            networkPatience = prefs[Keys.NETWORK_PATIENCE]
+                ?.let { runCatching { UiNetworkPatience.valueOf(it) }.getOrNull() }
+                ?: UiNetworkPatience.Default,
+            // Issue #598 — Android Auto bucket size. Snap to chip
+            // tier on read.
+            autoItemsPerCategory = snapAutoItemsPerCategory(
+                prefs[Keys.AUTO_ITEMS_PER_CATEGORY] ?: 6,
+            ),
         )
     }
 
@@ -1437,6 +1555,47 @@ class SettingsRepositoryUiImpl(
 
     override suspend fun currentRewindToStartThresholdSec(): Int =
         rewindToStartThresholdSec.first()
+
+    // --- SleepTimerExtendConfig (issue #595, consumed by core-playback's
+    //     StoryvoxPlaybackService) ---
+
+    override val shakeExtendMinutes: Flow<Int> = store.data.map { prefs ->
+        snapSleepShakeExtendMinutes(prefs[Keys.SLEEP_SHAKE_EXTEND_MINUTES] ?: 15)
+    }
+
+    override suspend fun currentShakeExtendMinutes(): Int = shakeExtendMinutes.first()
+
+    // --- PrerenderChapterCountConfig (issue #596, consumed by
+    //     core-playback's PrerenderTriggers) ---
+
+    override val prerenderChapterCount: Flow<Int> = store.data.map { prefs ->
+        snapPrerenderChapterCount(prefs[Keys.PRERENDER_CHAPTER_COUNT] ?: 5)
+    }
+
+    override suspend fun currentPrerenderChapterCount(): Int =
+        prerenderChapterCount.first()
+
+    // --- AutoBrowserConfig (issue #598, consumed by core-playback's
+    //     StoryvoxAutoBrowserService) ---
+
+    override val itemsPerCategory: Flow<Int> = store.data.map { prefs ->
+        snapAutoItemsPerCategory(prefs[Keys.AUTO_ITEMS_PER_CATEGORY] ?: 6)
+    }
+
+    override suspend fun currentItemsPerCategory(): Int = itemsPerCategory.first()
+
+    // --- NetworkPatienceConfig (issue #597, consumed by source-* OkHttp
+    //     module builders) ---
+
+    override val patience: Flow<NetworkPatience> = store.data.map { prefs ->
+        when (prefs[Keys.NETWORK_PATIENCE]) {
+            "Aggressive" -> NetworkPatience.Aggressive
+            "Patient" -> NetworkPatience.Patient
+            else -> NetworkPatience.Default
+        }
+    }
+
+    override suspend fun currentPatience(): NetworkPatience = patience.first()
 
     // --- PlaybackModeConfig (issue #98) ---
 
@@ -2022,6 +2181,47 @@ class SettingsRepositoryUiImpl(
      */
     override suspend fun setRewindToStartThresholdSec(seconds: Int) {
         store.edit { it[Keys.REWIND_TO_START_THRESHOLD_SEC] = snapRewindToStartThresholdSec(seconds) }
+    }
+
+    /** Issue #595 — sleep-timer shake-to-extend in minutes. Per-device. */
+    override suspend fun setSleepShakeExtendMinutes(minutes: Int) {
+        store.edit {
+            it[Keys.SLEEP_SHAKE_EXTEND_MINUTES] = snapSleepShakeExtendMinutes(minutes)
+        }
+    }
+
+    /** Issue #596 — PCM-cache pre-render window in chapters. Per-device. */
+    override suspend fun setPrerenderChapterCount(count: Int) {
+        store.edit {
+            it[Keys.PRERENDER_CHAPTER_COUNT] = snapPrerenderChapterCount(count)
+        }
+    }
+
+    /** Issue #590 — particle / confetti intensity. Per-device. */
+    override suspend fun setParticleIntensity(intensity: UiParticleIntensity) {
+        store.edit { it[Keys.PARTICLE_INTENSITY] = intensity.name }
+    }
+
+    /** Issue #591 — skeleton shimmer style. Per-device. */
+    override suspend fun setSkeletonStyle(style: UiSkeletonStyle) {
+        store.edit { it[Keys.SKELETON_STYLE] = style.name }
+    }
+
+    /** Issue #592 — brass alpha-pulse intensity. Per-device. */
+    override suspend fun setBrassPulseLevel(level: UiBrassPulseLevel) {
+        store.edit { it[Keys.BRASS_PULSE_LEVEL] = level.name }
+    }
+
+    /** Issue #597 — network patience preset. Per-device. */
+    override suspend fun setNetworkPatience(patience: UiNetworkPatience) {
+        store.edit { it[Keys.NETWORK_PATIENCE] = patience.name }
+    }
+
+    /** Issue #598 — Android Auto bucket size. Per-device. */
+    override suspend fun setAutoItemsPerCategory(count: Int) {
+        store.edit {
+            it[Keys.AUTO_ITEMS_PER_CATEGORY] = snapAutoItemsPerCategory(count)
+        }
     }
 
     // ── Azure Speech Services BYOK (#182, PR-3) ────────────────────

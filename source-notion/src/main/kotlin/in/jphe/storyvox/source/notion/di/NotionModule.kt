@@ -7,9 +7,13 @@ import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import dagger.multibindings.IntoMap
 import dagger.multibindings.StringKey
+import dagger.Lazy
+import `in`.jphe.storyvox.data.repository.net.NetworkPatience
+import `in`.jphe.storyvox.data.repository.net.NetworkPatienceConfig
 import `in`.jphe.storyvox.data.source.FictionSource
 import `in`.jphe.storyvox.data.source.SourceIds
 import `in`.jphe.storyvox.source.notion.NotionSource
+import kotlinx.coroutines.runBlocking
 import okhttp3.OkHttpClient
 import javax.inject.Qualifier
 import javax.inject.Singleton
@@ -36,15 +40,30 @@ internal object NotionHttpModule {
     @Provides
     @Singleton
     @NotionHttp
-    fun provideClient(): OkHttpClient =
-        OkHttpClient.Builder()
-            .connectTimeout(5, TimeUnit.SECONDS)
-            .readTimeout(30, TimeUnit.SECONDS)
-            .writeTimeout(15, TimeUnit.SECONDS)
+    fun provideClient(patienceConfig: Lazy<NetworkPatienceConfig>): OkHttpClient {
+        // Issue #597 — user-tunable patience preset. Notion's multi-
+        // page block-children walks especially benefit from the
+        // Patient (30s budget) preset. `Lazy<>` breaks the Dagger
+        // cycle through SettingsRepositoryUiImpl → FictionSource map;
+        // see [RoyalRoadHttpModule.provideClient] for the explanation.
+        val defaultPatience = NetworkPatience.Default
+        return OkHttpClient.Builder()
+            .connectTimeout(defaultPatience.connectTimeoutSeconds, TimeUnit.SECONDS)
+            .readTimeout(defaultPatience.readTimeoutSeconds, TimeUnit.SECONDS)
+            .writeTimeout(defaultPatience.writeTimeoutSeconds, TimeUnit.SECONDS)
             .followRedirects(true)
             .followSslRedirects(true)
             .retryOnConnectionFailure(true)
+            .addInterceptor { chain ->
+                val patience = runBlocking { patienceConfig.get().currentPatience() }
+                chain
+                    .withConnectTimeout(patience.connectTimeoutSeconds.toInt(), TimeUnit.SECONDS)
+                    .withReadTimeout(patience.readTimeoutSeconds.toInt(), TimeUnit.SECONDS)
+                    .withWriteTimeout(patience.writeTimeoutSeconds.toInt(), TimeUnit.SECONDS)
+                    .proceed(chain.request())
+            }
             .build()
+    }
 
     @Provides
     @Singleton

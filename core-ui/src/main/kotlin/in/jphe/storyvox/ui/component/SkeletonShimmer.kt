@@ -33,7 +33,10 @@ import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import `in`.jphe.storyvox.ui.theme.LocalAnimationSpeedScale
+import `in`.jphe.storyvox.ui.theme.LocalBrassPulseRange
 import `in`.jphe.storyvox.ui.theme.LocalReducedMotion
+import `in`.jphe.storyvox.ui.theme.LocalSkeletonStyle
+import `in`.jphe.storyvox.ui.theme.SkeletonStyle
 import `in`.jphe.storyvox.ui.theme.scaleDurationMs
 import kotlin.math.cos
 import kotlin.math.sin
@@ -56,10 +59,22 @@ fun shimmerAlpha(): Float {
     // tier is a stronger statement than per-component motion.
     val speedScale = LocalAnimationSpeedScale.current
     if (speedScale <= 0f) return 0.6f
+    // #592 — brass-pulse intensity preset. Pre-#592 this was hardcoded
+    // at 0.35..0.85; v1 widens / narrows the band based on the user's
+    // pref so the alpha breath can be Subtle / Standard (default) /
+    // Bold. The default `LocalBrassPulseRange` is 0.55..1.0 (the
+    // active "Standard" tier from `Motion.kt`); this `shimmerAlpha`
+    // call site honors that range scaled down toward the original
+    // skeleton-shimmer band by `0.85f` — preserves the relative
+    // amplitude of the legacy 0.35..0.85 window without forking the
+    // brass-pulse contract.
+    val pulseRange = LocalBrassPulseRange.current
+    val initialValue = pulseRange.start * 0.85f
+    val targetValue = pulseRange.endInclusive * 0.85f
     val transition = rememberInfiniteTransition(label = "skeleton-shimmer")
     val alpha by transition.animateFloat(
-        initialValue = 0.35f,
-        targetValue = 0.85f,
+        initialValue = initialValue,
+        targetValue = targetValue,
         animationSpec = infiniteRepeatable(
             animation = tween(
                 durationMillis = scaleDurationMs(1200, speedScale).coerceAtLeast(1),
@@ -108,6 +123,26 @@ fun MagicSkeletonTile(
     shape: Shape = MaterialTheme.shapes.medium,
     glyphSize: Dp = 56.dp,
 ) {
+    // #591 — skeleton-shimmer style preset. `Off` short-circuits to
+    // a plain Box placeholder; `Pulse` falls through to the simpler
+    // [SkeletonBlock] alpha-shimmer rectangle; `Sigil` (the default,
+    // the v0.5.66 look) renders the full 3-layered rotating brass
+    // sigil below.
+    when (LocalSkeletonStyle.current) {
+        SkeletonStyle.Off -> {
+            Box(
+                modifier = modifier
+                    .clip(shape)
+                    .background(MaterialTheme.colorScheme.surfaceContainerHigh),
+            )
+            return
+        }
+        SkeletonStyle.Pulse -> {
+            SkeletonBlock(modifier = modifier, shape = shape)
+            return
+        }
+        SkeletonStyle.Sigil -> Unit // fall through
+    }
     // #486 Phase 2 / #480 — under reduced motion the sigil freezes
     // at a deliberate resting pose (outer 0°, inner 30°, full pulse).
     // The brass glyph still reads as a placeholder; the rotating
@@ -147,10 +182,13 @@ fun MagicSkeletonTile(
         )
         v
     }
+    // #592 — brass-pulse range from the user pref. Default (Standard)
+    // is 0.55..1.0, which preserves the legacy v0.5.66 amplitude.
+    val pulseRange = LocalBrassPulseRange.current
     val pulse: Float = if (frozen) 1.0f else {
         val v by transition.animateFloat(
-            initialValue = 0.55f,
-            targetValue = 1.0f,
+            initialValue = pulseRange.start,
+            targetValue = pulseRange.endInclusive,
             animationSpec = infiniteRepeatable(
                 animation = tween(
                     durationMillis = scaleDurationMs(1800, speedScale).coerceAtLeast(1),

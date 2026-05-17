@@ -16,6 +16,7 @@ import androidx.compose.material.icons.outlined.Palette
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.AutoStories
 import androidx.compose.material.icons.outlined.BugReport
+import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material.icons.outlined.Cloud
 import androidx.compose.material.icons.outlined.Extension
@@ -108,6 +109,13 @@ fun SettingsHubScreen(
     onOpenAccount: () -> Unit,
     onOpenMemoryPalace: () -> Unit,
     onOpenAbout: () -> Unit,
+    /**
+     * v1 settings-bundle-7 — Advanced subscreen. Default no-op so
+     * callers (and the smoke test) that haven't wired it yet still
+     * compile; production wiring lives in
+     * [`in.jphe.storyvox.navigation.StoryvoxNavHost`].
+     */
+    onOpenAdvanced: () -> Unit = {},
 ) {
     val spacing = LocalSpacing.current
     Scaffold(
@@ -227,6 +235,18 @@ fun SettingsHubScreen(
                     subtitle = "Daemon host, probe, integration.",
                     onClick = onOpenMemoryPalace,
                 )
+                // v1 settings-bundle-7 — Advanced subscreen. Power-
+                // user knobs (Android Auto bucket size, future
+                // integration tunables). Sits next to Developer
+                // because both are infrequently-touched surfaces;
+                // Advanced is user-facing while Developer is for
+                // debugging.
+                SettingsHubRow(
+                    icon = Icons.Outlined.Tune,
+                    title = "Advanced",
+                    subtitle = "Android Auto, integration tunables.",
+                    onClick = onOpenAdvanced,
+                )
                 SettingsHubRow(
                     icon = Icons.Outlined.BugReport,
                     title = "Developer",
@@ -320,6 +340,7 @@ val SettingsHubSections: List<SettingsHubSection> = listOf(
     SettingsHubSection("Pronunciation dictionary", "Per-word phonetic overrides."),
     SettingsHubSection("Account", "Royal Road, GitHub."),
     SettingsHubSection("Memory Palace", "Daemon host, probe, integration."),
+    SettingsHubSection("Advanced", "Android Auto, integration tunables."),
     SettingsHubSection("Developer", "Debug overlay, log ring, advanced toggles."),
     SettingsHubSection("About", "Version, sigil, open-source notices."),
     SettingsHubSection("All settings", "Every setting on one long page (legacy)."),

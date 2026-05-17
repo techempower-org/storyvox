@@ -5,6 +5,7 @@ import `in`.jphe.storyvox.data.repository.ChapterRepository
 import `in`.jphe.storyvox.data.repository.FictionLibraryListener
 import `in`.jphe.storyvox.data.repository.PlaybackPositionRepository
 import `in`.jphe.storyvox.data.repository.playback.PlaybackModeConfig
+import `in`.jphe.storyvox.data.repository.playback.PrerenderChapterCountConfig
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.first
@@ -73,6 +74,16 @@ class PrerenderTriggers @Inject constructor(
      * can pass a fake (see PrerenderTriggersTest).
      */
     private val positionRepo: PlaybackPositionRepository,
+    /**
+     * Issue #596 — user-tunable pre-render window. The contract
+     * falls back to [DEFAULT_PRERENDER_CHAPTERS] when the underlying
+     * store hasn't emitted yet, so existing pre-#596 behavior is
+     * preserved on a fresh install + during the brief pre-hydration
+     * window. The library-add and full-pre-render call sites read
+     * `currentPrerenderChapterCount()` to capture the user's
+     * current pref at trigger time.
+     */
+    private val prerenderCountConfig: PrerenderChapterCountConfig,
 ) : FictionLibraryListener {
 
     /**
@@ -138,14 +149,18 @@ class PrerenderTriggers @Inject constructor(
         val resumeIndex = resumeChapterId?.let { id ->
             chapters.indexOfFirst { it.id == id }.takeIf { it >= 0 }
         }
+        // Issue #596 — user-tunable pre-render window. Read at
+        // trigger time so a Settings flip takes effect on the very
+        // next library-add (no controller restart needed).
+        val windowSize = prerenderCountConfig.currentPrerenderChapterCount()
         val targets = if (resumeIndex != null) {
             // Start ONE PAST the resume chapter — that chapter is the
             // active one (or about to be) and gets cached by the
             // streaming source's foreground tee. The pre-render window
             // belongs to the chapters that come AFTER.
-            chapters.drop(resumeIndex + 1).take(DEFAULT_PRERENDER_CHAPTERS)
+            chapters.drop(resumeIndex + 1).take(windowSize)
         } else {
-            chapters.take(DEFAULT_PRERENDER_CHAPTERS)
+            chapters.take(windowSize)
         }
         if (targets.isEmpty()) {
             // User is at end-of-fiction (resume = last chapter); nothing

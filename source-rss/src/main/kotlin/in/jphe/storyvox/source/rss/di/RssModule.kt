@@ -7,9 +7,13 @@ import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import dagger.multibindings.IntoMap
 import dagger.multibindings.StringKey
+import dagger.Lazy
+import `in`.jphe.storyvox.data.repository.net.NetworkPatience
+import `in`.jphe.storyvox.data.repository.net.NetworkPatienceConfig
 import `in`.jphe.storyvox.data.source.FictionSource
 import `in`.jphe.storyvox.data.source.SourceIds
 import `in`.jphe.storyvox.source.rss.RssSource
+import kotlinx.coroutines.runBlocking
 import okhttp3.OkHttpClient
 import javax.inject.Qualifier
 import javax.inject.Singleton
@@ -32,15 +36,31 @@ internal object RssHttpModule {
     @Provides
     @Singleton
     @RssHttp
-    fun provideClient(): OkHttpClient =
-        OkHttpClient.Builder()
-            .connectTimeout(10, TimeUnit.SECONDS)
-            .readTimeout(30, TimeUnit.SECONDS)
-            .writeTimeout(15, TimeUnit.SECONDS)
+    fun provideClient(patienceConfig: Lazy<NetworkPatienceConfig>): OkHttpClient {
+        // Issue #597 — user-tunable patience preset. `Lazy<>` breaks
+        // a Dagger graph cycle (NetworkPatienceConfig ↔ source-map
+        // closure); see [RoyalRoadHttpModule.provideClient] for the
+        // full explanation. Initial timeouts use the [Default]
+        // preset; the per-call Interceptor below re-reads the pref
+        // so Settings flips apply on the next call.
+        val defaultPatience = NetworkPatience.Default
+        return OkHttpClient.Builder()
+            .connectTimeout(defaultPatience.connectTimeoutSeconds, TimeUnit.SECONDS)
+            .readTimeout(defaultPatience.readTimeoutSeconds, TimeUnit.SECONDS)
+            .writeTimeout(defaultPatience.writeTimeoutSeconds, TimeUnit.SECONDS)
             .followRedirects(true)
             .followSslRedirects(true)
             .retryOnConnectionFailure(true)
+            .addInterceptor { chain ->
+                val patience = runBlocking { patienceConfig.get().currentPatience() }
+                chain
+                    .withConnectTimeout(patience.connectTimeoutSeconds.toInt(), TimeUnit.SECONDS)
+                    .withReadTimeout(patience.readTimeoutSeconds.toInt(), TimeUnit.SECONDS)
+                    .withWriteTimeout(patience.writeTimeoutSeconds.toInt(), TimeUnit.SECONDS)
+                    .proceed(chain.request())
+            }
             .build()
+    }
 }
 
 /**

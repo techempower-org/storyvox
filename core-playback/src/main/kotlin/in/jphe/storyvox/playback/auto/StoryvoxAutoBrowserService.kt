@@ -8,6 +8,7 @@ import dagger.hilt.android.AndroidEntryPoint
 import `in`.jphe.storyvox.data.repository.FollowsRepository
 import `in`.jphe.storyvox.data.repository.LibraryRepository
 import `in`.jphe.storyvox.data.repository.PlaybackPositionRepository
+import `in`.jphe.storyvox.data.repository.playback.AutoBrowserConfig
 import `in`.jphe.storyvox.playback.MediaSessionLocator
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
@@ -35,6 +36,11 @@ class StoryvoxAutoBrowserService : MediaBrowserServiceCompat() {
     @Inject lateinit var followsRepo: FollowsRepository
     @Inject lateinit var positionRepo: PlaybackPositionRepository
     @Inject lateinit var sessionLocator: MediaSessionLocator
+    /** Issue #598 — user-tunable bucket size. Read at every
+     *  [onLoadChildren] call so a Settings flip takes effect the next
+     *  time Auto refreshes the tree (typically when the user
+     *  navigates back to a parent then forward into a category). */
+    @Inject lateinit var autoConfig: AutoBrowserConfig
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -69,12 +75,18 @@ class StoryvoxAutoBrowserService : MediaBrowserServiceCompat() {
     ) {
         result.detach()
         scope.launch {
+            // Issue #598 — read the bucket size at the start of each
+            // tree load so a Settings flip propagates without an Auto
+            // service restart. Falls back to [MAX_PER_CATEGORY] (6,
+            // the HMI guideline) on the very first call when the
+            // store hasn't emitted yet.
+            val bucket = autoConfig.currentItemsPerCategory()
             val items = when (parentId) {
                 ROOT_ID -> rootItems()
-                LIBRARY_ID -> libraryRepo.snapshot().take(MAX_PER_CATEGORY).map { it.toBrowsableItem() }
-                FOLLOWS_ID -> followsRepo.snapshot().take(MAX_PER_CATEGORY).map { it.toBrowsableItem() }
-                RECENT_ID -> positionRepo.recent(MAX_PER_CATEGORY).map { it.toPlayableItem() }
-                NEW_ID -> followsRepo.unreadChapters(MAX_PER_CATEGORY).map { it.toPlayableItem() }
+                LIBRARY_ID -> libraryRepo.snapshot().take(bucket).map { it.toBrowsableItem() }
+                FOLLOWS_ID -> followsRepo.snapshot().take(bucket).map { it.toBrowsableItem() }
+                RECENT_ID -> positionRepo.recent(bucket).map { it.toPlayableItem() }
+                NEW_ID -> followsRepo.unreadChapters(bucket).map { it.toPlayableItem() }
                 else -> emptyList()
             }
             result.sendResult(items.toMutableList())

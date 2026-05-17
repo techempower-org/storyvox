@@ -286,6 +286,37 @@ object AppBindings {
     fun providePlaybackSkipConfig(impl: SettingsRepositoryUiImpl):
         `in`.jphe.storyvox.data.repository.playback.PlaybackSkipConfig = impl
 
+    /** Issue #595 — user-tunable sleep-timer shake-to-extend duration.
+     *  Same singleton; consumed by `:core-playback`'s
+     *  `StoryvoxPlaybackService` via the AppBindings flow collector
+     *  (mirrors the shake-enabled toggle in #150). */
+    @Provides @Singleton
+    fun provideSleepTimerExtendConfig(impl: SettingsRepositoryUiImpl):
+        `in`.jphe.storyvox.data.repository.playback.SleepTimerExtendConfig = impl
+
+    /** Issue #596 — user-tunable PCM-cache pre-render window size.
+     *  Same singleton; consumed by `:core-playback`'s
+     *  `PrerenderTriggers`. */
+    @Provides @Singleton
+    fun providePrerenderChapterCountConfig(impl: SettingsRepositoryUiImpl):
+        `in`.jphe.storyvox.data.repository.playback.PrerenderChapterCountConfig = impl
+
+    /** Issue #598 — user-tunable Android Auto bucket size. Same
+     *  singleton; consumed by `:core-playback`'s
+     *  `StoryvoxAutoBrowserService`. */
+    @Provides @Singleton
+    fun provideAutoBrowserConfig(impl: SettingsRepositoryUiImpl):
+        `in`.jphe.storyvox.data.repository.playback.AutoBrowserConfig = impl
+
+    /** Issue #597 — user-tunable HTTP timeout preset. Same singleton;
+     *  consumed by source-* modules' OkHttp factories via an
+     *  Interceptor / timeout override. v1 wires this into the most-
+     *  touched source modules (royalroad, notion, rss); follow-up
+     *  issues track per-module adoption for the long tail. */
+    @Provides @Singleton
+    fun provideNetworkPatienceConfig(impl: SettingsRepositoryUiImpl):
+        `in`.jphe.storyvox.data.repository.net.NetworkPatienceConfig = impl
+
     /**
      * Issue #135 — pronunciation dictionary contract for `core-playback`'s
      * EnginePlayer + the Settings UI. Same singleton instance as the rest;
