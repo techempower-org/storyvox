@@ -163,7 +163,7 @@ fun SettingsHubScreen(
                 SettingsHubRow(
                     icon = Icons.Outlined.RecordVoiceOver,
                     title = "Voice library",
-                    subtitle = "Pick a voice and hear samples.",
+                    subtitle = "Browse and switch between available voices.",
                     onClick = onOpenVoiceLibrary,
                 )
                 SettingsHubRow(
@@ -327,7 +327,7 @@ data class SettingsHubSection(val title: String, val subtitle: String)
 
 val SettingsHubSections: List<SettingsHubSection> = listOf(
     SettingsHubSection("Voice & Playback", "Voice, speed, cadence, pitch."),
-    SettingsHubSection("Voice library", "Pick a voice and hear samples."),
+    SettingsHubSection("Voice library", "Browse and switch between available voices."),
     SettingsHubSection("Reading", "Theme, sleep timer."),
     // v0.5.59 (#cover-style-toggle) — Appearance.
     SettingsHubSection("Appearance", "Book cover style."),
