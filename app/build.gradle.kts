@@ -95,8 +95,8 @@ android {
         applicationId = "in.jphe.storyvox"
         minSdk = 26
         targetSdk = 35
-        versionCode = 172
-        versionName = "0.5.61"
+        versionCode = 173
+        versionName = "0.5.62"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true

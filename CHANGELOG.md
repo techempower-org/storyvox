@@ -9,6 +9,24 @@ Entries before v0.5.12 are reconstructed from the git log — see
 
 ## [Unreleased]
 
+## [0.5.62] — 2026-05-16
+
+Sweeper + Play-button-overlap fix. Closes JP's animation-speed-in-Settings directive + the misleading "library awaits" empty-state that defeated the v0.5.61 tap-to-play discoverability fix.
+
+### Added — Animation speed + skip distance + rewind window in Settings (#637, closes #589 #593 #594 #601 #631)
+- **#589 Animation speed master multiplier** — `LocalAnimationSpeedScale: CompositionLocal<Float>` provided at NavHost root, `tweenScaled(N)` helper in `:core-ui/theme/Motion.kt`. Settings → Appearance → "Animation speed" chip row (Off/Slow/Normal/Brisk/Fast). `Off` sets scale to 0 → durations become instant. Honors `LocalReducedMotion`.
+- **#593 Skip distance preset** — Settings → Voice & Playback → 10/15/30/45/60s chip row. New `PlaybackSkipConfig` contract in `:core-data`, hot-cached snapshot in `DefaultPlaybackController`.
+- **#594 Rewind-to-start window** — Settings → Voice & Playback → 0/1/3/5/10s chip row (0 = Off). Pairs with #593; wired into `previousChapter()`.
+- **#601 Playing tab CTA copy** — ResumePrompt's "Resume reading" → "▶ Start listening" (matches the tab verb).
+- **#631** tracker closed as resolved by PR #635 (welcome flow shipped in v0.5.61).
+
+### Fixed — Tap-to-play discoverability regression (#639, closes #638)
+v0.5.61's PR #633 added a primary Play button to FictionDetail's BottomBar — but on phone, tapping it appeared to route to the Playing tab empty state. **Actual root cause** (discovered via on-device diagnosis): the navigation worked fine, but the Reader screen pre-fix fell through to `ResumeEmptyPrompt` ("Your library awaits / Browse the realms →") while waiting for the `playback` flow to emit — looked identical to bottom-dock taking the touch.
+- **`ReaderViewModel.hasExplicitChapterArgs`** — reads `fictionId` + `chapterId` from `SavedStateHandle`
+- **`HybridReaderScreen`** — when explicit args present AND `playback == null`/blank-ids, render new `ExplicitArgsLoadingPrompt`: "Loading chapter…" → "Still loading…" at 10 s → "Couldn't start this chapter" with Retry/Back at 30 s
+- **`FictionDetailScreen`** — moved BottomBar (now `ActionRow`) out of `Alignment.BottomCenter` float into the LazyColumn as first item (defensive — eliminates any future overlap risk)
+- Bounds verification on R5CRB0W66MK: Play button `[48,2359][522,2503]` → `[48,1053][522,1197]` (now well above any dock area).
+
 ## [0.5.61] — 2026-05-16
 
 **v1.0 readiness wave.** JP set a new goal: "v1.0 release on app store — 5-year-old or sight-impaired user can pick it up and know what to do; beautiful, smooth, performant." 5 PRs landed addressing 38 issues, plus latent auto-advance regression root-caused.
