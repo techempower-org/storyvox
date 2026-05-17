@@ -161,8 +161,42 @@ class BrowseViewModel @Inject constructor(
         .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
-    private val royalRoadSignedIn: StateFlow<Boolean> = settings.settings
-        .map { it.isSignedIn }
+    /**
+     * Issue #656 — v1.0 blocker. RR sign-in projection now reads from
+     * the cross-source [AuthRepository.sessionState] flow as the
+     * **primary** signal, OR-combined with the legacy DataStore
+     * `isSignedIn` flag for back-compat with older installs.
+     *
+     * Why the union (not just the new path):
+     *   - The legacy `pref_signed_in` DataStore key was the *only*
+     *     RR-signedness signal pre-#426; existing installs that signed
+     *     in before #509 / #521 have the flag set but never wrote a
+     *     row into the per-source state map until they re-launched.
+     *   - Conversely, [AuthRepository.init] hydrates the
+     *     `cookie:royalroad` entry into `sessionState(ROYAL_ROAD)` on
+     *     every cold start, so any install that has a captured cookie
+     *     surfaces here as `Authenticated` even if the DataStore flag
+     *     somehow drifted (one historical drift path: DataStore got
+     *     reset by an aborted migration while EncryptedSharedPreferences
+     *     kept the cookie).
+     *
+     * Pre-#656 this projection read **only** the DataStore flag. That
+     * meant a perfectly valid signed-in session — cookie on disk,
+     * OkHttp jar hydrated, `sessionState(ROYAL_ROAD)` = Authenticated —
+     * could still render the "Sign in to Royal Road" CTA on Browse if
+     * the DataStore key was missing. Cross-checking both stores closes
+     * the gap and matches the [ao3SignedIn] pattern below (which reads
+     * exclusively off [AuthRepository], since AO3 never touched
+     * `pref_signed_in`).
+     *
+     * Resolver order: signed-in if **either** signal is true. The
+     * resolver still consults this single boolean — only the input
+     * shape changed. CTA copy / Settings sign-out flow are unchanged.
+     */
+    private val royalRoadSignedIn: StateFlow<Boolean> = combine(
+        settings.settings.map { it.isSignedIn },
+        authRepo.sessionState(SourceIds.ROYAL_ROAD).map { it is SessionState.Authenticated },
+    ) { dsFlag, repoFlag -> dsFlag || repoFlag }
         .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
