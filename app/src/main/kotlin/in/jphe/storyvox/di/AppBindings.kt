@@ -529,6 +529,24 @@ private class RealFictionRepositoryUi(
     override fun previewUrl(url: String): List<`in`.jphe.storyvox.feature.api.UiRouteCandidate> =
         repo.previewUrl(url).map { it.toUi() }
 
+    /**
+     * Issues #644 + #647 (v1.0) — passthrough to [FictionRepository.browsePopular]
+     * for the onboarding's "Browse TechEmpower's free guides" CTA. Calling
+     * `browsePopular(page = 1, sourceId)` runs the source's `popular()`
+     * round-trip and pipes the result through `cacheListing`, which is
+     * what upserts the per-fiction rows into the `fictionDao` so that a
+     * subsequent `refreshDetail(notion:guides)` routes to the right source
+     * instead of the legacy `ROYAL_ROAD` fallback. Returns true iff the
+     * source returned a Success with at least one item.
+     */
+    override suspend fun seedPopularForSource(sourceId: String): Boolean =
+        runCatching {
+            when (val result = repo.browsePopular(page = 1, sourceId = sourceId)) {
+                is FictionResult.Success -> result.value.items.isNotEmpty()
+                is FictionResult.Failure -> false
+            }
+        }.getOrDefault(false)
+
     private fun `in`.jphe.storyvox.data.source.RouteMatch.toUi():
         `in`.jphe.storyvox.feature.api.UiRouteCandidate =
         `in`.jphe.storyvox.feature.api.UiRouteCandidate(

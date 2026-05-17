@@ -62,13 +62,19 @@ class BottomTabBarSemanticsTest {
     }
 
     @Test
-    fun `BottomTabBar uses Role-Tab plus selected semantics per issue #485`() {
-        // Structural canary. Flipped to false only after a future
-        // refactor proves on a real device that a different shape
-        // carries the same TalkBack announcement.
+    fun `BottomTabBar uses Role-Button plus selected semantics per issue #645`() {
+        // Structural canary. Issue #645 (v1.0) changed Role.Tab →
+        // Role.Button because Role.Tab + selected=true caused TalkBack
+        // to suppress the "double-tap to activate" hint on the selected
+        // cell — a focus dead-end for users on Reader / Voices /
+        // Settings trying to return to Library via the dock. With
+        // Role.Button + selected the cell still announces its selected
+        // state but stays activatable. Flipped to false only after a
+        // future refactor proves on a real device that a different
+        // shape carries the same announcement + activation.
         assertTrue(
-            "BottomTabBar.TabCell must expose Role.Tab + selected semantics (issue #485)",
-            bottomTabBarUsesRoleTabAndSelected,
+            "BottomTabBar.TabCell must expose Role.Button + selected semantics (issues #485, #645)",
+            bottomTabBarUsesRoleButtonPlusSelected,
         )
     }
 }

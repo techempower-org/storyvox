@@ -116,7 +116,31 @@ fun WhyAreWeWaitingPanel(
         // the diagnostic genuinely settled. Identical-content
         // transitions (the same WaitReason re-emitted) never bump the
         // state, so they never trigger a polite-region announcement.
-        val intended = "${r.message}. ${secondaryLineFor(r)}"
+        //
+        // Issue #646 (v1.0 polish, 2026-05-16) — AudioRouteChange (and
+        // any other reason with both a headline + secondary line) was
+        // still triple-announcing on TalkBack:
+        //   1. The parent's merged contentDesc reads
+        //      "Audio output changed.. Switching to the new speaker…"
+        //      (note the DOUBLE period — `r.message` already ends in
+        //      "." so the legacy `"${r.message}. …"` concat appended
+        //      another).
+        //   2. AND each child Text (headline, secondary line) was
+        //      announced as its own node because the parent's
+        //      `Modifier.semantics { … }` didn't merge descendants —
+        //      it only set the live-region + contentDesc. Children
+        //      stayed visible to TalkBack as separate semantic nodes.
+        //
+        // Two-part fix:
+        //   - Switch to `Modifier.semantics(mergeDescendants = true) { … }`
+        //     so the children fold into one node and TalkBack reads
+        //     the announced string ONCE per state change.
+        //   - Use `joinHeadlineAndBody` to glue headline + secondary
+        //     line without a double period, regardless of whether
+        //     either side already ends in punctuation. The result is
+        //     "Audio output changed. Switching to the new speaker…"
+        //     — one clean sentence pair, one TalkBack utterance.
+        val intended = joinHeadlineAndBody(r.message, secondaryLineFor(r))
         var announced by remember { mutableStateOf(intended) }
         LaunchedEffect(intended) {
             // Coalesce window. Rapid Warming ⇄ Buffering oscillations
@@ -138,7 +162,15 @@ fun WhyAreWeWaitingPanel(
                 .background(panelBg)
                 .border(width = 1.dp, color = borderColor, shape = RoundedCornerShape(5.dp))
                 .padding(horizontal = spacing.md, vertical = spacing.sm)
-                .semantics {
+                // mergeDescendants=true folds the headline Text +
+                // secondary Text + retry chip into a single semantic
+                // node so TalkBack announces the panel ONCE per state
+                // change, not once per child. See issue #646 comment
+                // above. The retry chip retains its own `Role.Button`
+                // semantic (set on its inner clickable) so it stays
+                // independently focusable when TalkBack enters
+                // explore-by-touch on the panel.
+                .semantics(mergeDescendants = true) {
                     liveRegion = LiveRegionMode.Polite
                     contentDescription = announced
                 },
@@ -272,6 +304,38 @@ private fun BrassActionChip(
             fontSize = 12.sp,
         )
     }
+}
+
+/**
+ * Issue #646 — glue a headline + secondary body together for the
+ * panel's TalkBack contentDescription without ever producing a double
+ * period. The legacy `"$headline. $body"` concat happily produced
+ * "Audio output changed.. Switching…" when [headline] already ended
+ * in punctuation. We strip a single trailing sentence-terminator from
+ * [headline] before re-appending exactly one period + a space; if
+ * [body] is blank we skip the join entirely so a one-liner reason
+ * doesn't leave a dangling separator.
+ *
+ * Kept package-internal so the unit test can pin the no-double-period
+ * invariant for every WaitReason headline. The function intentionally
+ * stays lossless on non-terminator punctuation ("Hang tight…",
+ * "Loading the chapter") — only periods get the dedupe pass since
+ * those are what the original message literals end in.
+ */
+internal fun joinHeadlineAndBody(headline: String, body: String): String {
+    val trimmedBody = body.trim()
+    val trimmedHead = headline.trimEnd()
+    if (trimmedBody.isEmpty()) return trimmedHead
+    // Strip exactly one trailing period from the headline so the
+    // join site contributes a single ". " separator. Other terminators
+    // (`…`, `!`, `?`) are left intact — they're already sentence ends
+    // and pair fine with a space + body.
+    val headWithoutTrailingPeriod = if (trimmedHead.endsWith(".")) {
+        trimmedHead.dropLast(1).trimEnd()
+    } else {
+        trimmedHead
+    }
+    return "$headWithoutTrailingPeriod. $trimmedBody"
 }
 
 /**

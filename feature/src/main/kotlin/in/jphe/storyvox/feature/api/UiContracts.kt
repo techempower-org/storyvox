@@ -193,6 +193,27 @@ interface FictionRepositoryUi {
      * state and waits.
      */
     fun previewUrl(url: String): List<UiRouteCandidate>
+
+    /**
+     * Issues #644 + #647 (v1.0) — seed the local Fiction DB with the
+     * first-page "popular" tiles for [sourceId]. Used by the welcome
+     * flow's "Browse TechEmpower's free guides" CTA to ensure the
+     * Notion fiction rows (notably `notion:guides`) exist in the
+     * Fiction DAO before [fictionById] / [chaptersFor] attempt to
+     * refresh detail — without this seeding pass, [refreshDetail]
+     * falls back to the wrong source on first launch because the
+     * row's `sourceId` column is unknown.
+     *
+     * The default no-op is a Kotlin interface defaulting trick used
+     * elsewhere in the contract (see `markAllCaughtUp`'s comment in
+     * the impl) so test stand-ins don't have to bother stubbing.
+     *
+     * Returns true iff at least one row was upserted; false on
+     * network failure / source not bound / cancellation. Callers
+     * treat false as "fall back to a path that doesn't depend on
+     * the seeded rows".
+     */
+    suspend fun seedPopularForSource(sourceId: String): Boolean = false
 }
 
 interface BrowseRepositoryUi {

@@ -234,10 +234,21 @@ private fun TabCell(
     val interactionSource = remember { MutableInteractionSource() }
     val indication = LocalIndication.current
     Column(
-        // a11y (#485): expose this cell as a tab to TalkBack with
-        // `Role.Tab` + a `selected` flag. Without these, TalkBack
-        // announces "double tap to activate" with no indication of
-        // which tab is current; the indicator pill is visual-only.
+        // a11y (#485, #645): expose this cell to TalkBack with a
+        // `selected` flag for state announcement, but use `Role.Button`
+        // (NOT `Role.Tab`) on the clickable. The combination of
+        // `Role.Tab` + `selected=true` triggers a TalkBack behavior
+        // where the cell is read as "already on" and loses its
+        // "double-tap to activate" hint — observed on Reader / Voices /
+        // Settings where Library is marked `selected=true` (the route-
+        // collapse mapping in StoryvoxNavHost lights Library for any
+        // route under its umbrella). Switching to `Role.Button` keeps
+        // the selected-state announcement ("Library, selected, button")
+        // AND restores the activation hint so a TalkBack user can
+        // always tap to return to the Library home, even from within a
+        // deep-link drill-down. The indicator pill remains a purely
+        // visual cue.
+        //
         // `.semantics { selected = isSelected }` must come BEFORE the
         // clickable so the role on clickable doesn't override it.
         modifier = modifier
@@ -245,7 +256,7 @@ private fun TabCell(
             .clickable(
                 interactionSource = interactionSource,
                 indication = indication,
-                role = Role.Tab,
+                role = Role.Button,
                 onClickLabel = tab.label,
                 onClick = onClick,
             ),
@@ -305,12 +316,17 @@ private val ICON_TARGET_WIDTH = 64.dp
 private const val SLIDE_DURATION_MS = 280
 
 /**
- * Structural canary for issue #485 — TabCell must expose `Role.Tab`
- * + a `selected` semantics property so TalkBack announces the
- * currently-active tab. Flipped to `false` only after a future refactor
- * proves on a real device with TalkBack that an alternative shape
- * carries the same announcement.
+ * Structural canary for issues #485 + #645 — TabCell must expose a
+ * `selected` semantics property so TalkBack announces the currently-
+ * active tab. Issue #645 (v1.0) changed the clickable's role from
+ * `Role.Tab` to `Role.Button` because `Role.Tab` + `selected=true`
+ * caused TalkBack to suppress the "double-tap to activate" hint on
+ * the selected cell — fatal for the Reader / Voices / Settings
+ * surfaces where Library lights as selected (via the route-collapse
+ * mapping in StoryvoxNavHost) and the user needs to tap it to return
+ * home. With `Role.Button` + `selected`, TalkBack announces "Library,
+ * selected, button" AND still offers the activation hint.
  *
  * Pinned by `BottomTabBarSemanticsTest`.
  */
-internal const val bottomTabBarUsesRoleTabAndSelected: Boolean = true
+internal const val bottomTabBarUsesRoleButtonPlusSelected: Boolean = true

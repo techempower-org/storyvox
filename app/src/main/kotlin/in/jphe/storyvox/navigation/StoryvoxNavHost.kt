@@ -262,8 +262,30 @@ fun StoryvoxNavHost(
     // shield doesn't trap welcome-screen taps. The welcome's own
     // shield handles its swallow.
     OnboardingHost(
+        // Issues #644 + #647 (v1.0) — `onOpenTechEmpower` stays
+        // wired to the hub destination so the viewmodel's fallback
+        // path (chapter resolution failed) still lands on a working
+        // surface. The happy path runs through [onOpenGuidesAndPlay]
+        // below, which skips the hub AND the FictionDetail cover
+        // stop in favor of dropping the user directly onto the
+        // Playing transport surface with chapter 1 of the Guides
+        // queued + auto-playing. The pre-fix two-step (hub →
+        // Browse Resources → Guides → Play) collapses to a single
+        // tap on the "Browse TechEmpower's free guides" card.
         onOpenTechEmpower = {
             navController.navigate(StoryvoxRoutes.TECHEMPOWER_HOME)
+        },
+        onOpenGuidesAndPlay = {
+            // Route to PLAYING and pop the welcome's underlying
+            // Library entry so OS-Back from the player surfaces
+            // the Library (the cold-launch destination) — not a
+            // ghost entry for the welcome screen the user already
+            // dismissed. launchSingleTop collapses a stray double-
+            // tap into a single navigation.
+            navController.navigate(StoryvoxRoutes.PLAYING) {
+                popUpTo(StoryvoxRoutes.LIBRARY)
+                launchSingleTop = true
+            }
         },
         onAddFromWebsite = { clipboardUrl ->
             // Route to Library with the magic-add sheet pre-opened.
