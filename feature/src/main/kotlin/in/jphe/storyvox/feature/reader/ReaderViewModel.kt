@@ -152,8 +152,39 @@ class ReaderViewModel @Inject constructor(
      * [`in`.jphe.storyvox.feature.library.LibraryViewModel.resume].
      */
     private val resumePolicy: PlaybackResumePolicyConfig,
-    @Suppress("UnusedPrivateProperty") savedState: SavedStateHandle,
+    savedState: SavedStateHandle,
 ) : ViewModel() {
+
+    /**
+     * Issue #638 (v1.0 blocker) — distinguishes the "Reader screen
+     * cold-launched from FictionDetail with explicit chapter args"
+     * path from the "Playing tab cold-launch with no recent activity"
+     * path. Both share [HybridReaderScreen], but only the second
+     * should fall back to [ResumeEmptyPrompt] when `playback == null`.
+     *
+     * The Reader route is `/reader/{fictionId}/{chapterId}` — when
+     * navigated to from FictionDetail's Play button, both args land
+     * in SavedStateHandle, [hasExplicitChapterArgs] is true, and the
+     * screen renders a loading state until the playback flow flips
+     * non-null (which happens after `startListening` finishes the
+     * chapter-download wait inside the controller). The Playing
+     * route is `/playing` — no args, [hasExplicitChapterArgs] is
+     * false, and the empty Resume prompt fires as before.
+     *
+     * Pre-fix the Reader screen unconditionally fired the empty
+     * prompt on `playback == null`, which is the state-flow's
+     * initial emission. The user tapped Play on FictionDetail, was
+     * routed to /reader, the playback flow hadn't emitted yet, and
+     * the bottom-dock-anchored "Your library awaits / Browse the
+     * realms" empty state appeared, defeating PR #633's
+     * discoverability fix. See feature/.../HybridReaderScreen.kt
+     * for how this flag gates the prompt branch.
+     */
+    val hasExplicitChapterArgs: Boolean = run {
+        val f = savedState.get<String>("fictionId")
+        val c = savedState.get<String>("chapterId")
+        !f.isNullOrBlank() && !c.isNullOrBlank()
+    }
 
     private val _activePane = MutableStateFlow(ReaderView.Audiobook)
     private val _recap = MutableStateFlow<RecapUiState>(RecapUiState.Hidden)

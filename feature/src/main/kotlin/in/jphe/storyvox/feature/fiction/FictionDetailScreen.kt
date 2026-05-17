@@ -23,7 +23,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
@@ -37,7 +36,6 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -359,7 +357,10 @@ fun FictionDetailScreen(
             FictionDetailSkeleton(modifier = Modifier.fillMaxSize())
         } else if (twoColumn) {
             // Wide layout: cover + meta + synopsis on the left, scrollable chapter list
-            // on the right. Bottom bar still floats over both columns.
+            // on the right. Action row (Play / library / follow) sits as the FIRST item
+            // in the chapter LazyColumn — see issue #638 for why the floating bottom
+            // bar was removed (it overlapped the bottom-dock hit area on phone; we
+            // moved both layouts onto the same in-content shape for consistency).
             Row(
                 modifier = Modifier.fillMaxSize(),
             ) {
@@ -367,8 +368,7 @@ fun FictionDetailScreen(
                     modifier = Modifier
                         .weight(0.42f)
                         .fillMaxSize()
-                        .verticalScroll(rememberScrollState())
-                        .padding(bottom = 96.dp),
+                        .verticalScroll(rememberScrollState()),
                 ) {
                     if (state.error != null) {
                         ErrorBlock(
@@ -381,8 +381,7 @@ fun FictionDetailScreen(
                     Hero(fiction)
                     Synopsis(fiction.synopsis)
                     // Issue #217 — Notebook section in the wide-layout
-                    // left column, between Synopsis and the bottom-bar
-                    // padding. Hides itself if there's nothing to show
+                    // left column. Hides itself if there's nothing to show
                     // and the user hasn't tapped Add.
                     NotebookSection(
                         entries = state.notebookEntries,
@@ -392,8 +391,35 @@ fun FictionDetailScreen(
                 }
                 LazyColumn(
                     modifier = Modifier.weight(0.58f).fillMaxSize(),
-                    contentPadding = PaddingValues(top = spacing.md, bottom = 96.dp),
+                    contentPadding = PaddingValues(top = spacing.md, bottom = spacing.md),
                 ) {
+                    // Issue #638 — action row pinned at the top of the
+                    // chapter list. Was a floating BottomBar; moved
+                    // in-content because the floating placement overlapped
+                    // the parent Scaffold's bottom-dock hit-area on phone
+                    // and intercepted Play taps as back-nav to Library.
+                    item {
+                        ActionRow(
+                            isInLibrary = state.isInLibrary,
+                            followOnSource = fiction.takeIf { it.sourceSupportsFollow }
+                                ?.let { FollowOnSourceUiState(isFollowed = it.isFollowedRemote) },
+                            onFollow = {
+                                if (state.isInLibrary) {
+                                    showRemoveConfirm = true
+                                } else {
+                                    viewModel.toggleFollow(true)
+                                }
+                            },
+                            onFollowOnSource = viewModel::toggleFollowOnSource,
+                            onPlay = pickChapterToPlay(state.chapters)?.let { picked ->
+                                { viewModel.listen(picked.id) }
+                            },
+                            playLabel = playButtonLabel(
+                                state.chapters,
+                                pickChapterToPlay(state.chapters),
+                            ),
+                        )
+                    }
                     items(state.chapters, key = { it.id }) { ch ->
                         ChapterCard(
                             state = ch.toCardState(currentId = null),
@@ -405,34 +431,10 @@ fun FictionDetailScreen(
                     }
                 }
             }
-
-            BottomBar(
-                isInLibrary = state.isInLibrary,
-                followOnSource = fiction.takeIf { it.sourceSupportsFollow }
-                    ?.let { FollowOnSourceUiState(isFollowed = it.isFollowedRemote) },
-                onFollow = {
-                    // Issue #169 — gate the destructive path behind a
-                    // confirm dialog; the additive path stays single-tap.
-                    if (state.isInLibrary) {
-                        showRemoveConfirm = true
-                    } else {
-                        viewModel.toggleFollow(true)
-                    }
-                },
-                onFollowOnSource = viewModel::toggleFollowOnSource,
-                // Issue #604 — Play CTA. Chooses the first non-finished
-                // chapter (resume) or falls back to chapter 1 on a
-                // fully-fresh or fully-finished fiction.
-                onPlay = pickChapterToPlay(state.chapters)?.let { picked ->
-                    { viewModel.listen(picked.id) }
-                },
-                playLabel = playButtonLabel(state.chapters, pickChapterToPlay(state.chapters)),
-                modifier = Modifier.align(Alignment.BottomCenter),
-            )
         } else {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(bottom = 96.dp),
+                contentPadding = PaddingValues(bottom = spacing.md),
             ) {
                 if (state.error != null) {
                     item {
@@ -445,6 +447,50 @@ fun FictionDetailScreen(
                     }
                 }
                 item { Hero(fiction) }
+                // Issue #638 (v1.0 blocker) — action row moved out of a
+                // floating BottomBar and into the LazyColumn just above
+                // the synopsis. Pre-fix, the BottomBar floated at
+                // Alignment.BottomCenter inside the FictionDetail Box
+                // with bounds [48,2359][522,2503] on a 1080×2640 phone.
+                // The parent navigation Scaffold's bottom-dock (Library /
+                // Playing / Voices / Settings) lives at y=2355-2595, and
+                // even on FictionDetail (which deliberately hides the
+                // dock per StoryvoxRoutes.showsBottomNav returning false
+                // for `fiction/{fictionId}`) the bottom-edge gesture area
+                // intercepted Play taps and routed the user back to the
+                // Library tab's "Your library awaits" empty state instead
+                // of starting playback. Reproduced on R5CRB0W66MK
+                // (Z Flip3 unfolded). Moving the row into the scroll
+                // body eliminates the overlap by construction — no insets
+                // math, no floating element competing with the dock /
+                // gesture surface.
+                item {
+                    ActionRow(
+                        isInLibrary = state.isInLibrary,
+                        followOnSource = fiction.takeIf { it.sourceSupportsFollow }
+                            ?.let { FollowOnSourceUiState(isFollowed = it.isFollowedRemote) },
+                        onFollow = {
+                            // Issue #169 — gate the destructive path
+                            // behind a confirm dialog; the additive
+                            // path stays single-tap.
+                            if (state.isInLibrary) {
+                                showRemoveConfirm = true
+                            } else {
+                                viewModel.toggleFollow(true)
+                            }
+                        },
+                        onFollowOnSource = viewModel::toggleFollowOnSource,
+                        // Issue #604 — Play CTA. First non-finished
+                        // chapter (resume) or fall back to chapter 1.
+                        onPlay = pickChapterToPlay(state.chapters)?.let { picked ->
+                            { viewModel.listen(picked.id) }
+                        },
+                        playLabel = playButtonLabel(
+                            state.chapters,
+                            pickChapterToPlay(state.chapters),
+                        ),
+                    )
+                }
                 item { Synopsis(fiction.synopsis) }
                 // Issue #217 — Notebook section in the narrow (phone)
                 // layout. Inserted as a single LazyColumn item so it
@@ -466,30 +512,6 @@ fun FictionDetailScreen(
                     )
                 }
             }
-
-            BottomBar(
-                isInLibrary = state.isInLibrary,
-                followOnSource = fiction.takeIf { it.sourceSupportsFollow }
-                    ?.let { FollowOnSourceUiState(isFollowed = it.isFollowedRemote) },
-                onFollow = {
-                    // Issue #169 — gate the destructive path behind a
-                    // confirm dialog; the additive path stays single-tap.
-                    if (state.isInLibrary) {
-                        showRemoveConfirm = true
-                    } else {
-                        viewModel.toggleFollow(true)
-                    }
-                },
-                onFollowOnSource = viewModel::toggleFollowOnSource,
-                // Issue #604 — Play CTA. Chooses the first non-finished
-                // chapter (resume) or falls back to chapter 1 on a
-                // fully-fresh or fully-finished fiction.
-                onPlay = pickChapterToPlay(state.chapters)?.let { picked ->
-                    { viewModel.listen(picked.id) }
-                },
-                playLabel = playButtonLabel(state.chapters, pickChapterToPlay(state.chapters)),
-                modifier = Modifier.align(Alignment.BottomCenter),
-            )
         }
     }
     }
@@ -887,8 +909,29 @@ private fun Synopsis(text: String) {
     }
 }
 
+/**
+ * Issue #638 (v1.0 blocker) — formerly `BottomBar`, an
+ * `Alignment.BottomCenter`-floated Surface. The float collided with the
+ * bottom-edge dock + gesture region on phone: the Play button bounds
+ * `[48,2359][522,2503]` on a 1080×2640 Z Flip3 sat directly inside the
+ * `y=2355–2595` dock band, and the dock was winning the touch-target
+ * race even though `StoryvoxRoutes.showsBottomNav("fiction/{fictionId}")`
+ * is false. Result: every Play tap bounced the user back to the Library
+ * "Your library awaits" empty state, defeating the #633 discoverability
+ * fix. The bar is now rendered as a normal in-content row inside the
+ * FictionDetail scroll surface — the floating Surface + shadowElevation
+ * came off because the row no longer needs to read as "this is on a
+ * separate layer than the body". The kept brass styling on the Play
+ * button (BrassButtonVariant.Primary) is enough to keep it the row's
+ * most prominent affordance without a floating-bar metaphor.
+ *
+ * When future work needs to restore a sticky bottom CTA, it should
+ * route through the parent Scaffold's `bottomBar` slot (or a sibling
+ * navigation surface), not a child-Box-aligned float — the latter
+ * shape is what created this overlap.
+ */
 @Composable
-private fun BottomBar(
+private fun ActionRow(
     isInLibrary: Boolean,
     /** Issue #211 — non-null only for Royal Road fictions. When set,
      *  surfaces an inline "Follow" / "Following" toggle next to the
@@ -898,15 +941,17 @@ private fun BottomBar(
     followOnSource: FollowOnSourceUiState? = null,
     onFollow: () -> Unit,
     onFollowOnSource: () -> Unit = {},
-    /** Issue #604 (v1.0 blocker) — Play button restored to the BottomBar.
+    /** Issue #604 (v1.0 blocker) — Play button restored on FictionDetail.
      *  Pre-#538 a "Listen" button lived here and was removed because it
      *  duplicated chapter-row taps. Post-audit the discoverability cost
      *  was worse than the duplication: cold-launch users with a book in
-     *  hand had no visible primary CTA on the detail surface. The Play
-     *  button is now the row's primary action (brass-bordered, leading
-     *  slot), with library / follow-on-source still present as secondary
-     *  affordances. Null disables the slot — used when no chapter is
-     *  resolvable (loading state, parse failure). */
+     *  hand had no visible primary CTA on the detail surface. Issue #638
+     *  then moved this row out of a floating BottomBar (which collided
+     *  with the bottom-dock hit area) and into the scroll body; the
+     *  button is still the row's primary affordance (brass-bordered,
+     *  leading slot), with library / follow-on-source still present
+     *  as secondary affordances. Null disables the slot — used when no
+     *  chapter is resolvable (loading state, parse failure). */
     onPlay: (() -> Unit)? = null,
     /** Issue #604 — label switches between "Play" and "Resume" depending
      *  on whether the fiction has any chapter the user already started.
@@ -914,57 +959,43 @@ private fun BottomBar(
     playLabel: String = "Play",
     modifier: Modifier = Modifier,
 ) {
-    // Issue #604 (v1.0 blocker) — Play CTA is back. The original
-    // removal in #538 ("standalone Listen duplicates chapter-row taps")
-    // was correct for power users who know to scroll to the chapter
-    // list, but the 2026-05-15 TalkBack/discoverability audit logged
-    // FictionDetail as a v1.0 blocker: a sighted user with no prior
-    // muscle memory has no visible primary action on the screen, and
-    // a TalkBack user couldn't even reach the chapter list without
-    // first knowing it existed. Restoring Play as the primary slot
-    // fixes both. The chapter-row tap path stays (still canonical for
-    // "play THIS specific chapter").
     val spacing = LocalSpacing.current
-    Surface(
-        modifier = modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-        shadowElevation = 8.dp,
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = spacing.md, vertical = spacing.sm),
+        horizontalArrangement = Arrangement.spacedBy(spacing.sm),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(spacing.md),
-            horizontalArrangement = Arrangement.spacedBy(spacing.sm),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            if (onPlay != null) {
-                BrassButton(
-                    label = playLabel,
-                    onClick = onPlay,
-                    // Brass-bordered Primary — the row's most visually
-                    // prominent affordance. The user-tap-test
-                    // (R5CRB0W66MK, 2026-05-15) confirmed cold-launch
-                    // users tap the leading button first; putting Play
-                    // there means the first tap reaches audio.
-                    variant = BrassButtonVariant.Primary,
-                    modifier = Modifier.weight(1f),
-                )
-            }
+        if (onPlay != null) {
             BrassButton(
-                label = if (isInLibrary) "In library" else "Add to library",
-                onClick = onFollow,
-                // Pre-#604 Add-to-library was the row's Primary slot;
-                // demoted to Secondary now that Play occupies primary
-                // and library state is a lower-frequency action.
+                label = playLabel,
+                onClick = onPlay,
+                // Brass-bordered Primary — the row's most visually
+                // prominent affordance. The user-tap-test
+                // (R5CRB0W66MK, 2026-05-15) confirmed cold-launch
+                // users tap the leading button first; putting Play
+                // there means the first tap reaches audio.
+                variant = BrassButtonVariant.Primary,
+                modifier = Modifier.weight(1f),
+            )
+        }
+        BrassButton(
+            label = if (isInLibrary) "In library" else "Add to library",
+            onClick = onFollow,
+            // Pre-#604 Add-to-library was the row's Primary slot;
+            // demoted to Secondary now that Play occupies primary
+            // and library state is a lower-frequency action.
+            variant = BrassButtonVariant.Secondary,
+            modifier = Modifier.weight(1f),
+        )
+        if (followOnSource != null) {
+            BrassButton(
+                label = if (followOnSource.isFollowed) "Following" else "Follow",
+                onClick = onFollowOnSource,
                 variant = BrassButtonVariant.Secondary,
                 modifier = Modifier.weight(1f),
             )
-            if (followOnSource != null) {
-                BrassButton(
-                    label = if (followOnSource.isFollowed) "Following" else "Follow",
-                    onClick = onFollowOnSource,
-                    variant = BrassButtonVariant.Secondary,
-                    modifier = Modifier.weight(1f),
-                )
-            }
         }
     }
 }

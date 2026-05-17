@@ -1,20 +1,36 @@
 package `in`.jphe.storyvox.feature.reader
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import `in`.jphe.storyvox.feature.debug.DebugOverlay
 import `in`.jphe.storyvox.feature.debug.DebugViewModel
+import `in`.jphe.storyvox.ui.component.BrassButton
+import `in`.jphe.storyvox.ui.component.BrassButtonVariant
 import `in`.jphe.storyvox.ui.component.HybridReaderShell
 import `in`.jphe.storyvox.ui.component.MilestoneConfetti
+import `in`.jphe.storyvox.ui.theme.LocalSpacing
 
 @Composable
 fun HybridReaderScreen(
@@ -137,6 +153,71 @@ fun HybridReaderScreen(
         playback.chapterId == null
     val showPromptForTimedOutWithEntry =
         playback != null && timedOut && resumeEntry != null
+    // Issue #638 (v1.0 blocker) — when the Reader was navigated to
+    // with explicit /reader/{fictionId}/{chapterId} args (drill-down
+    // from FictionDetail's Play button), the playback flow has not
+    // yet emitted by the time the composable first runs. Pre-fix the
+    // screen would fall through to ResumeEmptyPrompt and render the
+    // "Your library awaits / Browse the realms →" CTA — making it
+    // look exactly like the Library tab's empty state and convincing
+    // JP (and any user) that the Play tap had bounced them back to
+    // Library. Suppress the prompt branch entirely while the
+    // controller is still warming up on an explicit-args entry —
+    // the regular spinner inside AudiobookView (LoadingPhase.Loading)
+    // owns the loading affordance from here, just as it does for
+    // every other chapter-load path. The Playing tab (/playing, no
+    // args) still falls through to the prompt as before, which is
+    // the desired empty-state behaviour for that surface.
+    // Issue #638 — the explicit-args loading window covers BOTH the
+    // pre-emission case (showPromptForNullPlayback) AND the
+    // post-emission-but-blank-ids case (showPromptForBlankIds, where
+    // PlaybackController has emitted its default state with fictionId
+    // = null / chapterId = null but the controller's play() call
+    // hasn't reached the engine yet). The full sequence on a cold
+    // Play tap from FictionDetail:
+    //   t=0   :  user taps Play → listen(c) → startListening()
+    //   t=0+  :  screen navigates to /reader; ReaderVM constructs;
+    //            playback flow has not emitted → playback = null;
+    //            showPromptForNullPlayback = true
+    //   t=43ms:  playback flow emits default UiPlaybackState
+    //            (fictionId = null, chapterId = null); the null case
+    //            flips false BUT showPromptForBlankIds flips true,
+    //            and pre-fix that re-routed straight back to
+    //            ResumeEmptyPrompt — a 43ms flash of "Your library
+    //            awaits" was the bug. Including blank-ids here keeps
+    //            the explicit-args loading surface up through the
+    //            whole controller cold-start window, until the
+    //            controller fills in ids on the first chapter-load
+    //            tick. The TimedOut sub-branch within
+    //            [ExplicitArgsLoadingPrompt] surfaces a Retry/Back
+    //            block on a 30s wall — same affordance shape as the
+    //            in-AudiobookView TimedOut path, but rendered here
+    //            because we never reach AudiobookView with no ids.
+    val isExplicitArgsLoading = viewModel.hasExplicitChapterArgs &&
+        (showPromptForNullPlayback || showPromptForBlankIds)
+    if (isExplicitArgsLoading) {
+        // Brass loading-card surface while the controller warms up.
+        // Pre-fix this branch fell through to ResumeEmptyPrompt and
+        // rendered the "Your library awaits / Browse the realms →"
+        // CTA — visually indistinguishable from the Library empty
+        // state, and exactly what the bug report mistook for "the
+        // bottom-dock intercepted my Play tap." The real fix is here:
+        // show a typed loading state for the explicit-args path so
+        // the user sees "your chapter is loading," not "you have no
+        // library." Once the playback flow flips non-null the screen
+        // re-composes through the normal AudiobookView branch below.
+        Box(modifier = Modifier.fillMaxSize()) {
+            ExplicitArgsLoadingPrompt(
+                loadingPhase = state.loadingPhase,
+                onRetry = viewModel::retryLoading,
+                onBack = onBack,
+            )
+            if (debugOverlayVisible) {
+                DebugOverlay(viewModel = debugVm)
+            }
+        }
+        return
+    }
     if (showPromptForNullPlayback || showPromptForBlankIds ||
         showPromptForTimedOutWithEntry
     ) {
@@ -277,5 +358,106 @@ fun HybridReaderScreen(
             },
         )
     }
+    }
+}
+
+/**
+ * Issue #638 (v1.0 blocker) — loading affordance shown when the Reader
+ * was navigated to with explicit `/reader/{fictionId}/{chapterId}` args
+ * (drill-down from FictionDetail's Play button) but the playback flow
+ * hasn't emitted yet. Pre-fix the screen fell through to
+ * [ResumeEmptyPrompt] in this window, which made it look exactly like
+ * the Library tab's empty state — convincing the user (and JP) that
+ * the Play tap had bounced them back to Library instead of starting
+ * playback. This prompt holds the user on a typed "your chapter is
+ * loading" surface until the controller flips the state-flow.
+ *
+ * Honours [LoadingPhase] from the ReaderViewModel so the same
+ * slow-hint at 10s and timed-out retry path the AudiobookView uses
+ * is reproduced here — symmetry between the two surfaces matters for
+ * users who happen to time a slow voice cold-start against a slow
+ * chapter download.
+ */
+@Composable
+private fun ExplicitArgsLoadingPrompt(
+    loadingPhase: LoadingPhase,
+    onRetry: () -> Unit,
+    onBack: () -> Unit,
+) {
+    val spacing = LocalSpacing.current
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(spacing.lg),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        when (loadingPhase) {
+            LoadingPhase.TimedOut -> {
+                // 30s wall — give the user a Retry + Back rather than
+                // a silent spinner. Same affordance shape as the
+                // AudiobookView timed-out block, just rendered here
+                // because we're pre-controller-init.
+                Text(
+                    text = "Couldn't start this chapter",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    textAlign = TextAlign.Center,
+                )
+                Spacer(Modifier.height(spacing.xs))
+                Text(
+                    text = "The voice engine is taking longer than expected. " +
+                        "Try again, or back out to the chapter list.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                )
+                Spacer(Modifier.height(spacing.lg))
+                Row(horizontalArrangement = Arrangement.spacedBy(spacing.sm)) {
+                    BrassButton(
+                        label = "Back",
+                        onClick = onBack,
+                        variant = BrassButtonVariant.Secondary,
+                    )
+                    BrassButton(
+                        label = "Retry",
+                        onClick = onRetry,
+                        variant = BrassButtonVariant.Primary,
+                    )
+                }
+            }
+            LoadingPhase.Slow -> {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(48.dp),
+                    strokeWidth = 3.dp,
+                )
+                Spacer(Modifier.height(spacing.md))
+                Text(
+                    text = "Still loading…",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+                Spacer(Modifier.height(spacing.xs))
+                Text(
+                    text = "Cold-start of a slow voice or large chapter " +
+                        "can take a moment.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                )
+            }
+            else -> {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(48.dp),
+                    strokeWidth = 3.dp,
+                )
+                Spacer(Modifier.height(spacing.md))
+                Text(
+                    text = "Loading chapter…",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
+        }
     }
 }
