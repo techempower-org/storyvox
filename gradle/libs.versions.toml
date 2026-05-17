@@ -3,6 +3,12 @@
 agp = "8.7.2"
 kotlin = "2.0.21"
 ksp = "2.0.21-1.0.27"
+# Triple-T gradle-play-publisher — `./gradlew publishReleaseBundle` uploads
+# the signed AAB to Play Console without the browser. Requires a Google
+# Cloud service-account JSON with Play Console "Release manager"
+# permission (see docs/play-store/RUNBOOK.md). Plugin is wired but no-ops
+# unless `storyvox.playPublisher.credentialsFile` is set in local.properties.
+play-publisher = "3.10.1"
 
 # AndroidX core
 core-ktx = "1.13.1"
@@ -217,6 +223,11 @@ kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "ko
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 hilt = { id = "com.google.dagger.hilt.android", version.ref = "hilt" }
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
+# Triple-T gradle-play-publisher. Applied in :app and configured to read
+# the service-account JSON path from local.properties. See
+# docs/play-store/RUNBOOK.md for the one-time service-account setup that
+# unlocks `./gradlew publishReleaseBundle` for future releases.
+play-publisher = { id = "com.github.triplet.play", version.ref = "play-publisher" }
 
 [bundles]
 compose = [

@@ -18,6 +18,13 @@ plugins {
     // the result into :app's main sourceSet. ProfileInstaller (added
     // below as a runtime dep) compiles the profile at install time.
     alias(libs.plugins.androidx.baselineprofile)
+    // Triple-T gradle-play-publisher — `./gradlew publishReleaseBundle`
+    // uploads the signed AAB to Play Console's Internal Test track without
+    // touching the browser. Plugin always applies; the `play { }` block
+    // below is conditionally configured so this is a no-op until JP drops
+    // a service-account JSON path into local.properties. See
+    // docs/play-store/RUNBOOK.md for the one-time service-account setup.
+    alias(libs.plugins.play.publisher)
 }
 
 /**
@@ -86,6 +93,25 @@ val hasReleaseKeystore: Boolean = releaseStoreFilePath != null &&
     releaseKeyAlias != null &&
     releaseKeyPassword != null &&
     file(releaseStoreFilePath!!).exists()
+
+/**
+ * Play Console service-account credentials path — opt-in via local.properties.
+ *
+ *   storyvox.playPublisher.credentialsFile=/home/jp/.storyvox-keystore/play-service-account.json
+ *
+ * When set AND the file exists, the gradle-play-publisher tasks
+ * (`publishReleaseBundle`, `publishReleaseApk`, `promoteReleaseArtifact`)
+ * upload to Play Console Internal Test using that service account. When
+ * unset or absent, the plugin's tasks are no-ops — gradle prints
+ * "PlayPublisher requires credentials" if someone runs `publish*`
+ * without the credential, but every other build/install path is
+ * unaffected. See docs/play-store/RUNBOOK.md for the one-time setup.
+ */
+val playPublisherCredentialsPath: String? = localProperties.getProperty(
+    "storyvox.playPublisher.credentialsFile",
+)
+val hasPlayPublisherCredentials: Boolean = playPublisherCredentialsPath != null &&
+    file(playPublisherCredentialsPath!!).exists()
 
 android {
     namespace = "in.jphe.storyvox"
@@ -387,6 +413,48 @@ android {
             }
         }
     }
+}
+
+/**
+ * gradle-play-publisher configuration.
+ *
+ * When `storyvox.playPublisher.credentialsFile` is set in local.properties
+ * and the file exists, `./gradlew publishReleaseBundle` uploads the signed
+ * AAB to Play Console's Internal Test track with no browser interaction.
+ * The service-account JSON must come from a Google Cloud project that's
+ * linked to the Play Console developer account with at least the "Release
+ * manager" role — see docs/play-store/RUNBOOK.md for the one-time setup.
+ *
+ * Defaults below are deliberately conservative:
+ *  - `track = "internal"` — uploads land in Internal Test, never auto-go
+ *    to Production. Promote via `promoteArtifact` or the Play Console UI.
+ *  - `releaseStatus = "draft"` — the upload is staged, not auto-released
+ *    even within Internal Test. JP reviews + clicks "Release" in Play
+ *    Console for the first cycle; later releases can flip to "completed".
+ *  - `defaultToAppBundles = true` — `publishBundle` (AAB) is the canonical
+ *    path. APK uploads only run if explicitly asked for.
+ *  - `commit = false` — every gradle invocation builds up an "edit"
+ *    on Play Console without publishing it; the explicit `publishApps`
+ *    task commits the bundle so a failed CI run never half-publishes.
+ *
+ * No-op when credentials are absent: the plugin's tasks emit
+ * "PlayPublisher requires credentials" but the rest of the build is
+ * unaffected. Configuration-cache safe because we read the path eagerly
+ * above and use it as a plain String at configuration time.
+ */
+play {
+    if (hasPlayPublisherCredentials) {
+        serviceAccountCredentials.set(file(playPublisherCredentialsPath!!))
+    }
+    track.set("internal")
+    releaseStatus.set(com.github.triplet.gradle.androidpublisher.ReleaseStatus.DRAFT)
+    defaultToAppBundles.set(true)
+    commit.set(false)
+    // Resolution strategy: ignore version conflicts with the current Play
+    // Console listing. AGP versionCode is the source of truth — if a
+    // half-uploaded edit from a prior run is hanging around, we override
+    // it rather than failing the new release.
+    resolutionStrategy.set(com.github.triplet.gradle.androidpublisher.ResolutionStrategy.IGNORE)
 }
 
 dependencies {
