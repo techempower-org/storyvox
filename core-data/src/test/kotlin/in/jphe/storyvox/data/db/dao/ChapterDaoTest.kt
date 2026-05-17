@@ -210,29 +210,94 @@ class ChapterDaoTest {
     }
 
     @Test
-    fun upsertChaptersForFiction_droppedRowsSurviveAtParkedIndexes() = runTest {
+    fun upsertChaptersForFiction_droppedRowsAreDeleted() = runTest {
+        // Issue #652 — semantics flipped from #349's "park dropped
+        // rows above PARK_OFFSET" to "DELETE every chapter row for
+        // the fiction, then INSERT the fresh batch." See the kdoc on
+        // [ChapterDao.upsertChaptersForFiction] for the full history
+        // — short version: orphan parked rows accumulated a UNIQUE
+        // collision time-bomb that fired on tablet R83W80CAFZB when
+        // Notion's "EBT spending" page was removed in v0.5.65.
+        // Body preservation for chapters that survive across
+        // refreshes now happens in the repository layer (per-PK
+        // merge in [FictionRepositoryImpl.upsertDetail]) — the DAO
+        // does a clean wipe-and-replace.
         fictionDao.upsert(fiction)
         dao.upsertAll(
             listOf(
-                chapter("c1", index = 0, plainBody = "preserve me"),
+                chapter("c1", index = 0, plainBody = "do not preserve me"),
                 chapter("c2", index = 1),
             ),
         )
 
-        // Only c2 is in the new feed; c1 drops off but its body must
-        // survive (per the parking-range design: dropped rows stay
-        // parked above PARK_OFFSET = 100000 so their downloaded bodies
-        // are still available for later playback).
+        // Only c2 is in the new feed; c1 drops off and MUST disappear.
         dao.upsertChaptersForFiction("f1", listOf(chapter("c2", index = 0, title = "Now first")))
 
-        // c1 still exists with its body preserved, parked above 100000.
-        val parked = dao.get("c1")
-        assertNotNull("dropped chapter must survive parked", parked)
-        assertEquals("preserve me", parked!!.plainBody)
-        assertTrue("parked row index must be >= 100000, was ${parked.index}", parked.index >= 100000)
-
-        // c2 is at its new positive index.
+        assertNull("dropped chapter must be deleted, not parked", dao.get("c1"))
+        assertEquals("Now first", dao.get("c2")!!.title)
         assertEquals(0, dao.get("c2")!!.index)
+    }
+
+    @Test
+    fun upsertChaptersForFiction_handlesRepeatedRefreshAfterChapterRemoval_issue652() = runTest {
+        // Direct regression for issue #652 — the tablet repro.
+        //
+        // Setup: a fiction whose chapter list shrank. Before v0.5.65
+        // the Notion Guides fiction had 8 chapters at indexes 0..7.
+        // PR #648 dropped "EBT spending" (formerly index 4); v0.5.65+
+        // refreshes write 7 chapters at indexes 0..6 with the same
+        // stable PKs for the survivors. The crash was: open
+        // FictionDetail twice in a row → UNIQUE constraint violation
+        // on (fictionId, index) at index 4.
+        //
+        // The DELETE-then-INSERT path must succeed on N consecutive
+        // calls regardless of how the index map shifts.
+        fictionDao.upsert(fiction)
+        // Pre-#648 state: 8 chapters, the 5th of which is "EBT spending"
+        // (chapter pageId == "ebt"). Bodies populated so we can confirm
+        // both that survivors' bodies are restored through the repo
+        // merge path (out of scope here) AND that the orphan body is
+        // really gone (in scope here).
+        dao.upsertAll(
+            (0..7).map { idx ->
+                chapter(
+                    id = "f1::p$idx",
+                    index = idx,
+                    title = "ch$idx",
+                    plainBody = "body-$idx",
+                )
+            },
+        )
+
+        // New feed: 7 chapters; index 4 in the old DB was p4 ("EBT
+        // spending"), index 4 in the new feed is p5 ("Findhelp"). The
+        // PK shifts at the boundary.
+        val newFeed = listOf(
+            chapter("f1::p0", index = 0, title = "How to use"),
+            chapter("f1::p1", index = 1, title = "Free internet"),
+            chapter("f1::p2", index = 2, title = "EV incentives"),
+            chapter("f1::p3", index = 3, title = "EBT balance"),
+            chapter("f1::p5", index = 4, title = "Findhelp"),
+            chapter("f1::p6", index = 5, title = "Password manager"),
+            chapter("f1::p7", index = 6, title = "Free cell service"),
+        )
+
+        // First refresh after upgrade: must not throw.
+        dao.upsertChaptersForFiction("f1", newFeed)
+        // p4 (EBT spending) is gone.
+        assertNull("dropped chapter must be deleted", dao.get("f1::p4"))
+        // Survivors are at the new indexes.
+        assertEquals(4, dao.get("f1::p5")!!.index)
+
+        // Second refresh: this is the call that crashed on tablet.
+        // With DELETE-then-INSERT it must remain a no-throw.
+        dao.upsertChaptersForFiction("f1", newFeed)
+        assertNull(dao.get("f1::p4"))
+        assertEquals(7, dao.observeChapterInfosByFiction("f1").first().size)
+
+        // Third refresh, same feed — still fine.
+        dao.upsertChaptersForFiction("f1", newFeed)
+        assertEquals(7, dao.observeChapterInfosByFiction("f1").first().size)
     }
 
     @Test

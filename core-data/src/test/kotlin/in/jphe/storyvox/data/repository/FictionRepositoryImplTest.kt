@@ -306,6 +306,21 @@ class FictionRepositoryImplTest {
             chapters.forEach { rows[it.id] = it }
             chapters.map { it.fictionId }.toSet().forEach(::publishInfo)
         }
+
+        // Issue #652 — DELETE-then-INSERT chapter sync; record both
+        // for parity with the parking call-log breadcrumb above.
+        override suspend fun deleteByFictionId(fictionId: String) {
+            callLog += "deleteByFictionId($fictionId)"
+            val gone = rows.values.filter { it.fictionId == fictionId }.map { it.id }
+            gone.forEach { rows.remove(it) }
+            publishInfo(fictionId)
+        }
+
+        override suspend fun insertAll(chapters: List<Chapter>) {
+            callLog += "insertAll(${chapters.map { it.id }})"
+            chapters.forEach { rows[it.id] = it }
+            chapters.map { it.fictionId }.toSet().forEach(::publishInfo)
+        }
     }
 
     // -- Fake source -------------------------------------------------------------
@@ -560,16 +575,18 @@ class FictionRepositoryImplTest {
         assertEquals("chapter 0", merged.title)
     }
 
-    @Test fun `refreshDetail parks existing chapter indexes before upsert (issue #349)`() = runTest {
-        // Issue #349 regression — RSS feeds reorder. Without the parking
-        // pass, the fresh upsert would trip the (fictionId, index)
-        // UNIQUE constraint when a *different* chapter PK shows up at
-        // an existing chapter's index. We can't test the real SQL
-        // constraint with the fake DAO, but we CAN verify the
-        // ChapterRepository hits the parking path (parkChapterIndexesFor
-        // → upsertAll) instead of a bare upsertAll. The constraint
-        // crash is then handled by Room atomically inside the
-        // @Transaction wrapper.
+    @Test fun `refreshDetail deletes existing chapters before insert (issues #349, #652)`() = runTest {
+        // Issues #349 / #652 — RSS feeds reorder; a chapter permanently
+        // dropped from a feed used to leave an orphan parked row that
+        // eventually collided with a live row on its next refresh
+        // (tablet R83W80CAFZB Notion Guides v0.5.65 crash, issue #652).
+        // The fix is DELETE-then-INSERT inside @Transaction: every
+        // refresh fully replaces the per-fiction chapter list, so
+        // orphan rows can never accumulate to trigger the UNIQUE
+        // constraint. Verify the repository hits that path instead of
+        // a bare upsertAll — the body merge happens in [upsertDetail]
+        // before this DAO call, so dropped-then-readded chapters keep
+        // their body via the per-PK lookup, not via the DAO.
         val src = FakeSource(SourceIds.ROYAL_ROAD).apply {
             detailResult = FictionResult.Success(detail("99", chapterCount = 1))
         }
@@ -581,10 +598,10 @@ class FictionRepositoryImplTest {
 
         r.refreshDetail("99")
 
-        assertTrue(
-            "parkChapterIndexesFor must run before the upsert batch",
-            chapterDao.callLog.any { it == "parkChapterIndexesFor(99)" },
-        )
+        val deleteIdx = chapterDao.callLog.indexOfFirst { it == "deleteByFictionId(99)" }
+        val insertIdx = chapterDao.callLog.indexOfFirst { it.startsWith("insertAll(") }
+        assertTrue("deleteByFictionId must run", deleteIdx >= 0)
+        assertTrue("insertAll must run after delete", insertIdx > deleteIdx)
     }
 
     // -- refreshRemoteFollows ---------------------------------------------------

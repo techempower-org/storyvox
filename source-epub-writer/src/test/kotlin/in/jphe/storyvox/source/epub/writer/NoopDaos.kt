@@ -62,6 +62,8 @@ internal class NoopChapterDao : ChapterDao {
     override suspend fun upsert(chapter: Chapter) = Unit
     override suspend fun upsertAll(chapters: List<Chapter>) = Unit
     override suspend fun parkChapterIndexesFor(fictionId: String) = Unit
+    override suspend fun deleteByFictionId(fictionId: String) = Unit
+    override suspend fun insertAll(chapters: List<Chapter>) = Unit
     override suspend fun setDownloadState(id: String, state: ChapterDownloadState, now: Long, error: String?) = Unit
     override suspend fun setBody(
         id: String,

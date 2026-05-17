@@ -503,14 +503,19 @@ class FictionRepositoryImpl @Inject constructor(
                 firstReadAt = previous.firstReadAt,
             )
         }
-        // Issue #349 — RSS feeds (and any future window-style backend)
-        // reorder rows across refreshes. Plain upsertAll trips the
-        // (fictionId, index) UNIQUE constraint mid-batch because Room's
-        // @Upsert is per-row and the constraint check is immediate.
-        // upsertChaptersForFiction parks existing rows above the live
-        // range first, then upserts atomically inside a transaction.
-        // Costs one extra UPDATE per refresh; Royal Road's append-only
-        // case is unaffected by the parking pass.
+        // Issues #349 / #652 — RSS feeds (and any future window-style
+        // backend) reorder rows across refreshes. Plain upsertAll trips
+        // the (fictionId, index) UNIQUE constraint mid-batch because
+        // Room's @Upsert is per-row and the constraint check is
+        // immediate. The original fix (parked-then-upsert) preserved
+        // orphan rows above PARK_OFFSET, but that buried a UNIQUE
+        // collision time-bomb when a chapter was permanently removed
+        // from a source (Notion EBT spending, v0.5.65 → #652 crash on
+        // tablet). upsertChaptersForFiction is now a transactional
+        // DELETE-then-INSERT — every refresh fully replaces the
+        // chapter list. Body / download state / read state for
+        // chapters that survive across refreshes are preserved here
+        // in [merged] via the per-PK lookup above.
         chapterDao.upsertChaptersForFiction(detail.summary.id, merged)
     }
 }

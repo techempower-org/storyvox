@@ -118,6 +118,23 @@ class ChapterRepositoryImplTest {
             chapters.forEach { rows[it.id] = it; publishRow(it.id) }
         }
 
+        // Issue #652 — DELETE-then-INSERT chapter sync. Model the wipe
+        // so any test that drives [upsertChaptersForFiction] sees the
+        // same row-removal semantics the real DAO ships.
+        override suspend fun deleteByFictionId(fictionId: String) {
+            callLog += "deleteByFictionId($fictionId)"
+            val ids = rows.values.filter { it.fictionId == fictionId }.map { it.id }
+            ids.forEach { id ->
+                rows.remove(id)
+                publishRow(id)
+            }
+        }
+
+        override suspend fun insertAll(chapters: List<Chapter>) {
+            callLog += "insertAll(${chapters.map { it.id }})"
+            chapters.forEach { rows[it.id] = it; publishRow(it.id) }
+        }
+
         override suspend fun setDownloadState(
             id: String,
             state: ChapterDownloadState,
