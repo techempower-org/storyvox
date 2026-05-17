@@ -2155,9 +2155,36 @@ class EnginePlayer @AssistedInject constructor(
                     // consumer drains through underruns without pausing:
                     // listener may hear dead air, but never sees the
                     // "Buffering…" UI. EngineStreamingSource is untouched.
+                    //
+                    // Issue #642 — also bail out of the underrun pause when
+                    // the producer has already emitted every sentence
+                    // (END_PILL is in the queue). Pre-fix the gate fired
+                    // even on the chapter's LAST real chunk: producer
+                    // signalled `producedAllSentences=true` then pushed
+                    // END_PILL (queue depth = 1, audio depth = 0), the
+                    // consumer dequeued the last chunk, then the underrun
+                    // check saw headroom == 0 and pausing-then-parked on
+                    // [bufferHeadroomMs.first]. The Flow re-emits only when
+                    // the producer puts a new chunk; with the producer
+                    // already done, no more emissions ever land, and the
+                    // park inside [bufferHeadroomMs.first] is stuck until
+                    // the OUTER stopPlaybackPipeline interrupts the
+                    // consumer thread — which on auto-advance only fires
+                    // when the watchdog finally trips at the 12 s
+                    // end-of-chapter threshold. Net symptom: chapter N's
+                    // last sentence is never written to AudioTrack, the
+                    // listener never hears it, and chapter N+1's pipeline
+                    // doesn't start until the watchdog kicks. Reproduced
+                    // on R5CRB0W66MK Z Flip 3 in v0.5.63, captured in the
+                    // #642 logcat. Adding `!producedAllSentences` to the
+                    // gate keeps every legitimate intra-chapter underrun
+                    // pause intact (producedAll flips true ONLY at the
+                    // very end of the producer) while skipping the
+                    // doomed park on the final chunk.
                     if (cachedCatchupPause &&
                         !source.isStreaming &&
                         !paused &&
+                        !source.producedAllSentences &&
                         source.bufferHeadroomMs.value < BUFFER_UNDERRUN_THRESHOLD_MS) {
                         runCatching { track.pause() }
                         paused = true
@@ -2177,12 +2204,35 @@ class EnginePlayer @AssistedInject constructor(
                     // the headroom flow until the producer queues enough
                     // audio to cross the resume threshold, then resume
                     // the track and proceed with the write.
+                    //
+                    // Issue #642 — extra exit predicate: also resume when
+                    // the producer has flipped [producedAllSentences]
+                    // true. The [bufferHeadroomMs] flow re-evaluates the
+                    // predicate ONLY on a new emission, and the producer
+                    // doesn't emit again after END_PILL (END_PILL contains
+                    // 0 PCM bytes and goes through queue.put, not the
+                    // headroom flow). Without this extra predicate the
+                    // park sat forever even when the producer was done —
+                    // see the long comment on the underrun gate above
+                    // for the full repro trace. The new gate is
+                    // belt-and-suspenders: the underrun gate's
+                    // !producedAllSentences clause now blocks entry to
+                    // this branch on the last chunk, so in practice we
+                    // never reach the pause-park with the producer
+                    // already done. The defensive predicate guards the
+                    // race where producedAllSentences flips true AFTER
+                    // we entered the park (paused=true via a legitimate
+                    // mid-chapter underrun, producer races to finish
+                    // before listener catches back up). To make
+                    // `first { }` re-evaluate when the flag flips, we
+                    // call out to a helper that combines the headroom
+                    // flow with a producedAllSentences poll bridge —
+                    // simpler than wiring a SharedFlow on the source
+                    // and keeps the surface area for #642 minimal.
                     if (paused) {
                         try {
                             runBlocking {
-                                source.bufferHeadroomMs.first {
-                                    it >= BUFFER_RESUME_THRESHOLD_MS || !pipelineRunning.get()
-                                }
+                                waitForResumeOrTerminalState(source)
                             }
                         } catch (_: Throwable) {
                             // Interrupted by stopPlaybackPipeline (interrupt +
@@ -2569,6 +2619,75 @@ class EnginePlayer @AssistedInject constructor(
                 )
             }
         }
+
+    /**
+     * Issue #642 — wait for the consumer's underrun pause to resolve.
+     *
+     * Three exit conditions, any of which clears the park:
+     *   1. `bufferHeadroomMs >= BUFFER_RESUME_THRESHOLD_MS`: the producer
+     *      caught back up; resume the AudioTrack and keep writing.
+     *   2. `!pipelineRunning`: the outer pipeline is being torn down
+     *      (stopPlaybackPipeline). Skip the resume; the next iteration
+     *      of the consumer's outer while will see pipelineRunning=false
+     *      and exit cleanly.
+     *   3. `source.producedAllSentences`: the producer has emitted the
+     *      LAST sentence and pushed END_PILL. No further headroom
+     *      emissions will ever arrive (the producer's only headroom
+     *      writes are inside its per-sentence loop). Without this exit,
+     *      `bufferHeadroomMs.first { ... }` would park forever waiting
+     *      for an emission that never comes — exactly the #642 stall
+     *      reproduced on R5CRB0W66MK.
+     *
+     * Implementation: race the headroom flow against a poll loop on
+     * [PcmSource.producedAllSentences]. The flow is the fast path
+     * (every legitimate intra-chapter underrun resolves through an
+     * emission); the poll is the safety net that fires when the
+     * producer finishes during the park window. 50 ms poll cadence
+     * matches the user-pause park grain elsewhere in the consumer —
+     * imperceptible latency for the listener, cheap to run.
+     *
+     * Why not a SharedFlow on the source: keeps the surface area of
+     * the #642 fix minimal. A SharedFlow would be cleaner long-term;
+     * we can fold this into [EngineStreamingSource]'s public API in a
+     * follow-up if more callsites need to observe the terminal
+     * transition. For now the polling helper is private to
+     * [EnginePlayer] and used by exactly one consumer-thread branch.
+     */
+    private suspend fun waitForResumeOrTerminalState(source: PcmSource) {
+        kotlinx.coroutines.coroutineScope {
+            val headroomJob = launch {
+                runCatching {
+                    source.bufferHeadroomMs.first {
+                        it >= BUFFER_RESUME_THRESHOLD_MS || !pipelineRunning.get()
+                    }
+                }
+            }
+            val terminalPollJob = launch {
+                // Poll producedAllSentences + pipelineRunning at the
+                // same cadence as the user-pause park (Thread.sleep(50)
+                // in the outer consumer loop). 50 ms is below the
+                // perceived-gap threshold for resumed audio playback
+                // and well under the AudioTrack ring buffer drain
+                // time (~130 ms minBuffer on Samsung devices), so any
+                // race the predicate observes resolves before the
+                // listener notices.
+                while (
+                    pipelineRunning.get() &&
+                    !source.producedAllSentences &&
+                    source.bufferHeadroomMs.value < BUFFER_RESUME_THRESHOLD_MS
+                ) {
+                    kotlinx.coroutines.delay(50L)
+                }
+            }
+            // Whichever job completes first wakes the park; cancel the
+            // other so we don't leak a launched coroutine after the
+            // consumer thread proceeds.
+            kotlinx.coroutines.selects.select<Unit> {
+                headroomJob.onJoin { terminalPollJob.cancel() }
+                terminalPollJob.onJoin { headroomJob.cancel() }
+            }
+        }
+    }
 
     private fun stopPlaybackPipeline() {
         // Shutdown handshake:
