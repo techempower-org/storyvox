@@ -1,12 +1,12 @@
 {
   "name": "storyvox",
-  "description": "TechEmpower's accessible resource app — free tech guides, peer-support Discord, dial 211 — with a neural-voice audiobook engine reading everything aloud. 21 fiction backends, 3 in-process voice families, optional Azure HD cloud voices, Library Nocturne aesthetic.",
-  "version": "Luminous Quartz · e1064cc",
-  "hash": "e1064cc",
+  "description": "Neural-voice audiobook player for any text you have \u2014 offline TTS, optional Azure HD cloud voices, Library Nocturne aesthetic",
+  "version": "Infernal Relic \u00b7 e464873",
+  "hash": "e464873",
   "branch": "main",
   "dirty": false,
-  "built": "2026-05-15T11:30:00Z",
+  "built": "2026-05-17T00:17:24Z",
   "realm": "fantasy",
   "repo": "https://github.com/techempower-org/storyvox",
-  "commit_url": "https://github.com/techempower-org/storyvox/commit/e1064cc"
+  "commit_url": "https://github.com/techempower-org/storyvox/commit/e464873"
 }
