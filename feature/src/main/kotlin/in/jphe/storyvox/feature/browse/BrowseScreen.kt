@@ -361,6 +361,19 @@ fun BrowseScreen(
                 !state.isLoading &&
                 state.error == null ->
                 RssEmptyState(onAdd = { showRssManageSheet = true })
+            // Issue #669 — Local backend empty state. Without this branch
+            // tapping the Local chip on a fresh install rendered a
+            // completely blank content area: no spinner, no message,
+            // no CTA. Indistinguishable from a backend hang. Surface
+            // an explicit empty state with copy + a primary CTA that
+            // launches the SAF folder picker directly so the user can
+            // start importing without first navigating to Settings.
+            state.sourceId == SourceIds.EPUB &&
+                state.tab != BrowseTab.Search &&
+                state.items.isEmpty() &&
+                !state.isLoading &&
+                state.error == null ->
+                LocalEmptyState(viewModel = viewModel)
             // First-load failure with no cached items: full-screen error.
             // Retry triggers viewModel.loadMore() which the paginator
             // resolves to the same page that failed.
@@ -733,6 +746,76 @@ private fun Ao3SignInBanner(onOpenSignIn: () -> Unit) {
  * one-line explanation of how the source works + a primary "Add a
  * feed" CTA that opens the same `BrowseRssManageSheet` the FAB does.
  */
+/**
+ * Issue #669 — empty state for the Local (EPUB) backend.
+ *
+ * Pre-fix Browse → Local rendered a completely blank content area with
+ * no spinner, no message, no CTA. Every other "not yet configured"
+ * backend (Palace, Wiki, Discord) had a clear `realm is unreachable`
+ * panel + setup path; Local did not.
+ *
+ * The CTA below launches the same SAF `OpenDocumentTree` picker
+ * Settings → EPUB folder uses, then persists the URI via
+ * `BrowseViewModel.setEpubFolderUri`. The repository's `epubFolderUri`
+ * flow propagates the change so the EPUB source re-enumerates the
+ * folder and the empty state flips into the normal grid on next
+ * paginator tick.
+ *
+ * The folder-permission `takePersistableUriPermission` call mirrors the
+ * Settings row's logic (SettingsScreen.EpubFolderPickerRow) so the
+ * grant outlives the current process.
+ */
+@Composable
+private fun LocalEmptyState(viewModel: BrowseViewModel) {
+    val spacing = LocalSpacing.current
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val launcher = androidx.activity.compose.rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.OpenDocumentTree(),
+    ) { uri ->
+        if (uri != null) {
+            val flags = android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
+            runCatching {
+                context.contentResolver.takePersistableUriPermission(uri, flags)
+            }
+            viewModel.setEpubFolderUri(uri.toString())
+        }
+    }
+    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(spacing.sm),
+            modifier = Modifier.padding(horizontal = spacing.xl),
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Add,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(48.dp),
+            )
+            Text(
+                "Listen to your own EPUBs",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                textAlign = TextAlign.Center,
+            )
+            Text(
+                "Pick a folder on your device — every .epub inside becomes " +
+                    "a fiction storyvox can read to you. Zero network, " +
+                    "your files stay on your device.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+            )
+            Spacer(Modifier.height(spacing.md))
+            BrassButton(
+                label = "Choose folder",
+                onClick = { launcher.launch(null) },
+                variant = BrassButtonVariant.Primary,
+            )
+        }
+    }
+}
+
 @Composable
 private fun RssEmptyState(onAdd: () -> Unit) {
     val spacing = LocalSpacing.current

@@ -492,6 +492,21 @@ class BrowseViewModel @Inject constructor(
         viewModelScope.launch { paginator.value?.loadNext() }
     }
 
+    // ─── Local EPUB folder picker (#669) ─────────────────────────────────
+    //
+    // Browse → Local chip empty-state CTA writes the picked SAF tree URI
+    // straight through here so the user can start importing local books
+    // without navigating to Settings → EPUB folder. The corresponding
+    // Settings row continues to exist for "I want to change my folder
+    // later" — this entry point is for first-run discoverability.
+    val epubFolderUri: StateFlow<String?> =
+        settings.epubFolderUri
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    fun setEpubFolderUri(uri: String) = viewModelScope.launch {
+        settings.setEpubFolderUri(uri)
+    }
+
     // ─── RSS feed management (#247) ─────────────────────────────────────
 
     val rssSubscriptions: StateFlow<List<String>> =
