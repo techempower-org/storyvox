@@ -1,6 +1,8 @@
 package `in`.jphe.storyvox.data.db.dao
 
 import androidx.room.Dao
+import androidx.room.Insert
+import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
 import androidx.room.Upsert
@@ -150,18 +152,15 @@ interface ChapterDao {
     /**
      * Issue #349 (RSS reorder crash) — bump every chapter row for
      * [fictionId] currently in the "live" index range into a reserved
-     * parking range above [PARK_OFFSET]. Used right before an upsertAll
-     * batch so the incoming positive-indexed rows can land without
-     * tripping the (fictionId, index) UNIQUE constraint mid-batch.
+     * parking range above [PARK_OFFSET]. Used historically by
+     * [upsertChaptersForFiction] before its rewrite for #652; retained
+     * as a standalone DAO method because nothing else exercises it
+     * directly and removing it would churn the test surface, but the
+     * preferred path now is the DELETE-then-INSERT in
+     * [upsertChaptersForFiction].
      *
-     * The `index >= 0 AND index < PARK_OFFSET` guard means previously-
-     * parked rows from older refreshes stay where they are — no runaway
-     * offset accumulation across many refreshes. Rows whose PK comes
-     * back in the new feed get UPSERTed back to a positive index by
-     * the followup [upsertAll]; rows that have dropped off the feed
-     * stay parked, preserving their bodies/download state for later
-     * playback even though they no longer show in the current feed
-     * snapshot.
+     * The `index >= 0 AND index < PARK_OFFSET` guard prevents runaway
+     * offset accumulation across repeated calls.
      */
     @Query(
         """
@@ -175,22 +174,103 @@ interface ChapterDao {
     suspend fun parkChapterIndexesFor(fictionId: String)
 
     /**
-     * Atomic two-phase chapter sync: park existing rows above the
-     * live range, then upsert the fresh batch at positive indexes
-     * 0..N. Wrapping in @Transaction is what makes this work —
-     * Room defers invalidation-tracker emissions until commit, so
-     * observers never see the "all parked, nothing visible" mid-state.
+     * Issue #652 — delete every chapter row for [fictionId] in a single
+     * statement. Paired with [insertAll] inside [upsertChaptersForFiction]
+     * to fully replace the chapter list atomically.
      *
-     * Use this instead of [upsertAll] from any sync path where the
-     * incoming chapter list may reorder existing rows (RSS feeds,
-     * any future "feed-window" backend). The Royal Road append-only
-     * case works fine with either path; the cost is one extra UPDATE
-     * per fiction-refresh.
+     * `ForeignKey.CASCADE` from chapter→fiction means dropping the
+     * parent deletes children, but the chapter list refresh path is
+     * "replace children, keep parent" — so we delete chapters by
+     * fictionId directly and leave the parent fiction row alone.
+     */
+    @Query("DELETE FROM chapter WHERE fictionId = :fictionId")
+    suspend fun deleteByFictionId(fictionId: String)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(chapters: List<Chapter>)
+
+    /**
+     * Atomic chapter-list replacement: delete all existing rows for
+     * [fictionId], then insert the fresh batch.
+     *
+     * # History
+     *
+     * The first cut of this method (PR #349, RSS reorder crash) used a
+     * two-phase park-then-upsert: bump existing rows above PARK_OFFSET
+     * so the incoming positive indexes could land without tripping the
+     * `(fictionId, index)` UNIQUE constraint mid-batch, then upsertAll
+     * the fresh list. The intent was to preserve dropped rows' bodies
+     * and download state at parked indexes — "feed slides, body lives".
+     *
+     * # Why DELETE-then-INSERT now (issue #652)
+     *
+     * On tablet R83W80CAFZB upgrading from v0.5.64 → v0.5.65+ the
+     * parking path crashed with `SQLiteConstraintException: UNIQUE
+     * constraint failed: chapter.fictionId, chapter.index` on opening
+     * the TechEmpower Guides FictionDetail. Sequence of events:
+     *
+     *  1. v0.5.64 wrote 8 Guides chapters at indexes 0–7. The chapter
+     *     at index 4 was "EBT spending" with PK
+     *     `notion:<fid>::16f7018ad935...`.
+     *  2. PR #648 (v0.5.65) removed "EBT spending" because its
+     *     upstream Notion page started returning a 400. The new chapter
+     *     list has 7 rows.
+     *  3. First open after upgrade: parkChapterIndexesFor bumps all 8
+     *     existing rows from 0–7 to 100000–100007. upsertAll writes 7
+     *     new rows at 0–6, matching the 7 surviving PKs back to the
+     *     live range. "EBT spending" stays parked at 100004.
+     *  4. **Second open**: parkChapterIndexesFor only acts on rows in
+     *     `[0, 100000)` so it tries to bump the 7 live rows 0–6 to
+     *     100000–100006. The bump from index=4 to index=100004
+     *     collides with the still-parked "EBT spending" at 100004.
+     *     UNIQUE index fires; the FictionDetail screen crashes.
+     *
+     * Any time a chapter is permanently removed from a source's feed
+     * (Notion page deleted, RSS entry expired, AO3 chapter pulled,
+     * etc.) the parked row sticks around forever and the next refresh
+     * has a roulette-wheel chance of colliding when the live indexes
+     * cross the parked indexes' offsets.
+     *
+     * # Tradeoff
+     *
+     * The original parking design tried to preserve dropped chapters'
+     * downloaded bodies for "later playback" — the idea being that if
+     * a chapter falls off the feed window in a paginated source, the
+     * user can still play what was already downloaded. In practice:
+     *
+     *  - The repository layer ([FictionRepositoryImpl.upsertDetail])
+     *    already preserves bodies, download state, read state, etc.
+     *    BY PK before this DAO call: it reads each incoming chapter's
+     *    previous row and copies the body forward. So for any chapter
+     *    that's in BOTH the old and new feed (the common case) body
+     *    preservation happens above this layer regardless.
+     *  - The only case the parking design protected was: chapter X
+     *    was in feed yesterday, downloaded, then dropped from the
+     *    feed today. With DELETE-then-INSERT, X's body is now lost.
+     *
+     * Per the v0.5.66 product decision: chapter lists are fully
+     * replaced on every refresh; dropped rows do not survive. If a
+     * future source needs window-style preservation, add a per-source
+     * flag and branch in the repository layer rather than burdening
+     * every refresh with the parking gymnastics.
+     *
+     * # If you find this firing
+     *
+     * The next likely failure mode is an unrelated FK from another
+     * table pointing at chapter.id (e.g. playback position, history,
+     * bookmark sync). Today the schema has:
+     *  - `playback_position` PK = chapter id (not an FK; orphan rows
+     *    are tolerated, they just won't resolve)
+     *  - `chapter_history` joins by id on read, no FK
+     *  - InstantDB sync layer reads chapter rows directly
+     * so DELETE here is safe. If you add a new table with a real FK
+     * onto chapter.id, decide whether dropped chapters should cascade
+     * or whether the DAO needs a soft-delete column.
      */
     @Transaction
     suspend fun upsertChaptersForFiction(fictionId: String, chapters: List<Chapter>) {
-        parkChapterIndexesFor(fictionId)
-        upsertAll(chapters)
+        deleteByFictionId(fictionId)
+        insertAll(chapters)
     }
 
     @Query(
