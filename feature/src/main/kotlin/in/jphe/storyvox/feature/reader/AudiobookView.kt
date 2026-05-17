@@ -86,6 +86,7 @@ import `in`.jphe.storyvox.feature.api.UiPlaybackState
 import `in`.jphe.storyvox.feature.api.UiSleepTimerMode
 import `in`.jphe.storyvox.ui.component.BrassButton
 import `in`.jphe.storyvox.ui.component.BrassButtonVariant
+import `in`.jphe.storyvox.ui.component.BrassEmberOverlay
 import `in`.jphe.storyvox.ui.component.BrassProgressTrack
 import `in`.jphe.storyvox.ui.component.BrassVoiceIcon
 import `in`.jphe.storyvox.ui.component.ErrorBlock
@@ -532,12 +533,53 @@ fun AudiobookView(
                     ) {
                         MagicSpinner(modifier = Modifier.size(width = 240.dp, height = 350.dp))
                     }
+                    // v1.0 polish (2026-05-16) — layer brass candle-ember
+                    // particles over the cover during warming. The Ken-
+                    // Burns scale on the cover + the orbiting sigil ring
+                    // are both *single-element* motion signals; adding
+                    // the ember drift gives the warming window a third
+                    // layer (slow scale × medium ring × fast drift) so
+                    // it reads as ambient magic gathering around the
+                    // chapter — not just one element trying to do all
+                    // the work of saying "we're working". 6 embers, 3 dp
+                    // max radius, 5.6 s rise period — calm + atmospheric.
+                    // Honors LocalReducedMotion (collapses to a single
+                    // resting candle-glow ember at the cover bottom)
+                    // and LocalAnimationSpeedScale (#589). Hidden when
+                    // not warming so playback stays undecorated.
+                    androidx.compose.animation.AnimatedVisibility(
+                        visible = showSpinner,
+                        enter = spinnerEnter,
+                        exit = spinnerExit,
+                    ) {
+                        BrassEmberOverlay(
+                            modifier = Modifier.size(width = 220.dp, height = 330.dp),
+                            emberCount = 6,
+                            radiusDp = 3.dp,
+                            riseDurationMs = 5600,
+                        )
+                    }
                 }
             }
+            // v1.0 polish (2026-05-16) — when the fiction title hasn't
+            // resolved yet ("Conjuring your chapter…"), apply the
+            // existing skeleton shimmer alpha so the placeholder text
+            // breathes between 0.35..0.85 alpha at the same 1.2 s
+            // cadence as every other skeleton on screen. Reads as a
+            // magical incantation forming itself, not as plain
+            // placeholder text waiting for a network hit. Honors
+            // LocalReducedMotion + LocalAnimationSpeedScale (both
+            // collapse the shimmer to a static mid-alpha via
+            // shimmerAlpha() — see SkeletonShimmer.kt).
+            val titleBlank = state.fictionTitle.isBlank()
+            val titleShimmerAlpha = if (titleBlank) {
+                `in`.jphe.storyvox.ui.component.shimmerAlpha()
+            } else 1f
             Text(
-                if (state.fictionTitle.isBlank()) "Conjuring your chapter…" else state.fictionTitle,
+                if (titleBlank) "Conjuring your chapter…" else state.fictionTitle,
                 style = MaterialTheme.typography.titleLarge,
-                color = if (state.fictionTitle.isBlank()) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                color = if (titleBlank) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.alpha(titleShimmerAlpha),
             )
             Text(
                 // Issue #166 — when we have a chapter title, KEEP it visible

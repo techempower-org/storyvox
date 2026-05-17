@@ -47,6 +47,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import `in`.jphe.storyvox.playback.diagnostics.WaitReason
+import `in`.jphe.storyvox.ui.component.MagicSpinner
 import `in`.jphe.storyvox.ui.theme.LocalMotion
 import `in`.jphe.storyvox.ui.theme.LocalReducedMotion
 import `in`.jphe.storyvox.ui.theme.LocalSpacing
@@ -243,21 +244,31 @@ fun WhyAreWeWaitingPanel(
 }
 
 /**
- * Pulsing brass sigil — a 12 dp dot that fades 0.5 → 1.0 → 0.5 alpha on a
- * 1.5 s period. Honors reduced motion: when on, the sigil holds at the
- * mid-alpha so the visual still reads as "we're watching for output"
- * without animation.
+ * Pulsing brass sigil — a 14 dp rotating brass dashed ring (MagicSpinner
+ * with the standard 2-second period) overlaid with a subtle alpha pulse.
+ * Used at the panel headline so "we're waiting on output" reads as the
+ * same brass-sigil-family as every other Library Nocturne loading
+ * surface (skeleton tiles, MagicCircularProgress, cover-warm spinner)
+ * instead of a generic alpha-pulse dot. Pre-v1.0-polish (2026-05-16)
+ * this was a 12 dp circle that faded between two alphas — visually
+ * indistinguishable from a status LED, lost the realm-language of the
+ * surrounding UI.
+ *
+ * Honors reduced motion: when on, the spinner freezes at MagicSpinner's
+ * 135° resting pose AND the alpha pulse collapses to a steady mid-
+ * value (0.75), so the sigil holds as a static brass glyph rather than
+ * disappearing.
  */
 @Composable
 private fun PulsingBrassSigil(
     color: Color,
     reducedMotion: Boolean,
 ) {
-    val alpha = if (reducedMotion) 0.75f else {
+    val alpha = if (reducedMotion) 0.85f else {
         val transition = androidx.compose.animation.core
             .rememberInfiniteTransition(label = "why-waiting-sigil")
         val a by transition.animateFloat(
-            initialValue = 0.5f,
+            initialValue = 0.65f,
             targetValue = 1.0f,
             animationSpec = infiniteRepeatable(
                 animation = tween(durationMillis = 1500, easing = androidx.compose.animation.core.LinearEasing),
@@ -269,11 +280,17 @@ private fun PulsingBrassSigil(
     }
     Box(
         modifier = Modifier
-            .size(12.dp)
-            .alpha(alpha)
-            .clip(RoundedCornerShape(6.dp))
-            .background(color),
-    )
+            .size(14.dp)
+            .alpha(alpha),
+    ) {
+        MagicSpinner(
+            modifier = Modifier.size(14.dp),
+            color = color,
+            strokeWidth = 1.5.dp,
+            durationMs = 2400,
+            dashLengthFraction = 0.22f,
+        )
+    }
 }
 
 /**

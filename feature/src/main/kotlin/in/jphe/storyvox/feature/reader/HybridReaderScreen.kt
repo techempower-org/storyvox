@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -29,6 +28,7 @@ import `in`.jphe.storyvox.feature.debug.DebugViewModel
 import `in`.jphe.storyvox.ui.component.BrassButton
 import `in`.jphe.storyvox.ui.component.BrassButtonVariant
 import `in`.jphe.storyvox.ui.component.HybridReaderShell
+import `in`.jphe.storyvox.ui.component.MagicCircularProgress
 import `in`.jphe.storyvox.ui.component.MilestoneConfetti
 import `in`.jphe.storyvox.ui.theme.LocalSpacing
 
@@ -427,9 +427,16 @@ private fun ExplicitArgsLoadingPrompt(
                 }
             }
             LoadingPhase.Slow -> {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(48.dp),
-                    strokeWidth = 3.dp,
+                // v1.0 polish (2026-05-16) — JP audit flagged the
+                // Material CircularProgressIndicator's sweeping arc
+                // as "weird" against the rest of the Library Nocturne
+                // motion vocabulary. Swap to MagicCircularProgress: a
+                // layered brass sigil (outer dashed ring + inner six-
+                // pointed star) that matches MagicSkeletonTile's
+                // geometry so the loading + skeleton surfaces read as
+                // one realm-language.
+                MagicCircularProgress(
+                    modifier = Modifier.size(56.dp),
                 )
                 Spacer(Modifier.height(spacing.md))
                 Text(
@@ -447,9 +454,15 @@ private fun ExplicitArgsLoadingPrompt(
                 )
             }
             else -> {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(48.dp),
-                    strokeWidth = 3.dp,
+                // v1.0 polish — same swap as the Slow branch. See
+                // comment above. ExplicitArgsLoadingPrompt is the
+                // surface JP sees the moment he taps a chapter from
+                // FictionDetail and the controller hasn't emitted yet
+                // (~200-2000 ms typical), so this is one of the most
+                // load-bearing animations in the app for "is this
+                // working?" confidence.
+                MagicCircularProgress(
+                    modifier = Modifier.size(56.dp),
                 )
                 Spacer(Modifier.height(spacing.md))
                 Text(

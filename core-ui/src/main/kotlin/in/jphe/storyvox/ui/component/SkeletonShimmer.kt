@@ -32,7 +32,9 @@ import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import `in`.jphe.storyvox.ui.theme.LocalAnimationSpeedScale
 import `in`.jphe.storyvox.ui.theme.LocalReducedMotion
+import `in`.jphe.storyvox.ui.theme.scaleDurationMs
 import kotlin.math.cos
 import kotlin.math.sin
 
@@ -49,12 +51,20 @@ fun shimmerAlpha(): Float {
     // decorative bit a vestibular-sensitive user wants out of their
     // peripheral vision.
     if (LocalReducedMotion.current) return 0.6f
+    // #589 — animation-speed pref also collapses to static at Off
+    // (scale == 0f). Same shape as ReducedMotion: the slider's "Off"
+    // tier is a stronger statement than per-component motion.
+    val speedScale = LocalAnimationSpeedScale.current
+    if (speedScale <= 0f) return 0.6f
     val transition = rememberInfiniteTransition(label = "skeleton-shimmer")
     val alpha by transition.animateFloat(
         initialValue = 0.35f,
         targetValue = 0.85f,
         animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 1200, easing = LinearEasing),
+            animation = tween(
+                durationMillis = scaleDurationMs(1200, speedScale).coerceAtLeast(1),
+                easing = LinearEasing,
+            ),
             repeatMode = RepeatMode.Reverse,
         ),
         label = "skeleton-alpha",
@@ -102,36 +112,50 @@ fun MagicSkeletonTile(
     // at a deliberate resting pose (outer 0°, inner 30°, full pulse).
     // The brass glyph still reads as a placeholder; the rotating
     // parallax goes away.
+    // #589 — same shape for animation-speed Off (scale == 0f): the
+    // slider's strongest tier collapses to static, matching reduced
+    // motion. Non-zero scales multiply each rotation period.
     val reducedMotion = LocalReducedMotion.current
+    val speedScale = LocalAnimationSpeedScale.current
+    val frozen = reducedMotion || speedScale <= 0f
     val transition = rememberInfiniteTransition(label = "skeleton-sigil")
-    val outerRotation: Float = if (reducedMotion) 0f else {
+    val outerRotation: Float = if (frozen) 0f else {
         val v by transition.animateFloat(
             initialValue = 0f,
             targetValue = 360f,
             animationSpec = infiniteRepeatable(
-                animation = tween(durationMillis = 12_000, easing = LinearEasing),
+                animation = tween(
+                    durationMillis = scaleDurationMs(12_000, speedScale).coerceAtLeast(1),
+                    easing = LinearEasing,
+                ),
             ),
             label = "outer",
         )
         v
     }
-    val innerRotation: Float = if (reducedMotion) 30f else {
+    val innerRotation: Float = if (frozen) 30f else {
         val v by transition.animateFloat(
             initialValue = 0f,
             targetValue = -360f,
             animationSpec = infiniteRepeatable(
-                animation = tween(durationMillis = 18_000, easing = LinearEasing),
+                animation = tween(
+                    durationMillis = scaleDurationMs(18_000, speedScale).coerceAtLeast(1),
+                    easing = LinearEasing,
+                ),
             ),
             label = "inner",
         )
         v
     }
-    val pulse: Float = if (reducedMotion) 1.0f else {
+    val pulse: Float = if (frozen) 1.0f else {
         val v by transition.animateFloat(
             initialValue = 0.55f,
             targetValue = 1.0f,
             animationSpec = infiniteRepeatable(
-                animation = tween(durationMillis = 1800, easing = LinearEasing),
+                animation = tween(
+                    durationMillis = scaleDurationMs(1800, speedScale).coerceAtLeast(1),
+                    easing = LinearEasing,
+                ),
                 repeatMode = RepeatMode.Reverse,
             ),
             label = "pulse",

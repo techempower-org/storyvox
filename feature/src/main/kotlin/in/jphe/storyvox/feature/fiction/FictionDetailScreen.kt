@@ -25,7 +25,6 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -67,6 +66,7 @@ import `in`.jphe.storyvox.ui.component.BrassButton
 import `in`.jphe.storyvox.ui.component.BrassButtonVariant
 import `in`.jphe.storyvox.ui.component.ChapterCard
 import `in`.jphe.storyvox.ui.component.ChapterCardState
+import `in`.jphe.storyvox.ui.component.MagicCircularProgress
 import `in`.jphe.storyvox.ui.component.coverSourceFamilyFor
 import `in`.jphe.storyvox.ui.component.ErrorBlock
 import `in`.jphe.storyvox.ui.component.ErrorPlacement
@@ -287,9 +287,18 @@ fun FictionDetailScreen(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                             ) {
-                                CircularProgressIndicator(
+                                // v1.0 polish (2026-05-16) — swap the
+                                // Material CircularProgressIndicator for
+                                // MagicCircularProgress so the .epub
+                                // export progress reads as the same
+                                // brass-sigil family used everywhere
+                                // else in the app. Tiny size (16 dp) so
+                                // the inner star + outer dashed ring
+                                // collapses to a recognizable brass dot
+                                // with a slow ring sweep — still distinct
+                                // from a static glyph, still ours.
+                                MagicCircularProgress(
                                     modifier = Modifier.size(16.dp),
-                                    strokeWidth = 2.dp,
                                 )
                                 Text("Building .epub…", style = MaterialTheme.typography.labelSmall)
                             }

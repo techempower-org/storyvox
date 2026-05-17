@@ -12,7 +12,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CloudSync
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -34,6 +33,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import `in`.jphe.storyvox.ui.component.MagicCircularProgress
 
 /**
  * Brass-themed sign-in screen for the InstantDB sync layer.
@@ -190,12 +190,22 @@ private fun InProgress(label: String) {
     // announces "Loading, <label>" instead of staying silent during a
     // multi-second OAuth handshake. Marked as a live region so the
     // announcement is re-spoken when the label flips between states.
-    CircularProgressIndicator(
+    // v1.0 polish (2026-05-16) — JP audit flagged the Material
+    // CircularProgressIndicator as the "weird arc spinning around"
+    // visible across the app's loading surfaces. Swap to
+    // MagicCircularProgress so OAuth handoff (sign-in → e-mail magic
+    // link → token exchange) shows the same brass sigil family as
+    // every other Library Nocturne loading state. The semantics live
+    // region stays identical so TalkBack's "Loading, <label>"
+    // announcement is preserved.
+    MagicCircularProgress(
         color = MaterialTheme.colorScheme.primary,
-        modifier = Modifier.semantics {
-            contentDescription = "Loading: $label"
-            liveRegion = LiveRegionMode.Polite
-        },
+        modifier = Modifier
+            .size(48.dp)
+            .semantics {
+                contentDescription = "Loading: $label"
+                liveRegion = LiveRegionMode.Polite
+            },
     )
     Spacer(Modifier.height(12.dp))
     Text(
