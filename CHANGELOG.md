@@ -9,6 +9,31 @@ Entries before v0.5.12 are reconstructed from the git log — see
 
 ## [Unreleased]
 
+## [0.5.64] — 2026-05-16
+
+**Chapter-2-silent-on-auto-advance fix.** v0.5.63 made auto-advance fire correctly — but chapter 2 then stayed silent. PR #643 fixes the parked consumer at natural chapter end.
+
+### Fixed (#643, closes #642) — last sentence stranded → chapter 2 producer wedged
+**Root cause** (captured by on-device logcat): after the producer dequeues the last real chunk and logs `serial producer: natural end (all 54 sentences emitted), pushing END_PILL`, the consumer's underrun-pause gate (`bufferHeadroomMs < BUFFER_UNDERRUN_THRESHOLD_MS`) trips because END_PILL contributes 0 ms of audio. Consumer calls `track.pause()` and parks in `runBlocking { bufferHeadroomMs.first { it >= RESUME || !pipelineRunning.get() } }`. Producer is done, so `bufferHeadroomMs` never emits again. `pipelineRunning` clause is INSIDE the predicate — only re-evaluated on emission. Park is forever. Chapter 1's last sentence never reaches speakers. When chapter 2's `loadAndPlay` runs via the watchdog, the teardown chain interrupts the stuck consumer but the new pipeline gets wedged behind the dying-resource handoff.
+
+**Fix** in `EnginePlayer.kt`:
+1. **Underrun-pause gate now ANDs `!source.producedAllSentences`** — last-chunk case skips the pause entirely → post-write fast-path fires → `handleChapterDone` dispatches naturally.
+2. **New `waitForResumeOrTerminalState` helper** races the headroom flow against a 50 ms poll on `producedAllSentences` — belt-and-suspenders defense for the producer-finishes-while-consumer-parked race.
+
+Plus `EngineStreamingSourceProducedAllRaceTest.kt` pinning the contract.
+
+### On-device verified — auto-advance cascade
+- ch1 → ch2 (How to use → Free internet): **488 ms gap**, natural-end fast-path
+- ch2 → ch3 (Free internet → EV incentives): **331 ms gap**
+- ch3 → ch4 (EV incentives → EBT balance): **293 ms gap**
+- ch4 → ch5: watchdog fired but chapter body not pre-downloaded; #558 (Notion N+1 prefetch) territory, separate issue
+- `dumpsys audio | grep storyvox` confirms `AudioTrack state:started` post-advance
+- No "Reconnecting" panel surfaces (because audio actually IS reaching speakers)
+- Tablet R83W80CAFZB also clean: ch1→ch2 fast-path at 18:41:57.635
+
+### Pre-existing first-listen synth latency (NOT a regression)
+The 300-500 ms transition gap on the FIRST listen at 2× speed is pre-existing behavior — PCM cache key includes speed, so 1× pre-rendered chapters miss cache at 2×. Subsequent re-listens at 2× hit cache + gap drops to <100 ms. PR-F (#86) pre-render worker generates 1× by default; future work would prerender the user's active speed.
+
 ## [0.5.63] — 2026-05-16
 
 **v1.0 phone playback blocker fix.** Caught in JP-requested end-to-end phone verification: tap-to-play timed out after 30s with no audio, no AudioFocus, no AudioTrack on R5CRB0W66MK (Z Flip 3). PR #641 root-causes + fixes.
