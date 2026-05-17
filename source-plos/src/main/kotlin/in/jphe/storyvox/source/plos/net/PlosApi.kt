@@ -64,14 +64,22 @@ internal class PlosApi @Inject constructor(
         val url = "$BASE_SEARCH" +
             "?q=" + URLEncoder.encode("*:*", "UTF-8") +
             // Issue #664 — PLOS retired the `journal_key` field; queries
-            // against it return numFound=0 now. The user-facing journal
-            // name `"PLOS ONE"` (quoted to keep the space inside one
-            // term) is the current Solr-side filter that still resolves
-            // to ~2.8M docs. Curl-confirmed against
-            //   https://api.plos.org/search?q=*:*&fq=journal:"PLOS ONE"
-            // — if/when PLOS publishes a stable replacement key, swap
-            // here and update PlosApiTest's URL fixture.
+            // against it return numFound=0 now. Two fq's together:
+            //  1. `journal:"PLOS ONE"` pins PLOS ONE (case-insensitive
+            //     — Solr matches "PLoS ONE" as well; we keep the
+            //     all-caps form in the query for human readability).
+            //  2. `doc_type:full` drops the per-section fragment docs
+            //     (`/title`, `/abstract`, `/body`, `/references`) that
+            //     would otherwise surface as separate "fictions" in
+            //     Browse — each real article is indexed N+1 times in
+            //     PLOS's Solr (one full, one per section). Without this
+            //     filter Browse → PLOS shows the parent article AND its
+            //     5+ sub-docs as duplicate cards with cryptic DOI-path
+            //     titles. ~3.4M total → ~330k full-article docs.
+            // Curl-confirmed at
+            //   https://api.plos.org/search?q=*:*&fq=journal:"PLOS ONE"&fq=doc_type:full
             "&fq=" + URLEncoder.encode("journal:\"PLOS ONE\"", "UTF-8") +
+            "&fq=" + URLEncoder.encode("doc_type:full", "UTF-8") +
             "&sort=" + URLEncoder.encode("publication_date desc", "UTF-8") +
             "&start=$start" +
             "&rows=$rows" +
