@@ -170,6 +170,73 @@ class PrerenderTriggers @Inject constructor(
     }
 
     /**
+     * Chapter open: pre-fetch the BODIES (NOT PCM) of the next
+     * [BODY_PREFETCH_LOOKAHEAD] chapters in reading order. Called from
+     * [`in`.jphe.storyvox.playback.tts.EnginePlayer.loadAndPlay] right
+     * after the new chapter commits to PlaybackState, so by the time
+     * the user finishes the current chapter the upcoming bodies are
+     * already in Room and `advanceChapter`'s 60s body-wait latches
+     * onto an already-present row instead of cold-fetching over the
+     * network.
+     *
+     * Issue #558 — pre-fix, library-add scheduled PCM renders for the
+     * first three chapters (which retry until bodies appear), but
+     * nothing actively downloaded bodies for SUBSCRIBE-mode fictions
+     * past chapter 1 until the user's `advanceChapter` call queued
+     * each one individually. Chapters 4 → 5 on the TechEmpower Notion
+     * Guides reliably tripped the 30s timeout because chapter 5's
+     * body fetch only started AT advance-time. The fix decouples
+     * "body in cache" from "PCM rendered" — bodies are small (<200 KB
+     * each for typical Notion chapters), can be fetched on metered
+     * networks, and don't require the battery/storage constraints
+     * the PCM render worker imposes.
+     *
+     * Why a 3-chapter look-ahead window:
+     *  - Catches the 2× speed case (user finishes chapter quickly,
+     *    needs N+1 ready) without over-fetching.
+     *  - Stays under the typical PCM render window (5 chapters, see
+     *    [DEFAULT_PRERENDER_CHAPTERS]) so we never "outrun" the PCM
+     *    cache and create a cliff where bodies exist but renders
+     *    don't.
+     *  - WorkManager dedupes by uniqueName so re-calling on every
+     *    chapter open is cheap — already-queued/in-progress downloads
+     *    are no-ops.
+     *
+     * `requireUnmetered = false`: the user is actively listening, so
+     * "no Wi-Fi" should NOT block the next chapter's body. Matches
+     * the policy on [`in`.jphe.storyvox.playback.tts.EnginePlayer]'s
+     * own advance-time `queueChapterDownload`.
+     *
+     * Wrapped at the call site in `runCatching` so a chapter-graph
+     * read failure doesn't block playback.
+     */
+    suspend fun onChapterOpened(fictionId: String, currentChapterId: String) {
+        // Walk the reading-order graph forward up to N hops and queue
+        // body downloads for each. The caller passes fictionId
+        // explicitly because [ChapterRepository.getChapter] returns null
+        // until the body is present — we can't reverse-resolve fictionId
+        // from chapter rows that haven't been downloaded yet, and the
+        // whole point of this trigger is to download exactly those.
+        var cursor: String? = currentChapterId
+        var fetched = 0
+        while (fetched < BODY_PREFETCH_LOOKAHEAD) {
+            val nextId = chapterRepo.getNextChapterId(cursor ?: break) ?: break
+            Log.i(
+                LOG_TAG,
+                "pcm-cache TRIGGER-CHAPTER-OPENED prefetch body " +
+                    "fictionId=$fictionId chapterId=$nextId",
+            )
+            chapterRepo.queueChapterDownload(
+                fictionId = fictionId,
+                chapterId = nextId,
+                requireUnmetered = false,
+            )
+            cursor = nextId
+            fetched++
+        }
+    }
+
+    /**
      * Chapter natural-end: schedule N+2. N+1 should already be cached
      * (it was scheduled when N started OR is the next-up that the user
      * is about to play and PR-D's tee will populate). N+2 keeps the
@@ -236,8 +303,26 @@ class PrerenderTriggers @Inject constructor(
     companion object {
         private const val LOG_TAG = "PrerenderTriggers"
 
-        /** Per spec: library-add pre-renders the first three chapters in
-         *  reading order. Mode C expands to "all chapters". */
-        const val DEFAULT_PRERENDER_CHAPTERS = 3
+        /** Library-add pre-renders the first N chapters in reading order.
+         *  Mode C expands to "all chapters".
+         *
+         *  Issue #558 — bumped 3 → 5. The original spec window of 3 was
+         *  fine for Royal Road (chapter download is a single REST call,
+         *  body lands in <1s on Wi-Fi), but Notion sources walk a
+         *  multi-page hierarchy and can take 5-10s per body — so when the
+         *  user reads through chapters 1..4 in sequence the PCM render
+         *  window (only [DEFAULT_PRERENDER_CHAPTERS] from the START of
+         *  the fiction) is exhausted by the time auto-advance hits N+1.
+         *  Widening to 5 covers the most common early-read path through
+         *  a typical Notion guide collection. */
+        const val DEFAULT_PRERENDER_CHAPTERS = 5
+
+        /** Issue #558 — number of upcoming chapter BODIES to pre-fetch
+         *  on [onChapterOpened]. Strictly smaller than
+         *  [DEFAULT_PRERENDER_CHAPTERS] so the body-prefetch window
+         *  stays nested inside the PCM-render window — every body
+         *  we prefetch will eventually have an accompanying PCM
+         *  render scheduled. */
+        const val BODY_PREFETCH_LOOKAHEAD = 3
     }
 }

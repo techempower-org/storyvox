@@ -139,16 +139,26 @@ class AnonymousNotionDelegateTest {
     }
 
     @Test
-    fun `Guides fiction lists the 8 curated guide pages`() {
+    fun `Guides fiction lists the 7 curated guide pages`() {
         val guides = NotionDefaults.techempowerFictions
             .first { it.id == "guides" } as TechEmpowerFiction.PageList
-        assertEquals(8, guides.chapters.size)
+        // Issue #558 — "EBT spending" dropped from the list in v0.5.65
+        // because its hardcoded page id returns a Notion ValidationError
+        // 400. List is 7 chapters; if the upstream page is restored,
+        // add it back with the correct page id and bump this to 8.
+        assertEquals(7, guides.chapters.size)
         // Order matches site.config.ts pageUrlOverrides — the website's
         // own navigation order is the contract.
         assertEquals("How to use TechEmpower.org", guides.chapters[0].first)
         assertEquals("6c979ba4e43f48d7a4836e0027ea4178", guides.chapters[0].second)
         assertEquals("Free internet", guides.chapters[1].first)
-        assertEquals("Free cell service", guides.chapters[7].first)
+        assertEquals("Free cell service", guides.chapters[6].first)
+        // Guarantee the broken EBT spending id never resurfaces unless
+        // explicitly re-added — guards against an accidental revert.
+        assertTrue(
+            "EBT spending page id 16f7018a... must not be in the curated list",
+            guides.chapters.none { it.second == "16f7018ad93542652b2b16c44464b1c3" },
+        )
     }
 
     @Test

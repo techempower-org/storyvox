@@ -101,13 +101,24 @@ object NotionDefaults {
      * anonymous mode. Browse → Notion surfaces **four tiles** (one per
      * top-level section of the techempower.org navigation):
      *
-     *  1. **Guides** — has 8 chapters, one per individual guide page
+     *  1. **Guides** — has 7 chapters, one per individual guide page
      *     (How to use TechEmpower, Free internet, EV incentives, EBT
-     *     balance, EBT spending, Findhelp, Password manager, Free cell
-     *     service). Each chapter's body is the rendered Notion page of
-     *     that guide. Chapter list is hand-curated from
+     *     balance, Findhelp, Password manager, Free cell service).
+     *     Each chapter's body is the rendered Notion page of that
+     *     guide. Chapter list is hand-curated from
      *     `techempower/site.config.ts` `pageUrlOverrides` so the order
      *     matches the website.
+     *
+     *     Issue #558 — "EBT spending" was dropped from the list in
+     *     v0.5.65 because the hardcoded page id
+     *     (`16f7018ad93542652b2b16c44464b1c3`) returns a Notion
+     *     ValidationError 400 — the page was either deleted or
+     *     re-numbered upstream, and there's no surviving body to
+     *     fetch. Pre-fix this stranded auto-advance on chapter 4 →
+     *     chapter 5 because the 30s body-wait blew past Notion's
+     *     immediate 400 + WorkManager's retry backoff. The data
+     *     drop is paired with [PrerenderTriggers.onChapterOpened]
+     *     body-prefetching to keep the rest of the cascade fluid.
      *  2. **Resources** — has N chapters (~80), one per row in the
      *     TechEmpower Resources database. Each chapter's body is the
      *     resource page's content (resolved by `loadPageChunk` on the
@@ -123,9 +134,10 @@ object NotionDefaults {
      *
      * Why hand-curated guide list (instead of walking the root page's
      * children at runtime): the root page contains *both* navigation
-     * scaffolding (the 8 guides) and bridge text. We want the chapter
-     * list to be exactly the 8 user-facing guides, in the website's
-     * order — not "whatever child blocks show up." A static list also
+     * scaffolding (the guide entries) and bridge text. We want the
+     * chapter list to be exactly the user-facing guides, in the
+     * website's order — not "whatever child blocks show up." A static
+     * list also
      * keeps a cold Browse load fast (no second loadPageChunk to
      * discover children).
      */
@@ -139,7 +151,16 @@ object NotionDefaults {
                 "Free internet" to "bb5e537b083a417eb90ed9e984128c71",
                 "EV incentives" to "758054e1a2ec4c1aa077202ffedec710",
                 "EBT balance" to "272a4ee69520804fa68ad8c110af49f6",
-                "EBT spending" to "16f7018ad93542652b2b16c44464b1c3",
+                // Issue #558 — "EBT spending" removed in v0.5.65 because
+                // the Notion page id 16f7018a-d935-4265-2b2b-16c44464b1c3
+                // returns a Notion ValidationError 400. The page was
+                // either deleted or re-numbered upstream; there's no
+                // surviving body to fetch. Leaving the row in the
+                // chapter list stranded auto-advance on the ch4 → ch5
+                // boundary because every body fetch returned a fast
+                // failure → WorkManager retry storm → 30s/60s timeout.
+                // If/when the upstream page is restored, re-add it
+                // here with the correct compact 32-hex page id.
                 "Findhelp" to "992742a61e2e472b9b4a149f7aa74539",
                 "Password manager" to "99b0ab9c7cce428e8c86e3143752aa1c",
                 "Free cell service" to "7519ef16d7b74519acd9b8262a7beb84",

@@ -1645,6 +1645,35 @@ class EnginePlayer @AssistedInject constructor(
                 error = null,
             )
         }
+        // Issue #558 — pre-fetch the next N chapter BODIES (NOT PCM)
+        // as soon as this chapter is loaded, so that auto-advance to
+        // the next chapter finds the body already in Room rather than
+        // having to cold-fetch over the network inside its 60s wait.
+        //
+        // Pre-fix, library-add's PCM-render scheduling implicitly drove
+        // chapter body downloads (the render worker retries until the
+        // body lands), but for SUBSCRIBE-mode Notion fictions there's
+        // no eager-body trigger past chapter 1 — bodies arrived
+        // exactly when `advanceChapter` queued them at the boundary,
+        // which on a slow Notion API call (5-10s per page) blew past
+        // the 30s timeout (now 60s) for chapter 5+. The phone audit
+        // captured the 30s stall verbatim:
+        //
+        //   18:42:35.558 handleChapterDone (ch4)
+        //   ...silence...
+        //   18:43:05.558 advanceChapter: next chapter ... not ready
+        //                within 30000ms; clearing buffering + surfacing error
+        //
+        // Wrapped in runCatching so a chapter-graph hiccup doesn't
+        // block playback — the prefetch is best-effort housekeeping.
+        runCatching { prerenderTriggers.onChapterOpened(fictionId, chapterId) }
+            .onFailure {
+                android.util.Log.w(
+                    "EnginePlayer",
+                    "loadAndPlay: onChapterOpened body prefetch failed " +
+                        "(${it.javaClass.simpleName}: ${it.message}) — continuing",
+                )
+            }
         startPlaybackPipeline()
         invalidateState()
     }
@@ -3973,15 +4002,24 @@ class EnginePlayer @AssistedInject constructor(
          *  not loaded yet). Piper voices are 22050Hz; Kokoro is 24000Hz. */
         const val DEFAULT_SAMPLE_RATE = 22050
 
-        /** Issue #553 — hard cap on the wait for the next chapter's body
-         *  to land in the DB during auto-advance. Beyond this we bail
-         *  with a typed [PlaybackError.ChapterFetchFailed] rather than
-         *  letting the user sit on a frozen Buffering state. 30 s
-         *  comfortably covers a LAN Notion fetch (typically <1 s) plus
-         *  a slow-network worst case; faster than the user's patience
-         *  but generous enough that a healthy auto-advance never trips
-         *  it. */
-        const val CHAPTER_BODY_WAIT_TIMEOUT_MS = 30_000L
+        /** Issue #553 / #558 — hard cap on the wait for the next
+         *  chapter's body to land in the DB during auto-advance.
+         *  Beyond this we bail with a typed
+         *  [PlaybackError.ChapterFetchFailed] rather than letting the
+         *  user sit on a frozen Buffering state.
+         *
+         *  v0.5.64 (#558) — bumped 30 s → 60 s. The body-prefetch
+         *  scheduling in [`in`.jphe.storyvox.playback.cache.PrerenderTriggers.onChapterOpened]
+         *  is the primary defense (bodies should already be in
+         *  cache by auto-advance time), but on a cold-start where
+         *  the user resumes mid-fiction without playing through
+         *  prior chapters — or on a particularly slow Notion API
+         *  walk — the body fetch CAN take 30-45 s. 60 s keeps the
+         *  user from hitting the error path on those edge cases
+         *  while still being short enough that a truly dead
+         *  network surfaces an actionable error before the user
+         *  walks away from the device. */
+        const val CHAPTER_BODY_WAIT_TIMEOUT_MS = 60_000L
 
         /** Issue #196 — Kokoro's previously-hardcoded silence scale
          *  (0.2f) is the multiplier=1.0 baseline. We linearly scale
