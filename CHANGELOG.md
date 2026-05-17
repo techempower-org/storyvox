@@ -9,6 +9,30 @@ Entries before v0.5.12 are reconstructed from the git log — see
 
 ## [Unreleased]
 
+## [0.5.72] — 2026-05-17
+
+**Persistent now-playing mini-dock.** Brings the Reader one tap away from every non-player surface — Library, Browse, Follows, Inbox, History, FictionDetail, Voice library, Settings — instead of requiring a swipe-left to the Playing tab. v1.0 polish for goal-hook personas (5-year-olds, TalkBack users) and tablet users where the swipe distance was awkward.
+
+### Added (#678) — `NowPlayingDock` Composable
+- 64dp-tall card that appears at the bottom of non-player surfaces whenever a chapter is loaded (even paused).
+- Layout: 40dp cover thumb (uses the existing [FictionCoverThumb] cascade) on the left, fiction + chapter titles (single line each, ellipsized) in the middle, play/pause IconButton on the right, slim 2dp progress bar at the bottom edge.
+- Tablets (>= 600 dp width) also get a next-chapter IconButton next to play/pause.
+- Tap the card body → navigates to the Reader (`reader/{fictionId}/{chapterId}`); tap play/pause → toggles transport in place without navigating; tap next (tablet) → advances chapter without navigating.
+- TalkBack reads `"Now playing: $fictionTitle. $chapterTitle. Tap to open reader."` for the card; the play/pause and next-chapter buttons have their own focusable content descriptions ("Pause"/"Play" and "Next chapter").
+- `liveRegion = LiveRegionMode.Polite` so chapter-title changes are announced when auto-advance fires while focus is elsewhere.
+- Phone: dock rides along with the BottomTabBar inside the `Scaffold`'s `bottomBar` slot (Column wrapper). Tablet: dock pins to the bottom of the content area inside a new Column wrapping the NavHost — the side rail has no bottom-bar slot to ride along with.
+
+### Verified on-device (Z Flip 3, R5CRB0W66MK)
+1. Fresh install, no chapter loaded → dock invisible.
+2. Tap Guides → Play → chapter loads → back to Library → dock appears with cover + "Guides" + "How to use TechEmpower.org" + Pause button.
+3. Tap dock body → routed to Reader; dock auto-hides on Reader route as expected.
+4. Back to Library while chapter auto-advanced → dock now shows "Free internet" (chapter 2) — `liveRegion` fired.
+5. Tap Pause inside dock → toggles to Play icon without leaving Library.
+
+### Out of scope (filed for v1.1)
+- Swipe-up gesture on the dock to expand into Reader (Spotify-like).
+- Per-chapter scrubber inside the dock (today's progress bar is read-only).
+
 ## [0.5.71] — 2026-05-17
 
 **v1.0 candidate (final).** Picker auto-dismiss patch + on-device verification.

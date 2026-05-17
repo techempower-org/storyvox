@@ -11,6 +11,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
@@ -38,6 +39,8 @@ import `in`.jphe.storyvox.feature.fiction.FictionDetailScreen
 import `in`.jphe.storyvox.feature.follows.FollowsScreen
 import `in`.jphe.storyvox.feature.library.LibraryScreen
 import `in`.jphe.storyvox.feature.reader.HybridReaderScreen
+import `in`.jphe.storyvox.feature.reader.NowPlayingDock
+import `in`.jphe.storyvox.feature.reader.NowPlayingDockViewModel
 import `in`.jphe.storyvox.feature.settings.AboutSettingsScreen
 import `in`.jphe.storyvox.feature.settings.AccessibilitySettingsScreen
 import `in`.jphe.storyvox.feature.settings.AccountSettingsScreen
@@ -247,6 +250,28 @@ object StoryvoxRoutes {
     private val PLAYER_ROUTES_WITH_BOTTOM_NAV = setOf(READER, AUDIOBOOK)
     fun showsBottomNav(route: String?): Boolean =
         isHome(route) || route in PLAYER_ROUTES_WITH_BOTTOM_NAV
+
+    /**
+     * Issue #678 — surfaces the persistent now-playing mini-dock when
+     * the current route is NOT itself a player surface. Excludes the
+     * Reader/Audiobook drill-downs (the dock would sit on top of the
+     * same content the user is already looking at) and the PLAYING
+     * home tab (HybridReaderScreen — same player surface, just reached
+     * via the nav bar).
+     *
+     * Visibility is the AND of this gate + "a chapter is currently
+     * loaded" (checked inside [NowPlayingDockViewModel]'s state). The
+     * combined effect: the dock only appears once the user has played
+     * at least one chapter this session, and stays out of the way
+     * when they're already on the player surface.
+     */
+    fun hostsNowPlayingDock(route: String?): Boolean {
+        val base = route?.substringBefore("?") ?: return false
+        if (base == PLAYING) return false
+        if (base == READER || base.startsWith("reader/")) return false
+        if (base == AUDIOBOOK || base.startsWith("audiobook/")) return false
+        return true
+    }
 }
 
 @Composable
@@ -397,6 +422,17 @@ private fun StoryvoxNavHostContent(
         // Library is still the umbrella for that whole tree.
         else -> HomeTab.Library
     }
+    // Issue #678 — gate the now-playing mini-dock on (a) route eligibility
+    // (the dock hides on the Reader / Audiobook / Playing surfaces — the
+    // dock would otherwise stack on top of the same content) and (b) the
+    // viewmodel reporting a chapter currently loaded. The dock composable
+    // bails internally when fictionId/chapterId is null, so the wrapping
+    // `if` here is purely a perf optimization: skip the VM materialization
+    // when the route would suppress the dock anyway.
+    val showNowPlayingDock = StoryvoxRoutes.hostsNowPlayingDock(currentRoute)
+    val onOpenReaderFromDock: (String, String) -> Unit = { fictionId, chapterId ->
+        navController.navigate(StoryvoxRoutes.reader(fictionId, chapterId))
+    }
     val onSelectTab: (HomeTab) -> Unit = { tab ->
         val target = when (tab) {
             HomeTab.Library -> StoryvoxRoutes.LIBRARY
@@ -424,16 +460,30 @@ private fun StoryvoxNavHostContent(
             // Bottom bar renders on phone-width screens only — at 600 dp+
             // the side rail (rendered below as a Row peer of the Scaffold
             // body content) carries the dock.
+            //
+            // Issue #678 — the persistent now-playing mini-dock sits in a
+            // Column above the BottomTabBar on phones. Wrapping both in
+            // the same `bottomBar` slot lets the Scaffold reserve the
+            // combined height for content padding automatically, so
+            // screens don't need any per-screen awareness of whether the
+            // dock is showing. The same Column also handles the
+            // bottom-bar-hidden surfaces (onboarding / voice picker
+            // gates): showHomeNav=false collapses the whole slot.
             if (showHomeNav && !useSideRail) {
-                BottomTabBar(
-                    // v0.5.48 — `{Library, Playing, Voices, Settings}` dock
-                    // per JP feedback restoring Playing + Voices alongside
-                    // the v0.5.40 Settings primary slot. The base-route
-                    // stripping handles PR #475's magic-link query-arg
-                    // suffix (`library?sharedUrl=...`).
-                    selected = selectedTab,
-                    onSelect = onSelectTab,
-                )
+                androidx.compose.foundation.layout.Column {
+                    if (showNowPlayingDock) {
+                        NowPlayingDock(onOpenReader = onOpenReaderFromDock)
+                    }
+                    BottomTabBar(
+                        // v0.5.48 — `{Library, Playing, Voices, Settings}` dock
+                        // per JP feedback restoring Playing + Voices alongside
+                        // the v0.5.40 Settings primary slot. The base-route
+                        // stripping handles PR #475's magic-link query-arg
+                        // suffix (`library?sharedUrl=...`).
+                        selected = selectedTab,
+                        onSelect = onSelectTab,
+                    )
+                }
             }
         },
     ) { padding ->
@@ -504,8 +554,23 @@ private fun StoryvoxNavHostContent(
                     onSelect = onSelectTab,
                 )
             }
+            // Issue #678 — on tablets the bottomBar slot is empty (the
+            // side-rail carries primary nav), so the dock can't ride
+            // along with BottomTabBar like it does on phones. Wrap the
+            // NavHost in a Column so the dock pins to the bottom edge
+            // of the content area while the NavHost takes the rest of
+            // the height via weight(1f). On phones (`useSideRail=false`)
+            // the wrapping Column collapses to a noop containing just
+            // the NavHost — the dock there lives in the Scaffold's
+            // bottomBar slot above [BottomTabBar].
+            androidx.compose.foundation.layout.Column(
+                modifier = Modifier.weight(1f).fillMaxSize(),
+            ) {
             NavHost(
                 navController = navController,
+                // NavHost takes the remaining vertical space inside the
+                // wrapping Column via weight(1f); the dock (if shown,
+                // tablet only) pins to the bottom edge of the column.
                 // Restructure (v0.5.40) — Library is the start destination
                 // and primary umbrella surface. Playing (HybridReaderScreen)
                 // is reached via the Resume card on the Library tab when
@@ -515,7 +580,7 @@ private fun StoryvoxNavHostContent(
                 // (which is one Library sub-tab away, not a separate
                 // bottom-bar destination).
                 startDestination = StoryvoxRoutes.LIBRARY,
-                modifier = Modifier.weight(1f).fillMaxSize(),
+                modifier = Modifier.weight(1f).fillMaxWidth(),
             ) {
             composable(
                 StoryvoxRoutes.PLAYING,
@@ -1184,6 +1249,15 @@ private fun StoryvoxNavHostContent(
                 )
             }
             } // closes NavHost(...) builder lambda
+            // Issue #678 — tablet-only dock placement. On phone width
+            // (useSideRail=false) the dock rides along with the
+            // BottomTabBar inside the Scaffold's bottomBar slot; on
+            // tablet there's no bottom bar so the dock pins to the
+            // bottom of this content Column instead.
+            if (useSideRail && showNowPlayingDock) {
+                NowPlayingDock(onOpenReader = onOpenReaderFromDock)
+            }
+            } // Issue #678 — closes the content Column wrapping NavHost + tablet dock
         } // Issue #629 — closes the Row wrapper added for tablet side-rail layout
     }
 }
