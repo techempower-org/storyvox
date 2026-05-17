@@ -257,7 +257,7 @@ internal fun String.toArticleTitle(): String? =
 private fun WikipediaSearchHit.toSummary(): FictionSummary = FictionSummary(
     id = wikipediaFictionId(title),
     sourceId = SourceIds.WIKIPEDIA,
-    title = title,
+    title = cleanWikipediaTitle(title),
     author = "Wikipedia",
     description = description.ifBlank { null },
     status = FictionStatus.ONGOING,
@@ -269,7 +269,7 @@ private fun WikipediaFeaturedArticle.toSummary(): FictionSummary? {
     return FictionSummary(
         id = wikipediaFictionId(canonical),
         sourceId = SourceIds.WIKIPEDIA,
-        title = display.replace('_', ' '),
+        title = cleanWikipediaTitle(display.replace('_', ' ')),
         author = "Wikipedia",
         coverUrl = thumbnail?.source,
         description = description ?: extract,
@@ -283,7 +283,7 @@ private fun WikipediaMostReadArticle.toSummary(): FictionSummary? {
     return FictionSummary(
         id = wikipediaFictionId(canonical),
         sourceId = SourceIds.WIKIPEDIA,
-        title = display.replace('_', ' '),
+        title = cleanWikipediaTitle(display.replace('_', ' ')),
         author = "Wikipedia",
         coverUrl = thumbnail?.source,
         description = description ?: extract,
@@ -298,7 +298,7 @@ private fun WikipediaSummary.toSummary(
 ): FictionSummary = FictionSummary(
     id = fictionId,
     sourceId = SourceIds.WIKIPEDIA,
-    title = (titles?.display ?: titles?.normalized ?: this.title).replace('_', ' '),
+    title = cleanWikipediaTitle((titles?.display ?: titles?.normalized ?: this.title).replace('_', ' ')),
     author = "Wikipedia",
     coverUrl = thumbnail?.source,
     description = description ?: extract,
@@ -509,6 +509,30 @@ internal fun scrubWikipediaCruft(html: String): String {
     // missed). Cheap belt-and-braces strip.
     cleaned = cleaned.replace(Regex("""\[\s*edit\s*\]""", RegexOption.IGNORE_CASE), "")
     return cleaned
+}
+
+/**
+ * Issue #672 — clean a Wikipedia title for display. Decodes entities
+ * FIRST, then strips the now-decoded <i>...</i> tags. Order matters:
+ * htmlToPlainText() does tag-strip-then-decode, which leaves
+ * entity-encoded tags visible. Many Wikipedia Popular entries have
+ * italicized titles (films, albums, books) and were rendering as raw
+ * "&lt;i&gt;Iceman&lt;/i&gt; (Drake album)" pre-fix.
+ */
+private fun cleanWikipediaTitle(raw: String): String {
+    var out = raw
+        .replace("&nbsp;", " ")
+        .replace("&amp;", "&")
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&quot;", "\"")
+        .replace("&#39;", "'")
+        .replace("&apos;", "'")
+        .replace("&mdash;", "—")
+        .replace("&ndash;", "–")
+        .replace("&hellip;", "…")
+    out = out.replace(Regex("<[^>]+>"), "")
+    return out.trim()
 }
 
 /**

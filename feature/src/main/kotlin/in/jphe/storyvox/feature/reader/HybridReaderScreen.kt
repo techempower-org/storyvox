@@ -358,6 +358,25 @@ fun HybridReaderScreen(
             },
         )
     }
+
+    // Issue #677 — end-of-book overlay. Engine emits BookFinished
+    // when the last chapter's last sentence drains and no successor
+    // exists. Pre-fix the screen rendered nothing — scrubber sat
+    // stuck with no surface explaining the book is over.
+    if (state.bookFinished) {
+        BookFinishedOverlay(
+            fictionTitle = state.playback?.fictionTitle,
+            onBackToLibrary = {
+                viewModel.acknowledgeBookFinished()
+                onBack()
+            },
+            onBrowseMore = {
+                viewModel.acknowledgeBookFinished()
+                onBrowse()
+            },
+            onDismiss = { viewModel.acknowledgeBookFinished() },
+        )
+    }
     }
 }
 
@@ -473,4 +492,49 @@ private fun ExplicitArgsLoadingPrompt(
             }
         }
     }
+}
+
+/**
+ * Issue #677 — end-of-book modal. Renders when the engine has
+ * emitted BookFinished and the user hasn't acknowledged yet.
+ * Material 3 AlertDialog — TalkBack-friendly (focus-claiming surface,
+ * headline reads immediately), matches the recap modal pattern.
+ */
+@Composable
+private fun BookFinishedOverlay(
+    fictionTitle: String?,
+    onBackToLibrary: () -> Unit,
+    onBrowseMore: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = if (fictionTitle.isNullOrBlank()) {
+                    "You finished this book."
+                } else {
+                    "You finished “${'$'}fictionTitle”"
+                },
+                style = MaterialTheme.typography.titleLarge,
+            )
+        },
+        text = {
+            Text(
+                text = "Beautiful work. The story is over — for now. " +
+                    "Where would you like to go next?",
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        },
+        confirmButton = {
+            androidx.compose.material3.TextButton(onClick = onBrowseMore) {
+                Text("Browse the realms")
+            }
+        },
+        dismissButton = {
+            androidx.compose.material3.TextButton(onClick = onBackToLibrary) {
+                Text("Back to Library")
+            }
+        },
+    )
 }
