@@ -67,6 +67,18 @@ data class ReaderUiState(
      * AudioOutputMonitor's flow.
      */
     val waitReason: `in`.jphe.storyvox.playback.diagnostics.WaitReason? = null,
+    /**
+     * Issue #677 — end-of-book latch. Set true when the engine emits
+     * [PlaybackUiEvent.BookFinished] (the last chapter ended naturally
+     * with no successor). Drives [HybridReaderScreen]'s
+     * `BookFinishedOverlay` — pre-fix, the screen rendered nothing
+     * after the final sentence drained and the scrubber sat stuck at
+     * the end. Cleared via [ReaderViewModel.acknowledgeBookFinished]
+     * (overlay dismissal / Back to Library / Browse more) or by a
+     * fresh [ReaderViewModel.resume] / `startListening` call so a
+     * "Restart from beginning" doesn't immediately re-trip the modal.
+     */
+    val bookFinished: Boolean = false,
 )
 
 /** Issue #278 — the player loading screen used to be a silent eternity:
@@ -256,6 +268,14 @@ class ReaderViewModel @Inject constructor(
     private val _confettiTrigger = Channel<Unit>(capacity = Channel.CONFLATED)
     val confettiTrigger: Flow<Unit> = _confettiTrigger.receiveAsFlow()
 
+    /** Issue #677 — end-of-book latch backing the
+     *  [ReaderUiState.bookFinished] projection. Engine-driven set in the
+     *  [PlaybackUiEvent.BookFinished] arm of the player-events collector;
+     *  cleared by [acknowledgeBookFinished] when the user dismisses the
+     *  overlay, and by [resume] before starting a fresh listen so a
+     *  "Restart from beginning" doesn't immediately re-trip the modal. */
+    private val _bookFinished = MutableStateFlow(false)
+
     init {
         viewModelScope.launch {
             isLoading.collect { loading ->
@@ -280,10 +300,20 @@ class ReaderViewModel @Inject constructor(
         // double-fire on a quick chapter-complete after reopening.
         viewModelScope.launch {
             playback.events.collect { ev ->
-                if (ev !is PlaybackUiEvent.ChapterDone) return@collect
-                val ms = settings.milestoneState.first()
-                if (ms.qualifies && !ms.confettiShown) {
-                    _confettiTrigger.trySend(Unit)
+                when (ev) {
+                    is PlaybackUiEvent.ChapterDone -> {
+                        val ms = settings.milestoneState.first()
+                        if (ms.qualifies && !ms.confettiShown) {
+                            _confettiTrigger.trySend(Unit)
+                        }
+                    }
+                    // Issue #677 — engine signaled the last chapter ended
+                    // naturally with no successor. Flip the end-of-book latch
+                    // so HybridReaderScreen renders the BookFinishedOverlay.
+                    is PlaybackUiEvent.BookFinished -> {
+                        _bookFinished.value = true
+                    }
+                    else -> Unit
                 }
             }
         }
@@ -296,6 +326,13 @@ class ReaderViewModel @Inject constructor(
      *  effectively closes the gate. */
     fun markConfettiShown() {
         viewModelScope.launch { settings.markMilestoneConfettiShown() }
+    }
+
+    /** Issue #677 — user dismissed the end-of-book overlay (Back to
+     *  Library, Browse more, or backdrop tap). Clear the latch so the
+     *  modal doesn't re-trip the next time the screen recomposes. */
+    fun acknowledgeBookFinished() {
+        _bookFinished.value = false
     }
 
     val uiState: StateFlow<ReaderUiState> = combine(
@@ -316,6 +353,9 @@ class ReaderViewModel @Inject constructor(
         // through ReaderUiState so AudiobookView can render the brass
         // diagnostic panel without taking another flow subscription.
         playback.waitReason,
+        // Issue #677 — end-of-book latch; HybridReaderScreen mounts the
+        // BookFinishedOverlay when this flips true.
+        _bookFinished,
     ) { values ->
         @Suppress("UNCHECKED_CAST")
         val state = values[0] as UiPlaybackState
@@ -328,6 +368,7 @@ class ReaderViewModel @Inject constructor(
         val settingsSnapshot = values[4] as `in`.jphe.storyvox.feature.api.UiSettings
         @Suppress("UNCHECKED_CAST")
         val waitReason = values[5] as? `in`.jphe.storyvox.playback.diagnostics.WaitReason
+        val bookFinished = values[6] as Boolean
         ReaderUiState(
             playback = state,
             chapterText = text,
@@ -336,6 +377,7 @@ class ReaderViewModel @Inject constructor(
             punctuationPauseMultiplier = settingsSnapshot.punctuationPauseMultiplier,
             pitchInterpolationHighQuality = settingsSnapshot.pitchInterpolationHighQuality,
             waitReason = waitReason,
+            bookFinished = bookFinished,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ReaderUiState())
 
@@ -390,6 +432,10 @@ class ReaderViewModel @Inject constructor(
     fun resume(fromStart: Boolean = false) {
         val entry = resumeEntry.value ?: return
         _loadingPhase.value = LoadingPhase.Loading
+        // Issue #677 — clear the end-of-book latch on a fresh listen so
+        // the overlay doesn't re-trip when the user taps "Restart from
+        // beginning" after finishing the book.
+        _bookFinished.value = false
         viewModelScope.launch {
             val autoPlay = resumePolicy.currentLastWasPlaying()
             playback.startListening(

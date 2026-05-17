@@ -374,6 +374,17 @@ fun BrowseScreen(
                 !state.isLoading &&
                 state.error == null ->
                 LocalEmptyState(viewModel = viewModel)
+            // Issue #673 — Readability backend is the always-on last-resort
+            // URL matcher; it has no listings of its own. Pre-fix, the chip's
+            // body rendered as silent-empty: no spinner, no message, no CTA.
+            // Surface an informative panel that explains the source's purpose
+            // and points the user at the "Add fiction by URL" FAB.
+            state.sourceId == SourceIds.READABILITY &&
+                state.tab != BrowseTab.Search &&
+                state.items.isEmpty() &&
+                !state.isLoading &&
+                state.error == null ->
+                ReadabilityHintState()
             // First-load failure with no cached items: full-screen error.
             // Retry triggers viewModel.loadMore() which the paginator
             // resolves to the same page that failed.
@@ -849,6 +860,47 @@ private fun RssEmptyState(onAdd: () -> Unit) {
                 label = "Add a feed",
                 onClick = onAdd,
                 variant = BrassButtonVariant.Primary,
+            )
+        }
+    }
+}
+
+/**
+ * Issue #673 — informative empty state for the Readability backend.
+ * Readability is the always-on last-resort URL matcher: any HTTP(S)
+ * URL that none of the 17 specialized backends claim falls through to
+ * here, where Readability4J's Mozilla-Readability port extracts the
+ * article body. It has no Browse listings of its own — popular()
+ * intentionally returns emptyPage().
+ */
+@Composable
+private fun ReadabilityHintState() {
+    val spacing = LocalSpacing.current
+    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(spacing.sm),
+            modifier = Modifier.padding(horizontal = spacing.xl),
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Add,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(48.dp),
+            )
+            Text(
+                "Paste any web article",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                textAlign = TextAlign.Center,
+            )
+            Text(
+                "The reader extracts the text from blog posts, news, " +
+                    "and any web page that doesn't match a specialized " +
+                    "backend. Tap the + button below to paste a URL.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
             )
         }
     }
