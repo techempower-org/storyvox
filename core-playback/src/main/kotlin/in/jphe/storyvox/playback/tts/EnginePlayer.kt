@@ -1784,8 +1784,19 @@ class EnginePlayer @AssistedInject constructor(
         val secondaryHandles: List<EngineStreamingSource.VoiceEngineHandle> = when (engineType) {
             EngineType.Piper -> secondaryPiperEngines.map { eng ->
                 object : EngineStreamingSource.VoiceEngineHandle {
+                    // Issue #582 — route secondary-engine sample-rate
+                    // reads through the volatile cache too. Each
+                    // secondary is a separate VoiceEngine instance with
+                    // its own intrinsic monitor, so a per-secondary
+                    // loadModel that's still in flight when this main-
+                    // thread construction runs would contend on THAT
+                    // instance the same way the singleton did. All
+                    // Piper engines share one model file and therefore
+                    // one sample rate within a process, so the
+                    // engine-type-scoped cache is the correct answer.
                     override val sampleRate: Int =
-                        eng.sampleRate.takeIf { it > 0 } ?: DEFAULT_SAMPLE_RATE
+                        EngineSampleRateCache.piperRate()
+                            .takeIf { it > 0 } ?: DEFAULT_SAMPLE_RATE
                     override fun generateAudioPCM(
                         text: String, speed: Float, pitch: Float,
                     ): ByteArray? {
@@ -1798,8 +1809,11 @@ class EnginePlayer @AssistedInject constructor(
             }
             is EngineType.Kokoro -> secondaryKokoroEngines.map { eng ->
                 object : EngineStreamingSource.VoiceEngineHandle {
+                    // Issue #582 — see Piper branch above. Kokoro is
+                    // architecturally 24 kHz across every speaker.
                     override val sampleRate: Int =
-                        eng.sampleRate.takeIf { it > 0 } ?: DEFAULT_SAMPLE_RATE
+                        EngineSampleRateCache.kokoroRate()
+                            .takeIf { it > 0 } ?: DEFAULT_SAMPLE_RATE
                     override fun generateAudioPCM(
                         text: String, speed: Float, pitch: Float,
                     ): ByteArray? {
@@ -1816,8 +1830,11 @@ class EnginePlayer @AssistedInject constructor(
             // signature.
             is EngineType.Kitten -> secondaryKittenEngines.map { eng ->
                 object : EngineStreamingSource.VoiceEngineHandle {
+                    // Issue #582 — see Piper branch above. Kitten is
+                    // architecturally 24 kHz across every speaker.
                     override val sampleRate: Int =
-                        eng.sampleRate.takeIf { it > 0 } ?: DEFAULT_SAMPLE_RATE
+                        EngineSampleRateCache.kittenRate()
+                            .takeIf { it > 0 } ?: DEFAULT_SAMPLE_RATE
                     override fun generateAudioPCM(
                         text: String, speed: Float, pitch: Float,
                     ): ByteArray? {
