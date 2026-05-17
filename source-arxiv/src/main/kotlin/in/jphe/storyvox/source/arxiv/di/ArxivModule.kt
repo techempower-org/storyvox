@@ -25,8 +25,9 @@ annotation class ArxivHttp
  * with a paragraph-length abstract); connect timeout stays tight because
  * `export.arxiv.org` is CDN-fronted and reliably reachable.
  *
- * arXiv recommends following redirects so the `http://export.arxiv.org`
- * → `https://` upgrade happens transparently.
+ * Follow-redirects stays on as a belt-and-suspenders guard, but the
+ * base URL is now HTTPS directly — Android's network-security-config
+ * blocks cleartext before OkHttp can follow arXiv's HTTP→HTTPS 301.
  */
 @Module
 @InstallIn(SingletonComponent::class)

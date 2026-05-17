@@ -24,7 +24,7 @@ class ArxivApiUrlTest {
         // alone since it's an unreserved sub-delim in query strings;
         // arXiv accepts both `cat:` and `cat%3A`.
         assertEquals(
-            "http://export.arxiv.org/api/query" +
+            "https://export.arxiv.org/api/query" +
                 "?search_query=cat:cs.AI" +
                 "&sortBy=submittedDate&sortOrder=descending" +
                 "&start=0&max_results=50",
@@ -48,7 +48,7 @@ class ArxivApiUrlTest {
         // both `+` and `%20`. The `:` in the qualifier prefix stays
         // literal — see [composeRecentUrl] test for the same call out.
         assertEquals(
-            "http://export.arxiv.org/api/query" +
+            "https://export.arxiv.org/api/query" +
                 "?search_query=all:attention+is+all+you+need" +
                 "&sortBy=submittedDate&sortOrder=descending" +
                 "&start=0&max_results=50",

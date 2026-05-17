@@ -182,8 +182,13 @@ internal class ArxivApi @Inject constructor(
 
         /** Atom-query endpoint host. arXiv directs automated clients to
          *  `export.arxiv.org` rather than the user-facing `arxiv.org`
-         *  to keep CDN cache pressure off the read path. */
-        const val QUERY_BASE: String = "http://export.arxiv.org/api/query"
+         *  to keep CDN cache pressure off the read path. HTTPS is
+         *  required — Android's default network-security-config blocks
+         *  cleartext to every host except `palace.jphe.in`, so the
+         *  pre-2026-05 `http://` value silently failed at the OS layer
+         *  before OkHttp could even follow arXiv's 301→https redirect.
+         *  Arxiv's HTTPS endpoint returns HTTP/2 200 directly. */
+        const val QUERY_BASE: String = "https://export.arxiv.org/api/query"
 
         /** Per-paper abstract page host. */
         const val ABS_BASE: String = "https://arxiv.org/abs"
