@@ -6,6 +6,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -56,6 +58,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -649,6 +652,7 @@ private fun ExportSheet(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun Hero(fiction: UiFiction) {
     val spacing = LocalSpacing.current
@@ -675,17 +679,45 @@ private fun Hero(fiction: UiFiction) {
             // ambiguous string like a repo-name-shaped label). Adding
             // "by" anchors the byline role unambiguously, matching the
             // pattern used on Library Resume cards and Browse listing.
+            //
+            // Issue #657 — on Tab A7 Lite portrait (800px) with a 120dp
+            // cover thumbnail eating the left half of the hero, a long
+            // author name like "by TechEmpower" wrapped to two lines
+            // (113×76px). That pushed the metadata row down, and the
+            // last metadata pill ("Ongoing") was clipped or dropped by
+            // the parent Row. Cap the byline at one line with ellipsis
+            // — readers care more about seeing the status badge than
+            // seeing the full author name (which is also visible above
+            // the fold elsewhere in the surface).
             if (fiction.author.isNotBlank()) {
                 Text(
                     "by ${fiction.author}",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
             Spacer(Modifier.height(spacing.xxs))
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(spacing.xxs)) {
-                Icon(Icons.Filled.Star, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
-                Text("%.1f".format(fiction.rating), style = MaterialTheme.typography.labelMedium)
+            // Issue #657 — FlowRow (rather than Row) so the metadata
+            // pills wrap onto a second line when the narrow column
+            // can't fit `rating · chapters · status` on one line.
+            // Plain Row clipped the trailing "Ongoing" pill silently
+            // on Tab A7 Lite portrait; FlowRow keeps every pill
+            // visible at every width, and on wider devices the
+            // single-line layout is unchanged because no wrap is
+            // triggered.
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(spacing.xxs),
+                verticalArrangement = Arrangement.spacedBy(spacing.xxs),
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(spacing.xxs),
+                ) {
+                    Icon(Icons.Filled.Star, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
+                    Text("%.1f".format(fiction.rating), style = MaterialTheme.typography.labelMedium)
+                }
                 Text("·", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text("${fiction.chapterCount} ch", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text("·", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)

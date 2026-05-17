@@ -4,7 +4,8 @@ import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -51,16 +52,29 @@ import kotlinx.coroutines.delay
  *
  * Why a custom row-of-Text rather than a single AnnotatedString with
  * span-level alpha: AnnotatedString's span alpha lerps are global per
- * draw frame, but we want per-word independent timing curves. A Row
- * of N Text widgets, each with its own animateFloatAsState, gives us
- * that with no draw-layer math. The trade-off is one Text per word
- * (cheap at this surface — passphrases cap at ~6 words).
+ * draw frame, but we want per-word independent timing curves. A
+ * FlowRow of N Text widgets, each with its own animateFloatAsState,
+ * gives us that with no draw-layer math. The trade-off is one Text
+ * per word (cheap at this surface — passphrases cap at ~6 words).
  *
- * Accessibility: the Row is a single semantics node by default —
- * TalkBack reads the words in order without animation cues. Callers
- * needing to skip the animation entirely should pass `staggerMs = 0`
- * and `revealMs = 0` so the visualizer mounts at full opacity.
+ * Why FlowRow rather than Row (issue #655): on tablet portrait
+ * (Tab A7 Lite, 800px wide) the 4-word demo list "candlelight ·
+ * brass · vellum · starlight" overflows the SyncOnboardingCard's
+ * inner padded width. Row clips horizontally and the last word
+ * (longest tail) collapses into a 21×304px vertical letter-stack
+ * because the Text widget gets a constraint of 1-column width but
+ * unbounded height. FlowRow wraps gracefully onto a second line
+ * when the words can't fit, preserving readability at every screen
+ * size without forcing a smaller font on the wider phones/tablets
+ * that *can* fit the row on a single line.
+ *
+ * Accessibility: the FlowRow is a single semantics node by default
+ * — TalkBack reads the words in order without animation cues.
+ * Callers needing to skip the animation entirely should pass
+ * `staggerMs = 0` and `revealMs = 0` so the visualizer mounts at
+ * full opacity.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun PassphraseVisualizer(
     words: List<String>,
@@ -68,9 +82,10 @@ fun PassphraseVisualizer(
     staggerMs: Int = 240,
     revealMs: Int = 360,
 ) {
-    Row(
+    FlowRow(
         modifier = modifier,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         words.forEachIndexed { index, word ->
             WordReveal(
