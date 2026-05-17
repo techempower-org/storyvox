@@ -155,7 +155,11 @@ fun SettingsScreen(
         SettingsGroupCard {
             SettingsLinkRow(
                 title = "Voice library",
-                subtitle = "Pick a voice and hear samples.",
+                // Issue #670 — until per-voice sample-play exists, the
+                // subtitle should not promise "hear samples". The
+                // current row only Activates the voice; preview-without-
+                // activation is filed as a v1.x enhancement.
+                subtitle = "Browse and switch between available voices.",
                 onClick = onOpenVoiceLibrary,
             )
             // #195 — sliders read+write the *effective* value (the

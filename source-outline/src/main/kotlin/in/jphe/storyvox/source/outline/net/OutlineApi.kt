@@ -73,7 +73,15 @@ internal class OutlineApi @Inject constructor(
         body: String,
     ): FictionResult<T> {
         val state = config.state.first()
-        if (!state.isConfigured) return FictionResult.AuthRequired("Outline host or API key not set")
+        // Issue #671 — friendly empty-state copy. Palace's panel reads
+        // "Set up your Memory Palace host in Settings → Memory Palace
+        // to browse your private fictions." which is much clearer than
+        // the bare "Outline host or API key not set". Mirror the same
+        // shape: name the source, point at the exact Settings path, say
+        // what the user gets after configuring.
+        if (!state.isConfigured) return FictionResult.AuthRequired(
+            "Set up your Outline host and API key in Settings → Outline to browse your team docs.",
+        )
         val url = state.baseUrl + path
         return withContext(Dispatchers.IO) {
             try {
