@@ -9,6 +9,28 @@ Entries before v0.5.12 are reconstructed from the git log — see
 
 ## [Unreleased]
 
+## [0.5.73] — 2026-05-17
+
+**TTS-less device fallback CTA.** On stock Samsung tablets (Galaxy Tab A7 Lite et al.) and other devices that ship without Google TTS pre-installed, the #676 zero-download first-listen path silently degraded to the legacy Piper download. Surface a one-liner banner + Play Store deep-link so the user knows the built-in-voices path is one tap away.
+
+### Added (#681) — `InstallSystemTtsBanner` in `VoicePickerOnboarding`
+- New banner renders above the friendly Lessac/Cori voice tiles whenever `SystemTtsVoiceProvider.voices` is empty (zero TTS engines installed on the device).
+- Copy: `"Install Google TTS for built-in voices, or download a Piper voice (~14 MB) below."`
+- `Install Google TTS` BrassButton fires `Intent(ACTION_VIEW, market://details?id=com.google.android.tts)` with a graceful `https://play.google.com/...` fallback for non-Play-Store devices.
+- TalkBack-friendly: banner copy is surfaced as a single `contentDescription`; button inherits `Role.Button` from BrassButton.
+- Theme-safe: surfaceVariant background + onSurface body text + primary accent track `MaterialTheme.colorScheme` (correct in both light and dark themes).
+
+### Plumbing
+- `VoicePickerGateViewModel` now injects `SystemTtsVoiceProvider` and exposes `hasSystemTtsEngines: StateFlow<Boolean>`. The flow starts `false` and flips `true` when the OS roster enumerates at least one voice (~150 ms post-init on devices with Google TTS pre-installed; stays `false` indefinitely on TTS-less devices).
+
+### Verified on-device (Galaxy Tab A7 Lite, R83W80CAFZB)
+- Stock firmware, zero TTS engines installed → banner renders above Lessac/Cori tiles.
+- Tap `Install Google TTS` → Play Store opens at the `com.google.android.tts` listing.
+- Existing flow (Skip, Pick this voice, More voices) unchanged.
+
+### Out of scope (filed for v1.1)
+- Auto-refresh after returning from Play Store — today the user comes back, the System TTS roster will pick up the new engine on next cold launch or via the existing `refresh()` hook, but the banner doesn't auto-hide mid-session. Cheap follow-up if anyone files it.
+
 ## [0.5.72] — 2026-05-17
 
 **Persistent now-playing mini-dock.** Brings the Reader one tap away from every non-player surface — Library, Browse, Follows, Inbox, History, FictionDetail, Voice library, Settings — instead of requiring a swipe-left to the Playing tab. v1.0 polish for goal-hook personas (5-year-olds, TalkBack users) and tablet users where the swipe distance was awkward.
