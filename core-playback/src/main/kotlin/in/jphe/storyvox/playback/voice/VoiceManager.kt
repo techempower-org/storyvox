@@ -11,6 +11,7 @@ import androidx.datastore.preferences.preferencesDataStore
 import androidx.annotation.VisibleForTesting
 import dagger.hilt.android.qualifiers.ApplicationContext
 import `in`.jphe.storyvox.data.source.AzureVoiceProvider
+import `in`.jphe.storyvox.data.source.SystemTtsVoiceProvider
 import java.io.File
 import java.io.IOException
 import javax.inject.Inject
@@ -22,6 +23,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
@@ -89,6 +91,13 @@ class VoiceManager @Inject constructor(
      * key + the first fetch completes.
      */
     private val azureVoiceProvider: AzureVoiceProvider,
+    /**
+     * Issue #676 — live System TTS roster. Surfaces voices installed
+     * on-device via Android's framework `TextToSpeech` (Google,
+     * Samsung, eSpeak, etc.). Empty until the first enumeration
+     * completes (~150–500 ms on a stock Samsung tablet).
+     */
+    private val systemTtsVoiceProvider: SystemTtsVoiceProvider,
 ) {
 
     private val store: DataStore<Preferences> = context.voicesSettingsStore
@@ -167,12 +176,13 @@ class VoiceManager @Inject constructor(
         get() = VoiceCatalog.voices.map { it.toUiVoiceInfo(installed = false) }
 
     /** Hot Flow of [availableVoices] — combines the static catalog
-     *  with the live Azure roster. Use this when you want the picker
-     *  to react to roster updates (region change, key change,
-     *  refresh). */
-    val availableVoicesFlow: Flow<List<UiVoiceInfo>> = azureVoiceProvider.voices
-        .map { roster ->
-            VoiceCatalog.voicesWithAzure(roster).map { it.toUiVoiceInfo(installed = false) }
+     *  with the live Azure + System TTS rosters (#676). Use this when
+     *  you want the picker to react to roster updates (region change,
+     *  key change, OS engine install/uninstall, refresh). */
+    val availableVoicesFlow: Flow<List<UiVoiceInfo>> =
+        azureVoiceProvider.voices.combine(systemTtsVoiceProvider.voices) { azure, system ->
+            VoiceCatalog.voicesWithAzureAndSystemTts(azure, system)
+                .map { it.toUiVoiceInfo(installed = false) }
         }
 
     /** Hot Flow of installed voices, derived from the DataStore-backed installed-id set.
@@ -189,37 +199,52 @@ class VoiceManager @Inject constructor(
      *  upgrading from v0.4.5–v0.4.13 don't briefly see "no voices installed"
      *  if the async [migrateInt8VoiceIds] hasn't completed by the time the
      *  first collector observes this Flow. */
-    val installedVoices: Flow<List<UiVoiceInfo>> = store.data
-        .combine(azureVoiceProvider.voices) { prefs, roster ->
-            val installedIds = prefs[VoiceKeys.INSTALLED_IDS].orEmpty().map(::normalizeId).toSet()
-            val kokoroReady = isKokoroSharedModelInstalled()
-            // Issue #119 — Kitten parallels Kokoro: shared-model presence
-            // is the single source of truth for "every Kitten voice is
-            // playable." Each speaker is just an index into voices.bin.
-            val kittenReady = isKittenSharedModelInstalled()
-            VoiceCatalog.voicesWithAzure(roster)
-                .filter {
-                    it.id in installedIds ||
-                        (it.engineType is EngineType.Kokoro && kokoroReady) ||
-                        (it.engineType is EngineType.Kitten && kittenReady) ||
-                        it.engineType is EngineType.Azure
-                }
-                .map { it.toUiVoiceInfo(installed = true) }
-        }
+    val installedVoices: Flow<List<UiVoiceInfo>> = combine(
+        store.data,
+        azureVoiceProvider.voices,
+        systemTtsVoiceProvider.voices,
+    ) { prefs, azureRoster, systemTtsRoster ->
+        val installedIds = prefs[VoiceKeys.INSTALLED_IDS].orEmpty().map(::normalizeId).toSet()
+        val kokoroReady = isKokoroSharedModelInstalled()
+        // Issue #119 — Kitten parallels Kokoro: shared-model presence
+        // is the single source of truth for "every Kitten voice is
+        // playable." Each speaker is just an index into voices.bin.
+        val kittenReady = isKittenSharedModelInstalled()
+        VoiceCatalog.voicesWithAzureAndSystemTts(azureRoster, systemTtsRoster)
+            .filter {
+                it.id in installedIds ||
+                    (it.engineType is EngineType.Kokoro && kokoroReady) ||
+                    (it.engineType is EngineType.Kitten && kittenReady) ||
+                    it.engineType is EngineType.Azure ||
+                    // #676 — System TTS voices are "installed" whenever
+                    // they appear in the OS roster. The user didn't
+                    // download anything per-voice; the framework
+                    // exposes whatever the device's TTS engines list.
+                    it.engineType is EngineType.SystemTts
+            }
+            .map { it.toUiVoiceInfo(installed = true) }
+    }
 
     /** Hot Flow of the active voice (or null if nothing chosen yet).
      *  Same legacy-ID normalization as [installedVoices]. */
-    val activeVoice: Flow<UiVoiceInfo?> = store.data
-        .combine(azureVoiceProvider.voices) { prefs, roster ->
-            val activeId = prefs[VoiceKeys.ACTIVE_ID]?.let(::normalizeId) ?: return@combine null
-            val installed = prefs[VoiceKeys.INSTALLED_IDS].orEmpty().map(::normalizeId).toSet()
-            val entry = VoiceCatalog.byIdWithAzure(activeId, roster) ?: return@combine null
-            val isInstalled = activeId in installed ||
-                (entry.engineType is EngineType.Kokoro && isKokoroSharedModelInstalled()) ||
-                (entry.engineType is EngineType.Kitten && isKittenSharedModelInstalled()) ||
-                entry.engineType is EngineType.Azure
-            entry.toUiVoiceInfo(installed = isInstalled)
-        }
+    val activeVoice: Flow<UiVoiceInfo?> = combine(
+        store.data,
+        azureVoiceProvider.voices,
+        systemTtsVoiceProvider.voices,
+    ) { prefs, azureRoster, systemTtsRoster ->
+        val activeId = prefs[VoiceKeys.ACTIVE_ID]?.let(::normalizeId) ?: return@combine null
+        val installed = prefs[VoiceKeys.INSTALLED_IDS].orEmpty().map(::normalizeId).toSet()
+        val entry = VoiceCatalog.byIdWithAzureAndSystemTts(
+            activeId, azureRoster, systemTtsRoster,
+        ) ?: return@combine null
+        val isInstalled = activeId in installed ||
+            (entry.engineType is EngineType.Kokoro && isKokoroSharedModelInstalled()) ||
+            (entry.engineType is EngineType.Kitten && isKittenSharedModelInstalled()) ||
+            entry.engineType is EngineType.Azure ||
+            // #676 — SystemTts presence in the roster IS installation.
+            entry.engineType is EngineType.SystemTts
+        entry.toUiVoiceInfo(installed = isInstalled)
+    }
 
     /**
      * Issue #547 — sticky onboarding-dismissed flag, DataStore-backed.
@@ -292,7 +317,16 @@ class VoiceManager @Inject constructor(
         emit(DownloadProgress.Resolving)
         val entry = VoiceCatalog.byId(voiceId)
         if (entry == null) {
-            emit(DownloadProgress.Failed("Unknown voiceId: $voiceId"))
+            // #676 — System TTS voices live in the live roster, not
+            // in the static catalog, so byId returns null. Treat as
+            // a no-op success: the OS already has the engine
+            // installed; we don't need to fetch anything. Anything
+            // else with a non-matching id is a real error.
+            if (voiceId.startsWith("system_tts_")) {
+                emit(DownloadProgress.Done)
+            } else {
+                emit(DownloadProgress.Failed("Unknown voiceId: $voiceId"))
+            }
             return@flow
         }
 
@@ -311,6 +345,19 @@ class VoiceManager @Inject constructor(
                 // flow.
                 error("Azure voices have no downloadable assets — " +
                     "credential-keyed activation arrives in PR-4. (#85)")
+            }
+            is EngineType.SystemTts -> {
+                // Issue #676 — System TTS voices have nothing to
+                // download; they live in the OS's already-installed
+                // TTS engines (Google, Samsung, etc.). UI flows that
+                // arrive here treat the request as a no-op success
+                // — the user has already "installed" the voice by
+                // having Android's TTS framework set up. We do NOT
+                // call markInstalled because the
+                // [installedVoices] flow tracks SystemTts presence
+                // directly from the live roster (no per-voice
+                // DataStore bookkeeping needed).
+                emit(DownloadProgress.Done)
             }
             is EngineType.Kitten -> {
                 // Issue #119 — Kitten parallels Kokoro: one shared model
@@ -501,6 +548,52 @@ class VoiceManager @Inject constructor(
         store.edit { prefs ->
             prefs[VoiceKeys.ACTIVE_ID] = voiceId
             prefs[VoiceKeys.PICKER_DISMISSED] = true
+        }
+    }
+
+    /**
+     * Issue #676 — best-effort first-launch seed for a System TTS
+     * voice. If the user has never picked a voice AND the OS exposes
+     * at least one System TTS voice via [SystemTtsVoiceProvider], pick
+     * the first roster entry as the active voice.
+     *
+     * "First entry" lands on the highest-priority English locale
+     * (en-US, en-GB, en-AU, etc.) per the roster's pre-sort, with
+     * offline voices preferred over network ones — exactly what a
+     * casual or sight-impaired user expects on first launch: an
+     * English voice that works without Wi-Fi.
+     *
+     * Idempotent: re-running this after the user has chosen any other
+     * voice is a no-op (we don't override user intent).
+     *
+     * NOT auto-invoked here — the caller (the app's first-launch
+     * onboarding path) decides when to run this. Typically that's
+     * during the Voice Picker Gate's "show me a voice already" path,
+     * or as part of the early-init bootstrap when no active voice is
+     * set.
+     */
+    suspend fun seedSystemTtsDefaultIfUnset() {
+        val prefs = store.data.first()
+        val existingActive = prefs[VoiceKeys.ACTIVE_ID]
+        if (!existingActive.isNullOrBlank()) return
+        // Snapshot the roster — onStart triggers an enumeration when
+        // it's empty, so by the time first() returns we either have
+        // voices or the OS has none to surface (in which case we
+        // can't seed anyway).
+        val roster = systemTtsVoiceProvider.voices.first()
+        if (roster.isEmpty()) return
+        val firstEntry = VoiceCatalog.systemTtsEntriesFromRoster(roster).firstOrNull() ?: return
+        store.edit { p ->
+            // Defensive: another setActive call may have raced this
+            // suspend chain. Re-check inside the edit block — if a
+            // value is now present, bail without overwriting.
+            if (!p[VoiceKeys.ACTIVE_ID].isNullOrBlank()) return@edit
+            p[VoiceKeys.ACTIVE_ID] = firstEntry.id
+            // Don't auto-dismiss the picker — even though we picked a
+            // voice for the user, we still want to show the Voice
+            // Picker Gate on first launch so they can pick something
+            // else if they prefer. The gate's dismiss is gated by the
+            // user's explicit choice, not by our seed.
         }
     }
 

@@ -144,6 +144,20 @@ object AppBindings {
     @Provides @Singleton
     fun provideVoiceProviderUi(impl: VoiceProviderUiImpl): VoiceProviderUi = impl
 
+    /**
+     * Issue #676 — bind [SystemTtsVoiceRoster] as the [SystemTtsVoiceProvider]
+     * interface that VoiceManager consumes. The roster lives in `:app`
+     * because Hilt's `@ApplicationContext` injection is needed for the
+     * framework TextToSpeech construction; the interface lives in
+     * `:core-data` so the rest of the graph (catalog projection,
+     * VoiceManager, EnginePlayer) compiles without depending on `:app`.
+     * Symmetric with how Azure's roster is bound.
+     */
+    @Provides @Singleton
+    fun provideSystemTtsVoiceProvider(
+        impl: `in`.jphe.storyvox.data.SystemTtsVoiceRoster,
+    ): `in`.jphe.storyvox.data.source.SystemTtsVoiceProvider = impl
+
     @Provides @Singleton
     fun provideSettingsRepositoryUi(impl: SettingsRepositoryUiImpl): SettingsRepositoryUi = impl
 

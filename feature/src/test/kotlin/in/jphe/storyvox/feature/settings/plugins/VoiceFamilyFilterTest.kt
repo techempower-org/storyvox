@@ -111,8 +111,9 @@ class VoiceFamilyFilterTest {
             "Placeholder must not be toggleable",
             VoiceFamilyIds.VOXSHERPA_UPSTREAMS in registry.toggleableIds,
         )
-        // The four installed families are all toggleable.
-        assertEquals(4, registry.toggleableIds.size)
+        // #676 — five installed families now: System TTS + Piper +
+        // Kokoro + Kitten + Azure are all toggleable.
+        assertEquals(5, registry.toggleableIds.size)
     }
 
     @Test fun `Azure family defaults OFF and the local families default ON`() {

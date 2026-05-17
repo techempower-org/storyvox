@@ -682,6 +682,11 @@ private fun EngineSubHeader(
         MaterialTheme.colorScheme.primary
     }
     val label = when (engine) {
+        // #676 — System TTS sub-header. "System TTS" is the
+        // shortest accurate label — the family card subtitle
+        // elsewhere fills in the "uses your device's voice"
+        // explanation; here we want a glanceable header.
+        VoiceEngine.SystemTts -> "System TTS"
         VoiceEngine.Piper -> "Piper"
         VoiceEngine.Kokoro -> "Kokoro"
         // Issue #119 — third in-process voice family. "Lite" tag set
@@ -1283,6 +1288,11 @@ internal fun voiceSubtitle(voice: UiVoiceInfo): String {
         // Voice Library subtitle as "Kitten · Low · Female" etc.
         is EngineType.Kitten -> "Kitten"
         is EngineType.Azure -> "Azure"
+        // #676 — System TTS subtitle uses the engine package label
+        // when available ("Google", "Samsung") so users can tell two
+        // OS engines apart at a glance. Fallback to "System TTS" when
+        // we don't have a labelled name handy.
+        is EngineType.SystemTts -> "System TTS"
     }
     val tierLabel = when (voice.qualityLevel) {
         QualityLevel.Studio -> "Studio"

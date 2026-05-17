@@ -69,7 +69,7 @@ data class EngineKey(val section: VoiceLibrarySection, val engine: VoiceEngineId
  *  so the collapse store can key on it without a feature dependency.
  *  Keep in lockstep with [VoiceEngine] in
  *  `feature/.../voicelibrary/VoiceLibraryViewModel.kt`. */
-enum class VoiceEngineId { Piper, Kokoro, Kitten, Azure }
+enum class VoiceEngineId { Piper, Kokoro, Kitten, Azure, SystemTts }
 
 @Singleton
 class VoiceLibraryCollapse private constructor(

@@ -63,6 +63,10 @@ object VoiceFamilyIds {
     const val KOKORO = "voice_kokoro"
     const val KITTEN = "voice_kitten"
     const val AZURE = "voice_azure"
+    /** Issue #676 — Android System TTS family. Zero-download
+     *  first-launch tier; surfaces whatever TTS engines the OS already
+     *  has installed (Google, Samsung, eSpeak, etc.). */
+    const val SYSTEM_TTS = "voice_system_tts"
     /** Placeholder for future engine-lib voice families. Has no
      *  toggle in the manager card — exists so users can see the
      *  shape of "the next thing that lands here". */
@@ -94,10 +98,27 @@ object VoiceFamilyIds {
 @Singleton
 class VoiceFamilyRegistry @Inject constructor() {
 
-    /** All known voice families, in display order. The
-     *  in-process families come first (Piper / Kokoro / Kitten),
-     *  then cloud (Azure), then placeholders. */
+    /** All known voice families, in display order. System TTS comes
+     *  first as the zero-download first-launch tier (#676); then the
+     *  in-process neural families (Piper / Kokoro / Kitten); then
+     *  cloud (Azure); then placeholders. */
     val descriptors: List<VoiceFamilyDescriptor> = listOf(
+        VoiceFamilyDescriptor(
+            id = VoiceFamilyIds.SYSTEM_TTS,
+            displayName = "System TTS",
+            description = "Uses your device's built-in voice — no download needed",
+            sourceUrl = "https://developer.android.com/reference/android/speech/tts/TextToSpeech",
+            license = "Bundled with Android — varies by engine (Google / Samsung / eSpeak / etc.)",
+            sizeHint = "0 MB — synthesis happens via Android's TextToSpeech framework",
+            defaultEnabled = true,
+            // The OS engine runs locally (no network for Google's
+            // offline voices, no network for Samsung TTS), so we
+            // classify Local. A handful of Google network-tier voices
+            // do require connectivity; future work could split tier
+            // chips per-voice — keep this Local for now so the family
+            // card reads honestly about the common case.
+            engineFamily = VoiceEngineFamily.Local,
+        ),
         VoiceFamilyDescriptor(
             id = VoiceFamilyIds.PIPER,
             displayName = "Piper",
@@ -178,4 +199,5 @@ fun EngineType.voiceFamilyId(): String = when (this) {
     is EngineType.Kokoro -> VoiceFamilyIds.KOKORO
     is EngineType.Kitten -> VoiceFamilyIds.KITTEN
     is EngineType.Azure -> VoiceFamilyIds.AZURE
+    is EngineType.SystemTts -> VoiceFamilyIds.SYSTEM_TTS
 }

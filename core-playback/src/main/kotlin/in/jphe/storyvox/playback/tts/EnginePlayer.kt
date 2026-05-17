@@ -273,6 +273,37 @@ class EnginePlayer @AssistedInject constructor(
     private var secondaryKittenEngines: List<com.CodeBySonu.VoxSherpa.KittenEngine> = emptyList()
 
     /**
+     * Issue #676 — Android System TTS engine for the currently-active
+     * SystemTts voice. Lazily constructed in [loadAndPlay] on first
+     * activation of a SystemTts voice; rebuilt when the active
+     * (engineName, voiceName) pair changes; torn down when the active
+     * voice swaps to a non-SystemTts engine or the player releases.
+     *
+     * Instance-based like Azure's voice engine — each voice gets its
+     * own TextToSpeech because the framework's `voices` collection is
+     * scoped to the bound engine package. System TTS doesn't gain from
+     * Tier 3 parallel-synth (the framework serializes synthesizeToFile
+     * internally), so there's no secondaries list to mirror Piper/
+     * Kokoro/Kitten. Volatile because the writer is the main-thread
+     * coroutine that runs [loadAndPlay] and readers include the
+     * producer worker thread.
+     */
+    @Volatile
+    private var systemTtsEngine: SystemTtsEngine? = null
+
+    /** #676 — last loaded SystemTts (engineName, voiceName) pair.
+     *  Identity used to decide whether [loadAndPlay]'s SystemTts branch
+     *  can reuse the existing [systemTtsEngine] or must rebuild. The
+     *  voice id alone isn't enough because two SystemTts voices can
+     *  share the same id (`en-US-language`) across different engine
+     *  packages — the (engine, voice) tuple is the true cache key. */
+    @Volatile
+    private var loadedSystemTtsEngineName: String? = null
+
+    @Volatile
+    private var loadedSystemTtsVoiceName: String? = null
+
+    /**
      * Issue #98 — Mode B (Catch-up Pause) live cache. Gates the consumer
      * thread's pause-buffer-resume branches in [startPlaybackPipeline].
      * Volatile because the writer is the collector coroutine and the reader
@@ -1109,6 +1140,12 @@ class EnginePlayer @AssistedInject constructor(
                             // HTTPS client lazy-inits on first request
                             // anyway. No-op.
                         }
+                        is EngineType.SystemTts -> {
+                            // #676 — System TTS has no JNI singleton to
+                            // warm either; the framework TextToSpeech
+                            // construction happens in loadAndPlay's
+                            // load path. No-op here.
+                        }
                         else ->
                             runCatching { VoiceEngine.getInstance().sampleRate }
                     }
@@ -1316,7 +1353,14 @@ class EnginePlayer @AssistedInject constructor(
             // Azure never carries a JNI model so the cache contract
             // is trivially satisfied; the credentials check still
             // belongs in the load path below.
-            active.engineType !is EngineType.Azure
+            active.engineType !is EngineType.Azure &&
+            // #676 — System TTS is also instance-based and lives in
+            // [systemTtsEngine]. The same-id same-engineType branch
+            // means the previously-loaded TextToSpeech is still wired
+            // to the right (engineName, voiceName); fall through to
+            // startPlaybackPipeline and let the existing instance
+            // serve the new chapter.
+            active.engineType !is EngineType.SystemTts
         if (canSkipLoad) {
             android.util.Log.i(
                 "EnginePlayer",
@@ -1360,6 +1404,12 @@ class EnginePlayer @AssistedInject constructor(
                             runCatching { it.destroy() }
                         }
                         secondaryKittenEngines = emptyList()
+                        // #676 — voice swap AWAY from System TTS frees
+                        // the framework TextToSpeech instance.
+                        systemTtsEngine?.shutdown()
+                        systemTtsEngine = null
+                        loadedSystemTtsEngineName = null
+                        loadedSystemTtsVoiceName = null
 
                         val voiceDir = voiceManager.voiceDirFor(active.id)
                         val onnx = File(voiceDir, "model.onnx").absolutePath
@@ -1448,6 +1498,11 @@ class EnginePlayer @AssistedInject constructor(
                             runCatching { it.destroy() }
                         }
                         secondaryKittenEngines = emptyList()
+                        // #676 — voice swap AWAY from System TTS.
+                        systemTtsEngine?.shutdown()
+                        systemTtsEngine = null
+                        loadedSystemTtsEngineName = null
+                        loadedSystemTtsVoiceName = null
                         // All 53 Kokoro speakers share a single ~325MB fp32
                         // multi-speaker model. Switching speakers reuses the
                         // loaded engine; first load takes 30+s as sherpa-onnx
@@ -1526,6 +1581,11 @@ class EnginePlayer @AssistedInject constructor(
                             runCatching { it.destroy() }
                         }
                         secondaryKokoroEngines = emptyList()
+                        // #676 — voice swap AWAY from System TTS.
+                        systemTtsEngine?.shutdown()
+                        systemTtsEngine = null
+                        loadedSystemTtsEngineName = null
+                        loadedSystemTtsVoiceName = null
                         val sharedDir = voiceManager.kittenSharedDir()
                         val onnx = File(sharedDir, "model.onnx").absolutePath
                         val tokens = File(sharedDir, "tokens.txt").absolutePath
@@ -1578,6 +1638,10 @@ class EnginePlayer @AssistedInject constructor(
                         // Issue #119 — Kitten secondaries.
                         secondaryKittenEngines.forEach { runCatching { it.destroy() } }
                         secondaryKittenEngines = emptyList()
+                        // #676 — voice swap AWAY from System TTS frees
+                        // the framework TextToSpeech instance.
+                        systemTtsEngine?.shutdown()
+                        systemTtsEngine = null
                         // PR-4 (#183) — cloud voice activation. Nothing
                         // to load JNI-side; the "model" is the remote
                         // synthesis endpoint. Credentials gate is the
@@ -1592,6 +1656,59 @@ class EnginePlayer @AssistedInject constructor(
                         if (!azureCredentials.isConfigured) {
                             "Error: Azure key not configured. " +
                                 "Open Settings → Cloud voices to paste a key."
+                        } else {
+                            "Success"
+                        }
+                    }
+                    is EngineType.SystemTts -> {
+                        // #676 — Android System TTS activation.
+                        // Architecturally a twin of Azure's path: free
+                        // every local secondary (the JNI engines are
+                        // mutually exclusive with framework TTS — we
+                        // don't run Piper + System TTS at the same
+                        // time) and (re)build the framework
+                        // TextToSpeech instance pinned to the chosen
+                        // engine + voice.
+                        secondaryPiperEngines.forEach { runCatching { it.destroy() } }
+                        secondaryPiperEngines = emptyList()
+                        secondaryKokoroEngines.forEach { runCatching { it.destroy() } }
+                        secondaryKokoroEngines = emptyList()
+                        secondaryKittenEngines.forEach { runCatching { it.destroy() } }
+                        secondaryKittenEngines = emptyList()
+
+                        val target = active.engineType as EngineType.SystemTts
+                        // Reuse the existing TextToSpeech only when the
+                        // active (engineName, voiceName) is unchanged.
+                        // Engine-package change means the framework
+                        // needs a brand-new TextToSpeech binding (the
+                        // engine arg is set once in the constructor
+                        // and the framework re-resolves voice list
+                        // against it on init).
+                        val existing = systemTtsEngine
+                        val keep = existing != null &&
+                            loadedSystemTtsEngineName == target.engineName &&
+                            loadedSystemTtsVoiceName == target.voiceName
+                        if (!keep) {
+                            existing?.shutdown()
+                            val fresh = SystemTtsEngine(
+                                context = context,
+                                engineName = target.engineName.takeIf { it.isNotBlank() },
+                                voiceName = target.voiceName,
+                            )
+                            val ok = fresh.loadModel()
+                            if (ok) {
+                                systemTtsEngine = fresh
+                                loadedSystemTtsEngineName = target.engineName
+                                loadedSystemTtsVoiceName = target.voiceName
+                                "Success"
+                            } else {
+                                fresh.shutdown()
+                                systemTtsEngine = null
+                                loadedSystemTtsEngineName = null
+                                loadedSystemTtsVoiceName = null
+                                "Error: System TTS engine ${target.engineName} " +
+                                    "couldn't initialize. Try a different voice."
+                            }
                         } else {
                             "Success"
                         }
@@ -1747,6 +1864,17 @@ class EnginePlayer @AssistedInject constructor(
             // Kokoro) but the runtime accessor is the source of truth.
             is EngineType.Kitten -> EngineSampleRateCache.kittenRate()
             is EngineType.Azure -> azureVoiceEngine.sampleRate
+            // #676 — System TTS reads sample rate from the WAV header
+            // we parse on first synth (Google = 24 kHz, Samsung
+            // varies). Before the first synth we fall back to the
+            // engine's [DEFAULT_SAMPLE_RATE] (24 kHz) — same value
+            // Google emits, so the AudioTrack lines up correctly in
+            // the overwhelmingly common case and only mis-tunes
+            // briefly for the rare Samsung-voice-at-other-rate path
+            // that the pipeline rebuilds itself out of on the next
+            // sentence rate read anyway.
+            is EngineType.SystemTts -> systemTtsEngine?.sampleRate
+                ?: SystemTtsEngine.DEFAULT_SAMPLE_RATE
             else -> EngineSampleRateCache.piperRate()
         }.takeIf { it > 0 } ?: DEFAULT_SAMPLE_RATE
         val track = createAudioTrack(sampleRate)
@@ -1869,6 +1997,17 @@ class EnginePlayer @AssistedInject constructor(
                         }
                     }
                 }
+            }
+            is EngineType.SystemTts -> {
+                // #676 — System TTS is single-instance per voice. The
+                // Android framework serializes synthesizeToFile()
+                // internally, so spawning multiple TextToSpeech
+                // instances for the same voice doesn't gain anything;
+                // we return no secondaries here and let the primary
+                // handle the workload. Mirrors the empty-list branch
+                // we'd return for Piper/Kokoro/Kitten when the user
+                // has the parallel-synth slider at its default 1.
+                emptyList()
             }
             else -> emptyList()
         }
@@ -2606,6 +2745,7 @@ class EnginePlayer @AssistedInject constructor(
     private fun activeVoiceEngineHandle(engineType: EngineType?): EngineStreamingSource.VoiceEngineHandle =
         when (engineType) {
             is EngineType.Azure -> azureStreamingHandle(engineType)
+            is EngineType.SystemTts -> systemTtsHandle(engineType)
             else -> object : EngineStreamingSource.VoiceEngineHandle {
                 // Issue #582 — same lock-contention guard as
                 // startPlaybackPipeline's sampleRate read; this object
@@ -2631,6 +2771,33 @@ class EnginePlayer @AssistedInject constructor(
                             .generateAudioPCM(text, speed, pitch)
                     }
                 }
+            }
+        }
+
+    /**
+     * #676 — handle for System TTS voices. Mirrors [azureStreamingHandle]
+     * in that it adapts an instance-based engine ([SystemTtsEngine]) to
+     * the [EngineStreamingSource.VoiceEngineHandle] contract. The
+     * underlying [SystemTtsEngine.generateAudioPCM] is suspending
+     * (block-awaits the framework's UtteranceProgressListener) so we
+     * wrap with [kotlinx.coroutines.runBlocking] on the producer worker
+     * thread — same shape Piper/Kokoro use for their synchronous JNI
+     * calls. Returns null when the engine isn't loaded yet (the
+     * pipeline's skip-empty-PCM branch handles this).
+     */
+    private fun systemTtsHandle(
+        engineType: EngineType.SystemTts,
+    ): EngineStreamingSource.VoiceEngineHandle =
+        object : EngineStreamingSource.VoiceEngineHandle {
+            override val sampleRate: Int = systemTtsEngine?.sampleRate
+                ?: SystemTtsEngine.DEFAULT_SAMPLE_RATE
+
+            override fun generateAudioPCM(
+                text: String, speed: Float, pitch: Float,
+            ): ByteArray? {
+                AndroidProcess.setThreadPriority(AndroidProcess.THREAD_PRIORITY_URGENT_AUDIO)
+                val engine = systemTtsEngine ?: return null
+                return runBlocking { engine.generateAudioPCM(text, speed, pitch) }
             }
         }
 
@@ -3607,6 +3774,16 @@ class EnginePlayer @AssistedInject constructor(
         stopRecapPipeline()
         stopPlaybackPipeline()
         stopAudioStreamPlayer()
+        // #676 — tear down the framework TextToSpeech instance on
+        // process teardown. Without this the OS retains the binder
+        // connection and logcat surfaces the standard
+        // "Activity ... has leaked ServiceConnection" warning. The
+        // shutdown call is idempotent — safe even if no SystemTts
+        // voice was ever activated this session.
+        systemTtsEngine?.shutdown()
+        systemTtsEngine = null
+        loadedSystemTtsEngineName = null
+        loadedSystemTtsVoiceName = null
         // Issue #560 — release audio focus so other media apps can
         // resume playback when storyvox is dismissed. The transport-
         // level pause/resume doesn't abandon focus (we keep it for the
@@ -3889,6 +4066,41 @@ class EnginePlayer @AssistedInject constructor(
                             ?: "Error: load returned null"
                     }
                     is EngineType.Azure -> return@withContext "Error: Azure unsupported in recap"
+                    is EngineType.SystemTts -> {
+                        // #676 — recap-aloud path for System TTS.
+                        // Mirrors loadAndPlay's branch: reuse the
+                        // active [systemTtsEngine] when the same
+                        // (engineName, voiceName) is already loaded;
+                        // otherwise tear down + rebuild. The voice
+                        // swap from a non-SystemTts engine into a
+                        // SystemTts voice gets a fresh framework
+                        // TextToSpeech here without going through the
+                        // full chapter-loadAndPlay path.
+                        val target = active.engineType as EngineType.SystemTts
+                        val existing = systemTtsEngine
+                        val keep = existing != null &&
+                            loadedSystemTtsEngineName == target.engineName &&
+                            loadedSystemTtsVoiceName == target.voiceName
+                        if (keep) {
+                            "Success"
+                        } else {
+                            existing?.shutdown()
+                            val fresh = SystemTtsEngine(
+                                context = context,
+                                engineName = target.engineName.takeIf { it.isNotBlank() },
+                                voiceName = target.voiceName,
+                            )
+                            if (fresh.loadModel()) {
+                                systemTtsEngine = fresh
+                                loadedSystemTtsEngineName = target.engineName
+                                loadedSystemTtsVoiceName = target.voiceName
+                                "Success"
+                            } else {
+                                fresh.shutdown()
+                                "Error: System TTS failed to initialize for recap"
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -3916,6 +4128,10 @@ class EnginePlayer @AssistedInject constructor(
             is EngineType.Kokoro -> EngineSampleRateCache.kokoroRate()
             // Issue #119 — Kitten recap sample rate.
             is EngineType.Kitten -> EngineSampleRateCache.kittenRate()
+            // #676 — System TTS recap sample rate routes through the
+            // engine's cached WAV-header value (defaults to 24 kHz).
+            is EngineType.SystemTts -> systemTtsEngine?.sampleRate
+                ?: SystemTtsEngine.DEFAULT_SAMPLE_RATE
             else -> EngineSampleRateCache.piperRate()
         }.takeIf { it > 0 } ?: DEFAULT_SAMPLE_RATE
         val track = createAudioTrack(sampleRate)

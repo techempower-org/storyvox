@@ -126,6 +126,28 @@ class VoicePickerGateViewModel @Inject constructor(
     private val voices: VoiceManager,
 ) : ViewModel() {
 
+    init {
+        // #676 — best-effort first-launch seed: if the user has never
+        // chosen a voice and the OS exposes at least one System TTS
+        // voice, pick it as the default. Sight-impaired users with
+        // TalkBack-configured engines hear audio immediately (their
+        // configured System TTS voice) without traversing the picker
+        // gate; casual users see the gate but already have a working
+        // voice if they ignore it. seedSystemTtsDefaultIfUnset is a
+        // no-op when an active voice is already set, so re-arming
+        // this init block on every gate visit is cheap + safe.
+        viewModelScope.launch {
+            runCatching { voices.seedSystemTtsDefaultIfUnset() }
+                .onFailure { t ->
+                    android.util.Log.w(
+                        "VoicePickerGate",
+                        "#676 seedSystemTtsDefaultIfUnset failed",
+                        t,
+                    )
+                }
+        }
+    }
+
     /** Hand-picked best-of-catalog starter voices ([VoiceCatalog.featuredIds]).
      *  Same set the Voice Library highlights under "Featured", so a user sees
      *  the same three names whether they pick now or browse the library.

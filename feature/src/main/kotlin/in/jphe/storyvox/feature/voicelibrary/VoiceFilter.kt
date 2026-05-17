@@ -75,6 +75,11 @@ internal fun UiVoiceInfo.matchesQuery(query: String): Boolean {
         // Issue #119 — Kitten search label.
         is EngineType.Kitten -> "kitten"
         is EngineType.Azure -> "azure"
+        // #676 — System TTS search label. Users will hunt for "system",
+        // "tts", or the engine vendor name (Google / Samsung) — match
+        // a broad set so the picker filter works even when the user
+        // can't remember the exact label.
+        is EngineType.SystemTts -> "system tts"
     }
     return engineLabel.contains(needle, ignoreCase = true)
 }

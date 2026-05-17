@@ -16,6 +16,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import `in`.jphe.storyvox.data.source.AzureVoiceDescriptor
 import `in`.jphe.storyvox.data.source.AzureVoiceProvider
+import `in`.jphe.storyvox.data.source.SystemTtsVoiceDescriptor
+import `in`.jphe.storyvox.data.source.SystemTtsVoiceProvider
 import okhttp3.Interceptor
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -91,7 +93,7 @@ class VoiceManagerTest {
      */
     @Test
     fun kokoro_realFailure_wipesSharedDir() = runBlocking {
-        val vm = VoiceManager(context, EmptyAzureProvider)
+        val vm = VoiceManager(context, EmptyAzureProvider, EmptySystemTtsProvider)
         vm.http = httpClientReturning500()
 
         // Seed a "prior partial run" file inside the shared dir.
@@ -129,7 +131,7 @@ class VoiceManagerTest {
      */
     @Test
     fun kokoro_cancel_preservesSharedDir() = runBlocking {
-        val vm = VoiceManager(context, EmptyAzureProvider)
+        val vm = VoiceManager(context, EmptyAzureProvider, EmptySystemTtsProvider)
         // 256 KiB body → at least four 64 KiB read iterations → multiple
         // onProgress suspend points to land the cancel on. The bytes are
         // garbage; nothing in the test reads what gets written.
@@ -183,7 +185,7 @@ class VoiceManagerTest {
      */
     @Test
     fun piper_realFailure_wipesVoiceDir() = runBlocking {
-        val vm = VoiceManager(context, EmptyAzureProvider)
+        val vm = VoiceManager(context, EmptyAzureProvider, EmptySystemTtsProvider)
         vm.http = httpClientReturning500()
 
         val voiceId = "piper_lessac_en_US_high"
@@ -208,7 +210,7 @@ class VoiceManagerTest {
      */
     @Test
     fun kokoro_realFailure_emitsResolvingThenFailed() = runBlocking {
-        val vm = VoiceManager(context, EmptyAzureProvider)
+        val vm = VoiceManager(context, EmptyAzureProvider, EmptySystemTtsProvider)
         vm.http = httpClientReturning500()
 
         val progress = vm.download("kokoro_aoede_en_US_1").toList()
@@ -229,7 +231,7 @@ class VoiceManagerTest {
      */
     @Test
     fun kitten_realFailure_wipesSharedDir() = runBlocking {
-        val vm = VoiceManager(context, EmptyAzureProvider)
+        val vm = VoiceManager(context, EmptyAzureProvider, EmptySystemTtsProvider)
         vm.http = httpClientReturning500()
 
         val sharedDir = vm.kittenSharedDir().also { it.mkdirs() }
@@ -257,7 +259,7 @@ class VoiceManagerTest {
      */
     @Test
     fun kitten_happyPath_emitsResolvingDownloadingDone() = runBlocking {
-        val vm = VoiceManager(context, EmptyAzureProvider)
+        val vm = VoiceManager(context, EmptyAzureProvider, EmptySystemTtsProvider)
         // 16 KiB body — small enough to keep the test fast, big enough
         // that the OkHttp body iterator emits at least one Downloading
         // tick before EOF.
@@ -303,6 +305,14 @@ class VoiceManagerTest {
      *  Piper + Kokoro), so a no-op provider is sufficient. */
     private object EmptyAzureProvider : AzureVoiceProvider {
         override val voices: Flow<List<AzureVoiceDescriptor>> = flowOf(emptyList())
+        override suspend fun refresh() = Unit
+    }
+
+    /** Empty roster — no live System TTS voices. Mirror of
+     *  [EmptyAzureProvider] for the #676 plumbing; the download-policy
+     *  tests don't exercise System TTS paths. */
+    private object EmptySystemTtsProvider : SystemTtsVoiceProvider {
+        override val voices: Flow<List<SystemTtsVoiceDescriptor>> = flowOf(emptyList())
         override suspend fun refresh() = Unit
     }
 

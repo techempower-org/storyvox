@@ -160,6 +160,14 @@ class PluginManagerViewModel @Inject constructor(
                     // the size hint string regardless, so a "—" count
                     // for "unknown until first roster fetch" is fine.
                     VoiceFamilyIds.AZURE -> if (s.azure.isConfigured) -1 else 0
+                    // #676 — System TTS voices live in the OS-driven
+                    // SystemTtsVoiceRoster (runtime enumeration), not
+                    // VoiceCatalog.voices. Surface -1 as the "unknown
+                    // until first roster snapshot" sentinel so the
+                    // Plugin Manager renders an em-dash rather than
+                    // "0 voices" before enumeration completes. The
+                    // details modal's size hint string handles the rest.
+                    VoiceFamilyIds.SYSTEM_TTS -> -1
                     else -> staticCountsByFamily[descriptor.id] ?: 0
                 }
                 val isConfigured = when (descriptor.id) {

@@ -664,7 +664,7 @@ private data class PerVoiceOverrides(
  *  (which lives in core so it can be Hilt-injected without dragging the
  *  feature module). The two enums are kept in lockstep — see
  *  [toCoreId]. */
-enum class VoiceEngine { Piper, Kokoro, Kitten, Azure }
+enum class VoiceEngine { SystemTts, Piper, Kokoro, Kitten, Azure }
 
 internal fun VoiceEngine.toCoreId(): VoiceEngineId = when (this) {
     VoiceEngine.Piper -> VoiceEngineId.Piper
@@ -672,6 +672,8 @@ internal fun VoiceEngine.toCoreId(): VoiceEngineId = when (this) {
     // Issue #119 — Kitten section discriminator.
     VoiceEngine.Kitten -> VoiceEngineId.Kitten
     VoiceEngine.Azure -> VoiceEngineId.Azure
+    // #676 — System TTS section discriminator.
+    VoiceEngine.SystemTts -> VoiceEngineId.SystemTts
 }
 
 internal fun VoiceEngineId.toFeatureEngine(): VoiceEngine = when (this) {
@@ -679,6 +681,7 @@ internal fun VoiceEngineId.toFeatureEngine(): VoiceEngine = when (this) {
     VoiceEngineId.Kokoro -> VoiceEngine.Kokoro
     VoiceEngineId.Kitten -> VoiceEngine.Kitten
     VoiceEngineId.Azure -> VoiceEngine.Azure
+    VoiceEngineId.SystemTts -> VoiceEngine.SystemTts
 }
 
 private fun UiVoiceInfo.voiceEngine(): VoiceEngine = when (engineType) {
@@ -687,6 +690,8 @@ private fun UiVoiceInfo.voiceEngine(): VoiceEngine = when (engineType) {
     // Issue #119 — Kitten branch.
     is EngineType.Kitten -> VoiceEngine.Kitten
     is EngineType.Azure -> VoiceEngine.Azure
+    // #676 — System TTS branch.
+    is EngineType.SystemTts -> VoiceEngine.SystemTts
 }
 
 /** Tuple holding the "local + collapse" flow values that get packed
@@ -782,12 +787,26 @@ private val KITTEN_TIER_ORDER: List<QualityLevel> = listOf(
     QualityLevel.Low,
 )
 
+/** Issue #676 — Tier order **within System TTS**. Every System TTS
+ *  voice ships at [QualityLevel.Medium] today (the framework doesn't
+ *  expose a quality grade so the catalog projection plants every entry
+ *  in the Medium bucket — see [VoiceCatalog.systemTtsEntriesFromRoster]).
+ *  Listing the other tiers anyway keeps the sort robust against a
+ *  future "Google Wavenet HD" surfacing as High. */
+private val SYSTEM_TTS_TIER_ORDER: List<QualityLevel> = listOf(
+    QualityLevel.High,
+    QualityLevel.Medium,
+    QualityLevel.Low,
+)
+
 private fun tierOrderFor(engine: VoiceEngine): List<QualityLevel> = when (engine) {
     VoiceEngine.Piper -> PIPER_TIER_ORDER
     VoiceEngine.Kokoro -> KOKORO_TIER_ORDER
     // Issue #119 — Kitten tier order.
     VoiceEngine.Kitten -> KITTEN_TIER_ORDER
     VoiceEngine.Azure -> AZURE_TIER_ORDER
+    // #676 — System TTS tier order.
+    VoiceEngine.SystemTts -> SYSTEM_TTS_TIER_ORDER
 }
 
 /** Engine display order — Piper section first, Kokoro second, Kitten
@@ -797,6 +816,12 @@ private fun tierOrderFor(engine: VoiceEngine): List<QualityLevel> = when (engine
  *  devices" section), Azure last. Drives outer iteration order of
  *  [groupByEngineThenTier]. */
 private val ENGINE_DISPLAY_ORDER: List<VoiceEngine> = listOf(
+    // #676 — System TTS first: zero-download tier, the natural
+    // first-launch + accessibility-default surface. Sight-impaired
+    // users + 5-year-olds + casual newcomers see the OS's already-
+    // configured voice at the top of the picker before the neural
+    // download story even appears.
+    VoiceEngine.SystemTts,
     VoiceEngine.Piper,
     VoiceEngine.Kokoro,
     VoiceEngine.Kitten,

@@ -130,6 +130,21 @@ class ChapterRenderJob @AssistedInject constructor(
             )
             return Result.success()
         }
+        // #676 — Skip System TTS background pre-rendering. The framework
+        // TextToSpeech wants the foreground process to drive synthesis
+        // (binder ServiceConnection on the OS engine's process) — caching
+        // here would require a per-chapter foreground service binding
+        // that's heavier than the on-demand synth path saves. Run-time
+        // System TTS is fast enough that the perf win from pre-render is
+        // small: skipping keeps the worker simple and the cache contract
+        // clean.
+        if (voice.engineType is EngineType.SystemTts) {
+            Log.i(
+                LOG_TAG,
+                "pcm-cache PRERENDER-SKIP-SYSTEMTTS chapterId=$chapterId voiceId=${voice.id}",
+            )
+            return Result.success()
+        }
 
         // 4. Build the cache key. Render at the 1.0×/1.0× empty-dict
         // identity — see kdoc on speed/pitch quantization.
@@ -266,6 +281,10 @@ class ChapterRenderJob @AssistedInject constructor(
             }
             // Guarded above — defensive fall-through if surface evolves.
             is EngineType.Azure -> "Error: Azure not supported in background pre-render"
+            // #676 — also guarded above; mirrors Azure with a typed error
+            // so the surface is exhaustive without a fall-through `else`.
+            is EngineType.SystemTts ->
+                "Error: System TTS not supported in background pre-render"
         }
 
     private fun sampleRateFor(voice: UiVoiceInfo): Int =

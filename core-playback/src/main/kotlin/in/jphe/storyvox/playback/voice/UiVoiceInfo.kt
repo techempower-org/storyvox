@@ -109,4 +109,31 @@ sealed interface EngineType {
      * against a stable type without circular module dependencies.
      */
     data class Azure(val voiceName: String, val region: String) : EngineType
+
+    /**
+     * Issue #676 — Android System TTS as a voice backend. Uses whatever
+     * engine the OS has set as default (Google Speech Services, Samsung
+     * TTS, Bixby, eSpeak, etc.) via Android's framework `TextToSpeech`.
+     *
+     * [engineName] is the package id of the chosen engine
+     * (`com.google.android.tts`, `com.samsung.SMT`, etc.). [voiceName]
+     * is the system TTS voice id within that engine
+     * (`en-us-x-iol-network`, `en-US-language`, etc.).
+     *
+     * Why a [SystemTts] variant (not a generic flag on Piper):
+     * the synthesis surface is fundamentally different — it goes
+     * through Android's `TextToSpeech.synthesizeToFile()` which writes
+     * a 44-byte-header WAV file we strip back to raw PCM. The voice
+     * lifecycle is also different (async `onInit`, per-engine package
+     * binding, framework-managed). Treating it as its own variant
+     * keeps the dispatch in EnginePlayer mechanical instead of
+     * branching inside each Piper/Kokoro/Kitten code path.
+     *
+     * Surfaced as #676's "zero-download first-launch voice" — fresh
+     * installs default to a SystemTts voice so the first playback
+     * works without ever showing a "downloading model..." spinner.
+     * Sight-impaired users with TalkBack already have a configured
+     * default TTS voice; this variant surfaces it.
+     */
+    data class SystemTts(val engineName: String, val voiceName: String) : EngineType
 }

@@ -2,6 +2,7 @@ package `in`.jphe.storyvox.playback.voice
 
 import `in`.jphe.storyvox.data.source.AzureVoiceDescriptor
 import `in`.jphe.storyvox.data.source.AzureVoiceTier
+import `in`.jphe.storyvox.data.source.SystemTtsVoiceDescriptor
 
 object VoiceCatalog {
     /**
@@ -22,6 +23,19 @@ object VoiceCatalog {
     fun voicesWithAzure(roster: List<AzureVoiceDescriptor>): List<CatalogEntry> =
         voices + azureEntriesFromRoster(roster)
 
+    /**
+     * Issue #676 — combine the static catalog with both live rosters
+     * (Azure HD voices, System TTS voices). VoiceManager uses this when
+     * the picker / catalog projection needs to surface every available
+     * voice across all engines. Identical contract to [voicesWithAzure]
+     * with an extra System TTS roster appended.
+     */
+    fun voicesWithAzureAndSystemTts(
+        azureRoster: List<AzureVoiceDescriptor>,
+        systemTtsRoster: List<SystemTtsVoiceDescriptor>,
+    ): List<CatalogEntry> =
+        systemTtsEntriesFromRoster(systemTtsRoster) + voices + azureEntriesFromRoster(azureRoster)
+
     fun byId(id: String): CatalogEntry? = voices.firstOrNull { it.id == id }
 
     /**
@@ -32,6 +46,18 @@ object VoiceCatalog {
      */
     fun byIdWithAzure(id: String, roster: List<AzureVoiceDescriptor>): CatalogEntry? =
         voicesWithAzure(roster).firstOrNull { it.id == id }
+
+    /**
+     * Issue #676 — lookup that includes live Azure + System TTS
+     * entries. Used by playback paths (active-voice resolution) that
+     * may land on any of the four backends.
+     */
+    fun byIdWithAzureAndSystemTts(
+        id: String,
+        azureRoster: List<AzureVoiceDescriptor>,
+        systemTtsRoster: List<SystemTtsVoiceDescriptor>,
+    ): CatalogEntry? =
+        voicesWithAzureAndSystemTts(azureRoster, systemTtsRoster).firstOrNull { it.id == id }
 
     /** The three voices we hand-picked as the strongest starters. Surfaced
      *  on the first-launch [VoicePickerGate] picker so newcomers don't
@@ -871,6 +897,60 @@ object VoiceCatalog {
         AzureVoiceTier.DragonHd -> 0
         AzureVoiceTier.HdMultilingual -> 1
         AzureVoiceTier.Neural -> 2
+    }
+
+    /**
+     * Issue #676 — project the live System TTS roster into
+     * [CatalogEntry] rows.
+     *
+     * Filters and sort:
+     *  - Roster comes pre-sorted from [SystemTtsVoiceProvider] (English
+     *    locales first, offline before network); we preserve order.
+     *  - Display name is the upstream roster's [displayName] —
+     *    framework `Voice.name` humanized + the engine label as
+     *    subtitle anchor. Catalog entry's `displayName` keeps the
+     *    voice name clean and lets the picker compose the
+     *    `<flag> displayName` title separately, matching the #128
+     *    rendering contract.
+     *  - `sizeBytes = 0L` because there's nothing to download —
+     *    everything lives in the OS's installed TTS engines already.
+     *  - `qualityLevel = QualityLevel.Medium` is a reasonable middle
+     *    default; the framework doesn't expose a quality grade and
+     *    bumping every entry to High would push System TTS above Piper
+     *    in the picker, which would mislead users who picked the family
+     *    expecting "the OS default, lowest commitment". Medium tier
+     *    matches Piper-medium's audible bar while keeping the section
+     *    clearly subordinate to High/Studio Piper/Kokoro picks for
+     *    listeners who prefer neural quality.
+     *  - ID format: `system_tts_{engineName}_{voiceName}` — the
+     *    engine package id keeps multiple engines (Google + Samsung)
+     *    distinguishable even when their voice names collide
+     *    (`en-US-language` appears on both). The id replaces non-ID
+     *    characters with `_` so it survives any code path that
+     *    splits on `:` / `.`.
+     */
+    fun systemTtsEntriesFromRoster(
+        roster: List<SystemTtsVoiceDescriptor>,
+    ): List<CatalogEntry> {
+        if (roster.isEmpty()) return emptyList()
+        return roster.map { v ->
+            val localeUnderscored = v.locale.replace('-', '_')
+            val safeEngine = v.engineName.replace(Regex("[^A-Za-z0-9]"), "_")
+            val safeVoice = v.voiceName.replace(Regex("[^A-Za-z0-9]"), "_")
+            CatalogEntry(
+                id = "system_tts_${safeEngine}_${safeVoice}",
+                displayName = v.displayName,
+                language = localeUnderscored,
+                sizeBytes = 0L,
+                qualityLevel = QualityLevel.Medium,
+                engineType = EngineType.SystemTts(
+                    engineName = v.engineName,
+                    voiceName = v.voiceName,
+                ),
+                piper = null,
+                gender = VoiceGender.Unknown,
+            )
+        }
     }
 
 }
