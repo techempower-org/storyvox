@@ -41,6 +41,7 @@ import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import `in`.jphe.storyvox.data.source.SystemTtsVoiceProvider
 import `in`.jphe.storyvox.playback.voice.UiVoiceInfo
 import `in`.jphe.storyvox.playback.voice.VoiceCatalog
 import `in`.jphe.storyvox.playback.voice.VoiceManager
@@ -124,7 +125,21 @@ fun VoicePickerGate(
 @HiltViewModel
 class VoicePickerGateViewModel @Inject constructor(
     private val voices: VoiceManager,
+    private val systemTtsVoiceProvider: SystemTtsVoiceProvider,
 ) : ViewModel() {
+
+    /** Issue #681 — true once the OS exposes at least one System TTS voice
+     *  via any installed engine (Google TTS, Samsung SMT, eSpeak, etc.).
+     *  Starts false and flips to true (~150 ms post-init on devices with
+     *  Google TTS pre-installed) once `SystemTtsVoiceProvider.voices`
+     *  emits a non-empty list. Stays false on stock Samsung tablets and
+     *  other TTS-less devices — the [VoicePickerOnboarding] composable
+     *  observes this and surfaces a "Install Google TTS" CTA above the
+     *  Piper voice tiles so the user knows the zero-download path is
+     *  available behind one Play Store install. */
+    val hasSystemTtsEngines: StateFlow<Boolean> = systemTtsVoiceProvider.voices
+        .map { it.isNotEmpty() }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
     init {
         // #676 — best-effort first-launch seed: if the user has never

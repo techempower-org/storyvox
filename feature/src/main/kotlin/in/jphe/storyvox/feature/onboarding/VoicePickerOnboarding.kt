@@ -1,5 +1,8 @@
 package `in`.jphe.storyvox.feature.onboarding
 
+import android.content.ActivityNotFoundException
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -24,7 +27,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -75,6 +81,12 @@ fun VoicePickerOnboarding(
     val downloadingId by viewModel.downloadingVoiceId.collectAsStateWithLifecycle()
     val progress by viewModel.progress.collectAsStateWithLifecycle()
     val activeVoice by viewModel.activeVoice.collectAsStateWithLifecycle()
+    // Issue #681 — banner gate: true on devices like the Z Flip 3 (Google
+    // TTS pre-installed, 22 voices enumerated) → banner hides. False on
+    // TTS-less devices like stock Samsung Galaxy Tab A7 Lite (zero TTS
+    // engines installed) → banner renders above the friendly Piper tiles
+    // with an "Install Google TTS" CTA.
+    val hasSystemTts by viewModel.hasSystemTtsEngines.collectAsStateWithLifecycle()
 
     // Latch on the initial activeVoice — if the user already had a
     // voice picked (post-reset replay), we don't want
@@ -108,6 +120,7 @@ fun VoicePickerOnboarding(
         recommended = recommended,
         downloadingVoiceId = downloadingId,
         progress = progress,
+        showInstallSystemTtsBanner = !hasSystemTts,
         onPick = { voiceId ->
             viewModel.pick(voiceId)
         },
@@ -123,6 +136,7 @@ private fun VoicePickerOnboardingContent(
     recommended: List<UiVoiceInfo>,
     downloadingVoiceId: String?,
     progress: VoiceManager.DownloadProgress?,
+    showInstallSystemTtsBanner: Boolean,
     onPick: (String) -> Unit,
     onContinue: () -> Unit,
     onSkip: () -> Unit,
@@ -164,6 +178,20 @@ private fun VoicePickerOnboardingContent(
             )
             Spacer(Modifier.height(spacing.lg))
 
+            // Issue #681 — TTS-less device fallback CTA. On stock Samsung
+            // tablets (and other devices that ship without Google TTS
+            // pre-installed) the System TTS roster is empty, so the
+            // #676 zero-download first-listen path silently degrades to
+            // the legacy Piper download. Surface a one-liner banner +
+            // Play Store deep-link so the user knows there's a one-tap
+            // path to the built-in-voices experience. On devices that
+            // already have System TTS engines (Z Flip 3, most modern
+            // phones) the banner is hidden and behavior matches v0.5.72.
+            if (showInstallSystemTtsBanner) {
+                InstallSystemTtsBanner()
+                Spacer(Modifier.height(spacing.md))
+            }
+
             // Show at most 3-4 friendly voices for the v1.0 onboarding.
             // The catalog's featuredIds today is 5 (Lessac × 3 tiers,
             // Cori × 2 tiers); we collapse same-named entries to their
@@ -200,6 +228,89 @@ private fun VoicePickerOnboardingContent(
             )
             Spacer(Modifier.height(spacing.xl))
         }
+    }
+}
+
+/**
+ * Issue #681 — banner shown above the friendly voice tiles when the OS
+ * exposes zero System TTS voices (no Google TTS, no Samsung SMT, no
+ * eSpeak — typical of stock Samsung tablets and other devices that ship
+ * without GMS TTS pre-installed).
+ *
+ * The copy is intentionally one-line and frames the Piper download as a
+ * legitimate alternative, not a fallback: a user can either install
+ * Google TTS (zero-byte storyvox download afterward) or pick a Piper
+ * voice below (~14 MB one-time download). Both paths work.
+ *
+ * The "Install Google TTS" affordance fires `Intent.ACTION_VIEW` against
+ * `market://details?id=com.google.android.tts` — opens the Play Store
+ * app's listing for Google Speech Services. On devices without Play
+ * Store installed (some non-GMS Android variants), `startActivity`
+ * throws [ActivityNotFoundException]; we catch it and fall back to the
+ * `https://play.google.com/...` web URL, which any browser can handle.
+ *
+ * Theme-safe by construction: surfaceVariant background + primary
+ * accent + onSurface body text track [MaterialTheme.colorScheme] tokens
+ * so the banner reads correctly under both light and dark themes.
+ *
+ * TalkBack: the banner copy is read as a single sentence (no per-word
+ * fragmentation), and the BrassButton inherits the [Role.Button]
+ * semantic from BrassButton itself, so TalkBack announces it as
+ * "Install Google TTS, button".
+ */
+@Composable
+private fun InstallSystemTtsBanner() {
+    val context = LocalContext.current
+    val spacing = LocalSpacing.current
+    val copy = "Install Google TTS for built-in voices, " +
+        "or download a Piper voice (~14 MB) below."
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .widthIn(max = 480.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .padding(spacing.md)
+            .semantics { contentDescription = copy },
+    ) {
+        Text(
+            text = copy,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+            textAlign = TextAlign.Start,
+        )
+        Spacer(Modifier.height(spacing.sm))
+        BrassButton(
+            label = "Install Google TTS",
+            onClick = {
+                val marketUri = Uri.parse("market://details?id=com.google.android.tts")
+                val marketIntent = Intent(Intent.ACTION_VIEW, marketUri).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                try {
+                    context.startActivity(marketIntent)
+                } catch (_: ActivityNotFoundException) {
+                    // Devices without Play Store (LineageOS, GrapheneOS,
+                    // some Huawei builds) — fall through to the web
+                    // listing, which any browser can render.
+                    val webUri = Uri.parse(
+                        "https://play.google.com/store/apps/details?id=com.google.android.tts",
+                    )
+                    val webIntent = Intent(Intent.ACTION_VIEW, webUri).apply {
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                    try {
+                        context.startActivity(webIntent)
+                    } catch (_: ActivityNotFoundException) {
+                        // No browser either — extraordinarily rare. We
+                        // intentionally swallow rather than crash; the
+                        // banner copy still informs the user, and the
+                        // Piper tiles below remain functional.
+                    }
+                }
+            },
+            variant = BrassButtonVariant.Primary,
+        )
     }
 }
 
