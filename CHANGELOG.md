@@ -9,6 +9,27 @@ Entries before v0.5.12 are reconstructed from the git log — see
 
 ## [Unreleased]
 
+## [0.5.69] — 2026-05-17
+
+**Beta-channel polish pass.** Closes the last code-side gap before the first Play Console upload.
+
+### Fixed (#582) — secondary VoxSherpa engines now use the volatile sample-rate cache
+The earlier #582 fix routed the **singleton** engine reads through `EngineSampleRateCache`, but the **secondary** (parallel-synth) engine handles at `EnginePlayer.kt:1788/1802/1820` still did direct `eng.sampleRate` reads. Each secondary is a separate `VoiceEngine`/`KokoroEngine`/`KittenEngine` instance with its own intrinsic monitor — if a secondary's `loadModel` is still in flight when `startPlaybackPipeline` runs on the main thread (the speed-chip cycling pattern from the original Z Flip 3 monkey repro), the read contends on THAT instance the same way the singleton contended.
+- **Fix** (PR #667): route the secondary handles' `sampleRate` through the same volatile cache. All Piper engines share one model file and therefore one sample rate within a process, so the engine-type-scoped cache is the correct answer — using `EngineSampleRateCache.piperRate()` for both primary AND secondary handles is consistent + lock-free.
+- Closes the last remaining instance-level lock-contention vector on the VoxSherpa sample-rate accessor.
+
+### Added — `gradle-play-publisher` automation + Play Console runbook (PR #666)
+Reduces future release workflow to a single `./gradlew :app:publishReleaseBundle` once the one-time service-account setup is done.
+- Triple-T `gradle-play-publisher` 3.10.1 wired in `:app` with conservative defaults: track=`internal`, releaseStatus=`DRAFT`, `commit=false` so half-CI runs never auto-publish, `resolutionStrategy=IGNORE` to override stale Play Console edits.
+- Reads service-account JSON path from `storyvox.playPublisher.credentialsFile` in local.properties. No-op when unset — the plugin's tasks emit "PlayPublisher requires credentials" but every other build path is unaffected.
+- `docs/play-store/RUNBOOK.md` walks through one-time Play Console app entry + content rating + listing setup, Google Cloud service-account creation, IAM grants, per-release workflow, and a troubleshooting table.
+
+### Closed without code change (#581) — finalizer "appender already closed"
+Verified already-fixed in v0.5.60 (PR #587, commit 652e9683). `PcmAppender.finalize()` had shadowed `java.lang.Object.finalize()` — Kotlin doesn't require `override` for the deprecated GC hook, so `FinalizerDaemon` invoked the user method on every reclaim and `check(!closed)` threw. The fix renamed `finalize()` → `complete()` across PcmAppender, ChapterRenderJob, EngineStreamingSource, PcmCacheManifest + 5 test files; regression test reflectively asserts `finalize` is no longer declared. Issue was stale.
+
+### Under the hood
+- Open issue count: **22 → 2** across this push (v0.5.68 + v0.5.69). Remaining 2 are #582 (CI-verified fix in this release; closes on tablet re-stress) and #392 Propel partnership outreach (non-code, JP-actionable).
+
 ## [0.5.68] — 2026-05-17
 
 **Beta-channel candidate.** Five PRs closing eleven issues — the last critical-path bundle before Play Store Internal Test.

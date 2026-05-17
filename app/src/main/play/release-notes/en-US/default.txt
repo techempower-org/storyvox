@@ -1,0 +1,8 @@
+First public release.
+
+• Browse free books, guides, articles, and the web — read aloud by on-device voices
+• 25+ content sources: Project Gutenberg, Standard Ebooks, Wikipedia, Royal Road, PLOS, Hacker News, arXiv, RSS, your own EPUBs, and more
+• Beautiful Library Nocturne theme with full TalkBack support
+• Android Auto, lock-screen controls, sleep timer, home-screen widget
+• Optional cloud sync via InstantDB — your library follows you across devices
+• Free, no account required, no ads, open-source

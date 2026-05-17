@@ -1,0 +1,47 @@
+storyvox turns books, articles, and stories into beautiful audio — read out loud by your choice of on-device voices. No subscription. No account required.
+
+Open the app and you've got an audiobook player ready to go. Tap to start. Skip ahead, jump back, fall asleep to a sleep timer, or play through Android Auto on the drive home.
+
+═══════════
+
+⊹ FREE BOOKS, GUIDES, AND THE WEB
+Browse and listen to:
+• Project Gutenberg classics (Pride and Prejudice, The Count of Monte Cristo, Frankenstein, thousands more)
+• Standard Ebooks (Project Gutenberg reborn with proper typography)
+• Wikipedia and Wikisource articles
+• Royal Road web serials (sign in optional, for follows + reading lists)
+• PLOS scientific journals (free open-access research)
+• Hacker News stories
+• arXiv research papers
+• AO3 fanfiction (with your AO3 account)
+• Any Notion workspace (paste your token, share a database, listen)
+• Any RSS feed (your blogs, podcasts, anything)
+• Any web article (paste a URL — magic-link reader extracts the text)
+• Your own EPUB files (import from anywhere)
+
+⊹ READ ALOUD BY ANY VOICE
+Choose from dozens of free on-device voices:
+• Crisp neural voices via Piper, Kokoro, and Kitten (run entirely on your phone — no internet needed once installed)
+• Optional Microsoft Azure cloud voices if you want premium quality
+• Per-book voice memory — assign different narrators to different stories
+• Adjust speed, pitch, and pause-between-sentences live
+• Pronunciation dictionary — teach the voice how to say specific names and words
+
+⊹ BEAUTIFUL, ACCESSIBLE, AND CALM
+Library Nocturne aesthetic — warm dark theme, brass accents, EB Garamond typography. Reduce motion, adjust font scale, and turn off animations from Settings → Accessibility. TalkBack-tested throughout.
+
+⊹ PLAYS WHERE YOU PLAY
+• Android Auto — listen on the drive home
+• Lock-screen and notification controls
+• Bluetooth, AirPods, car stereo — all the audio routes
+• Sleep timer with shake-to-extend
+• Home-screen widget — see what's playing without unlocking
+• Auto-advance through chapters, with smart prerendering so the next chapter is ready before you need it
+
+⊹ CLOUD SYNC (OPTIONAL)
+Sign in to sync your library, follows, reading positions, bookmarks, and voice settings across all your devices. Powered by InstantDB — end-to-end secure, no ads, your data is yours. The app works fully offline if you'd rather not.
+
+⊹ FOR PEOPLE WHO LIKE TO LISTEN
+storyvox is built for audiobook readers, drivers, walkers, accessibility users, busy parents, students, and anyone who wants to hear instead of read. Open-source, no ads, no tracking, no upsells.
+
+Made with love by TechEmpower. Free, no account required.
