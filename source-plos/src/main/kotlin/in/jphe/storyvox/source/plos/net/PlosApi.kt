@@ -49,9 +49,13 @@ internal class PlosApi @Inject constructor(
      * Recent articles in PLOS ONE — the Browse → Popular landing.
      * PLOS doesn't expose a "top stories" feed; sorting PLOS ONE
      * (their biggest journal by volume) by publication date desc
-     * gives a stable + fresh listing. `journal_key:PLOSONE` is the
-     * Solr-side filter for PLOS ONE specifically; the
-     * Solr-internal id is the all-caps form, not the URL slug.
+     * gives a stable + fresh listing.
+     *
+     * Filter shape (post-#664): `fq=journal:"PLOS ONE"`. The legacy
+     * `journal_key:PLOSONE` field is no longer indexed — Solr returns
+     * `numFound=0` for it, surfacing as a silent empty Browse tab. The
+     * `journal` field carries the human-readable name and remains the
+     * stable filter today.
      */
     suspend fun searchRecent(
         start: Int = 0,
@@ -59,7 +63,15 @@ internal class PlosApi @Inject constructor(
     ): FictionResult<PlosSearchResponse> {
         val url = "$BASE_SEARCH" +
             "?q=" + URLEncoder.encode("*:*", "UTF-8") +
-            "&fq=" + URLEncoder.encode("journal_key:PLOSONE", "UTF-8") +
+            // Issue #664 — PLOS retired the `journal_key` field; queries
+            // against it return numFound=0 now. The user-facing journal
+            // name `"PLOS ONE"` (quoted to keep the space inside one
+            // term) is the current Solr-side filter that still resolves
+            // to ~2.8M docs. Curl-confirmed against
+            //   https://api.plos.org/search?q=*:*&fq=journal:"PLOS ONE"
+            // — if/when PLOS publishes a stable replacement key, swap
+            // here and update PlosApiTest's URL fixture.
+            "&fq=" + URLEncoder.encode("journal:\"PLOS ONE\"", "UTF-8") +
             "&sort=" + URLEncoder.encode("publication_date desc", "UTF-8") +
             "&start=$start" +
             "&rows=$rows" +
