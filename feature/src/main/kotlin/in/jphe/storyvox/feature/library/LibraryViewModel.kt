@@ -78,14 +78,15 @@ import kotlinx.coroutines.launch
 enum class LibraryTab(val label: String) {
     Library("Library"),
     /**
-     * Restructure (v0.5.40) — Browse folded under Library. The embedded
-     * BrowseScreen body renders here, source picker and all, sans its
-     * own TopAppBar (the Library TopAppBar serves both).
-     */
-    Browse("Browse"),
-    /**
-     * Restructure (v0.5.40) — Follows folded under Library. Same
-     * pattern as Browse: embedded body, no internal TopAppBar.
+     * Restructure (v0.5.40) — Follows folded under Library. The embedded
+     * FollowsScreen body renders here sans its own TopAppBar (the Library
+     * TopAppBar serves both).
+     *
+     * v0.5.72 note — Browse was previously a Library sub-tab too but was
+     * promoted to a first-class bottom-nav destination in v0.5.72. Follows
+     * stays embedded because it's tightly coupled to "your library" (per-
+     * user, signed-in scope) while Browse is the cross-source discovery
+     * surface that earned its own dock pill.
      */
     Follows("Follows"),
     /**
@@ -283,13 +284,12 @@ class LibraryViewModel @Inject constructor(
      */
     fun selectTab(tab: LibraryTab) {
         _tab.value = tab
-        // Restructure (v0.5.40) — Browse / Follows render their own
-        // embedded surfaces (own ViewModels via hiltViewModel), so the
-        // selectTab handler has nothing source-specific to coerce.
-        // Each branch is a documented no-op for grep symmetry.
+        // Follows renders its own embedded surface (own ViewModel via
+        // hiltViewModel), so the selectTab handler has nothing source-
+        // specific to coerce. Each branch is a documented no-op for
+        // grep symmetry.
         when (tab) {
             LibraryTab.Library -> { /* chip-row filter persists across tab switches */ }
-            LibraryTab.Browse -> { /* BrowseScreen owns its own state */ }
             LibraryTab.Follows -> { /* FollowsScreen owns its own state */ }
             LibraryTab.History -> { /* history feed renders from state.history */ }
             LibraryTab.Inbox -> { /* inbox feed renders from state.inbox */ }

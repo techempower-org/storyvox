@@ -416,16 +416,22 @@ private fun StoryvoxNavHostContent(
     val useSideRail = isAtLeastTablet() && showHomeNav
 
     // Shared nav-target resolution: both the side rail (tablet) and the
-    // bottom bar (phone) drive the same {Library, Playing, Voices,
-    // Settings} dock, so the selected tab + onSelect logic is identical
-    // across both surfaces. Extracting them here keeps the two surfaces
-    // in lockstep — a future tab addition lands in one place.
+    // bottom bar (phone) drive the same {Playing, Library, Browse,
+    // Voices, Settings} dock, so the selected tab + onSelect logic is
+    // identical across both surfaces. Extracting them here keeps the two
+    // surfaces in lockstep — a future tab addition lands in one place.
+    //
+    // v0.5.72 — Browse is first-class. The BROWSE route lights the Browse
+    // pill (not Library), so the user always knows where they are. The
+    // Library sub-tabs (Follows, Inbox, History) still collapse to the
+    // Library pill since those remain under the Library umbrella.
     val selectedTab = when (currentRoute?.substringBefore("?")) {
         StoryvoxRoutes.SETTINGS_HUB,
         StoryvoxRoutes.SETTINGS -> HomeTab.Settings
         StoryvoxRoutes.VOICE_LIBRARY -> HomeTab.Voices
         StoryvoxRoutes.PLAYING -> HomeTab.Playing
-        // Library + Browse + Follows + Inbox + History sub-tabs and
+        StoryvoxRoutes.BROWSE -> HomeTab.Browse
+        // Library + Follows + Inbox + History sub-tabs and
         // Reader / Audiobook drill-downs all light the Library pill —
         // Library is still the umbrella for that whole tree.
         else -> HomeTab.Library
@@ -445,6 +451,7 @@ private fun StoryvoxNavHostContent(
         val target = when (tab) {
             HomeTab.Library -> StoryvoxRoutes.LIBRARY
             HomeTab.Playing -> StoryvoxRoutes.PLAYING
+            HomeTab.Browse -> StoryvoxRoutes.BROWSE
             HomeTab.Voices -> StoryvoxRoutes.VOICE_LIBRARY
             HomeTab.Settings -> StoryvoxRoutes.SETTINGS_HUB
         }
@@ -664,17 +671,11 @@ private fun StoryvoxNavHostContent(
                     onOpenFiction = { id -> navController.navigate(StoryvoxRoutes.fictionDetail(id)) },
                     onOpenReader = { f, c -> navController.navigate(StoryvoxRoutes.reader(f, c)) },
                     onOpenSettings = { navController.navigate(StoryvoxRoutes.SETTINGS_HUB) },
-                    // Restructure (v0.5.40) — Browse + Follows are
-                    // embedded sub-tabs now. Both rely on the host
-                    // (this NavHost) to surface the auth WebView for
-                    // Royal Road sign-in; we route to the same shared
-                    // sign-in surface used by FictionDetail #211 and
-                    // standalone Browse #241.
-                    onOpenRoyalRoadSignIn = { navController.navigate(StoryvoxRoutes.authWebView(SourceIds.ROYAL_ROAD)) },
+                    // v0.5.72 — Browse is a first-class bottom-nav tab
+                    // now; the standalone Browse route owns RR + AO3
+                    // sign-in deep-links. Follows is still embedded
+                    // here, so its sign-in CTA still threads through.
                     onOpenFollowsSignIn = { navController.navigate(StoryvoxRoutes.authWebView(SourceIds.ROYAL_ROAD)) },
-                    // #426 PR2 — AO3 sign-in deep-link from the embedded
-                    // Browse tab's AO3 chip signed-out banner.
-                    onOpenAo3SignIn = { navController.navigate(StoryvoxRoutes.authWebView(SourceIds.AO3)) },
                     // Issue #500 — cloud-icon tap on the Library top
                     // app bar routes to the InstantDB sign-in surface
                     // (the same SyncAuthScreen the onboarding card

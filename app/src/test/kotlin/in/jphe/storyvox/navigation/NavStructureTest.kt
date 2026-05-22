@@ -8,8 +8,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Restructure (v0.5.40 + v0.5.48 partial revert) — bottom-nav + primary-
- * destination contract.
+ * Restructure (v0.5.40 + v0.5.48 partial revert + v0.5.72 Browse
+ * promotion) — bottom-nav + primary-destination contract.
  *
  * v0.5.40 directive: "put settings in the main nav bar, and put follows
  * and browse into the library tab." Collapsed bottom nav to two primary
@@ -18,46 +18,59 @@ import org.junit.Test
  * drill-down.
  *
  * v0.5.48 partial revert (JP feedback 2026-05-15): Playing + Voices
- * restored as primary destinations. Browse + Follows stay as Library
- * sub-tabs (that part of the v0.5.40 restructure stuck). Dock is now
- * `Playing | Library | Voices | Settings`.
+ * restored as primary destinations. Browse + Follows stayed as Library
+ * sub-tabs. Dock was `Playing | Library | Voices | Settings`.
  *
- * v0.5.48 (commit 7f75435) restored Playing + Voices to the dock per
- * JP feedback: `{Library, Playing, Voices, Settings}`. The assertions
- * here track that current layout. The "no Browse / Follows pill"
- * contract is still pinned — those stay under the Library umbrella.
+ * v0.5.72 — Browse promoted to first-class bottom-nav destination
+ * (compass icon, magical hero source carousel inside). Dock is now
+ * `Playing | Library | Browse | Voices | Settings` — five tabs.
+ * Follows stays under the Library umbrella (per-user scope).
  *
- * These tests pin the contract so a future refactor that re-adds a
- * Browse pill to the bottom bar or that removes the Settings
- * destination fails here first. Plain JUnit (no Robolectric): we're
- * only inspecting enum + route-string state, not any Android framework
- * objects.
+ * These tests pin the contract so a future refactor that removes the
+ * Browse pill or changes the dock ordering fails here first. Plain
+ * JUnit (no Robolectric): we're only inspecting enum + route-string
+ * state, not any Android framework objects.
  */
 class NavStructureTest {
 
     @Test
-    fun `bottom nav exposes exactly four primary destinations`() {
-        // v0.5.48 — Library + Playing + Voices + Settings. v0.5.40 had
-        // collapsed to {Library, Settings} but JP feedback restored
-        // Playing + Voices as primary destinations. Going past four
-        // needs a UX review — the sliding indicator pill in
-        // BottomTabBar is centered per-cell and five cells starts
-        // crowding label rendering on the Flip3's compact cover width.
-        assertEquals(4, HomeTab.entries.size)
+    fun `bottom nav exposes exactly five primary destinations`() {
+        // v0.5.72 — Playing + Library + Browse + Voices + Settings.
+        // Browse was promoted from Library sub-tab to a first-class
+        // dock pill. Going past five needs a UX review — the sliding
+        // indicator pill in BottomTabBar is centered per-cell and six
+        // cells starts crowding label rendering on the Flip3's
+        // compact cover width.
+        assertEquals(5, HomeTab.entries.size)
     }
 
     @Test
-    fun `bottom nav primary destinations are Playing Library Voices Settings`() {
+    fun `bottom nav primary destinations are Playing Library Browse Voices Settings`() {
         // Order matters — BottomTabBar uses ordinal to position the
-        // indicator pill. v0.5.50 final order (after a v0.5.48 flip-
-        // flop): Playing leads since it's the most-touched destination
-        // during a listening session. Library remains the cold-launch
-        // landing (NavHost startDestination is independent of dock
-        // ordinal).
+        // indicator pill. v0.5.72 final order: Playing leads
+        // (most-touched during a listening session); Library second
+        // (cold-launch landing — NavHost startDestination is
+        // independent of dock ordinal but adjacency matters for the
+        // "I just opened the app" glance); Browse third (discovery
+        // sits between "your shelves" and "playback ops"); Voices
+        // fourth; Settings always last. Library + Browse adjacency is
+        // intentional — finishing a book and discovering the next is
+        // one swipe.
         val labels = HomeTab.entries.map { it.label }
-        assertEquals(listOf("Playing", "Library", "Voices", "Settings"), labels)
+        assertEquals(listOf("Playing", "Library", "Browse", "Voices", "Settings"), labels)
         assertEquals(HomeTab.Playing, HomeTab.entries.first())
         assertEquals(HomeTab.Settings, HomeTab.entries.last())
+    }
+
+    @Test
+    fun `Browse is now a first-class bottom-nav destination (v0_5_72)`() {
+        // Pinned alongside the order assertion above so a regression
+        // that drops Browse from the dock fails this test by name (not
+        // just the order assertion). Browse was a Library sub-tab in
+        // v0.5.40–v0.5.71; v0.5.72 gave it its own pill with the
+        // compass icon and a magical hero source carousel inside.
+        assertNotNull(HomeTab.entries.firstOrNull { it == HomeTab.Browse })
+        assertEquals("Browse", HomeTab.Browse.label)
     }
 
     @Test

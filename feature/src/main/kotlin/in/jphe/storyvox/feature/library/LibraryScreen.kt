@@ -93,20 +93,14 @@ fun LibraryScreen(
      */
     onOpenInboxLink: (String) -> Unit = {},
     /**
-     * Restructure (v0.5.40) — embedded BrowseScreen's RR sign-in CTA.
-     * Default no-op for tests / preview surfaces that don't exercise
-     * the Browse sub-tab.
-     */
-    onOpenRoyalRoadSignIn: () -> Unit = {},
-    /**
-     * #426 PR2 — embedded BrowseScreen's AO3 sign-in CTA. Routes to
-     * the same AUTH_WEBVIEW destination as the standalone Browse
-     * screen, parameterized with `SourceIds.AO3`.
-     */
-    onOpenAo3SignIn: () -> Unit = {},
-    /**
      * Restructure (v0.5.40) — embedded FollowsScreen's sign-in CTA
      * (Royal Road WebView for now; #241 shared sign-in surface).
+     *
+     * v0.5.72 — Browse was promoted to a first-class bottom-nav tab,
+     * so the previously-threaded `onOpenRoyalRoadSignIn` and
+     * `onOpenAo3SignIn` callbacks have been dropped here (Browse's
+     * standalone route owns them now). Follows stays embedded under
+     * Library and still routes through here.
      */
     onOpenFollowsSignIn: () -> Unit = {},
     /**
@@ -346,25 +340,6 @@ fun LibraryScreen(
                             onOpenTechEmpower = onOpenTechEmpower,
                         )
                     }
-                }
-
-                // Restructure (v0.5.40) — Browse embedded under Library.
-                // BrowseScreen carries its own ViewModel (Hilt-scoped to
-                // this NavBackStackEntry) so its state survives sub-tab
-                // switches inside Library, same as it survived
-                // top-level tab switches before the restructure.
-                LibraryTab.Browse -> Box(modifier = Modifier.fillMaxSize()) {
-                    BrowseScreen(
-                        onOpenFiction = onOpenFiction,
-                        onOpenRoyalRoadSignIn = onOpenRoyalRoadSignIn,
-                        // #426 PR2 — thread the AO3 sign-in entry point
-                        // through to the embedded BrowseScreen so the
-                        // AO3 chip's signed-out banner lands in the
-                        // right destination.
-                        onOpenAo3SignIn = onOpenAo3SignIn,
-                        onOpenSettings = onOpenSettings,
-                        embedded = true,
-                    )
                 }
 
                 // Restructure (v0.5.40) — Follows embedded under Library.

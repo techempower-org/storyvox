@@ -33,8 +33,6 @@ import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -178,16 +176,17 @@ fun BrowseScreen(
     ) {
     Box(modifier = Modifier.fillMaxSize()) {
     Column(modifier = Modifier.fillMaxSize().padding(top = spacing.md)) {
-        // Top-level source picker. Switches the multibinding lookup in
-        // FictionRepository between Royal Road and GitHub. Tabs and the
-        // filter sheet rebind to whatever the chosen source supports.
-        BrowseSourcePicker(
+        // v0.5.72 — magical hero source carousel for the first-class
+        // Browse tab. Replaces the v0.5.40 chip strip with brass-edged
+        // source cards showing icon + name + tagline so the picker
+        // reads as a discovery surface, not a search facet. Switching
+        // cards swaps the multibinding lookup in FictionRepository
+        // between sources; tabs and the filter sheet rebind to the new
+        // source's shape.
+        BrowseSourceCarousel(
             selectedId = state.sourceId,
             onSelect = viewModel::selectSource,
             visibleSources = state.visibleSources,
-            // Picker now handles its own horizontal padding via LazyRow's
-            // contentPadding so off-screen chips can pan into view without
-            // an outer padding clipping them at the edges.
             modifier = Modifier.fillMaxWidth(),
         )
 
@@ -996,93 +995,6 @@ private val BrowseTab.label: String
         BrowseTab.Ao3MySubscriptions -> "Subscribed"
         BrowseTab.Ao3MarkedForLater -> "Marked"
     }
-
-/**
- * Horizontally scrollable backend-picker strip pinned above the tab row.
- *
- * Each enabled backend gets its own [FilterChip] at its natural label
- * width inside a [LazyRow]. The previous implementation used Material 3
- * `SingleChoiceSegmentedButtonRow`, which divides the parent's width
- * evenly between every segment — fine for 2-3 backends, but with 11+
- * enabled it forces the label to wrap mid-word inside ~50dp segments
- * and clips the off-screen backends entirely (no horizontal scroll on
- * segmented rows). See #407.
- *
- * Filter chips:
- *  - keep each label on one line (`softWrap = false`, `maxLines = 1`,
- *    overflow = ellipsis for paranoia on very narrow tablets),
- *  - allow the strip to grow as long as needed and pan freely on a
- *    one-finger horizontal swipe (LazyRow handles fling + clipping),
- *  - keep the brass-primary selection treatment so the strip still
- *    reads as part of the realm aesthetic.
- *
- * Plugin-seam Phase 3 (#384) — the picker iterates the
- * `SourcePluginRegistry`-derived `visibleSources` list rather than
- * the (deleted) `BrowseSourceKey.entries`. Adding a new backend is
- * one `@SourcePlugin`-annotated class — no enum entry needed.
- */
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun BrowseSourcePicker(
-    selectedId: String,
-    onSelect: (String) -> Unit,
-    visibleSources: List<SourcePluginDescriptor>,
-    modifier: Modifier = Modifier,
-) {
-    val spacing = LocalSpacing.current
-    if (visibleSources.isEmpty()) return
-    LazyRow(
-        modifier = modifier,
-        horizontalArrangement = Arrangement.spacedBy(spacing.sm),
-        contentPadding = PaddingValues(horizontal = spacing.md),
-    ) {
-        items(visibleSources, key = { it.id }) { descriptor ->
-            val label = BrowseSourceUi.chipLabel(descriptor.id, descriptor.displayName)
-            val isSelected = descriptor.id == selectedId
-            // Issue #622 — consistency sweep across the 21 backend chips.
-            // Pre-fix the chips relied on `FilterChipDefaults` for the
-            // unselected state, which on dark surfaces renders an almost-
-            // invisible outline. The result was a strip where the selected
-            // chip popped but the rest faded into the background, making
-            // it hard to count or scan the available sources.
-            //
-            // Fix: every chip carries the SAME shape, SAME border, SAME
-            // label style. Selected = brass primaryContainer fill.
-            // Unselected = transparent fill + brass outline at 35 % alpha
-            // (subtle, matches the WhyAreWeWaitingPanel border tone) +
-            // onSurfaceVariant label. The brass primary border on the
-            // active chip is suppressed (the fill already announces
-            // selection) so the strip reads as a uniform family.
-            FilterChip(
-                selected = isSelected,
-                onClick = { onSelect(descriptor.id) },
-                label = {
-                    Text(
-                        text = label,
-                        style = MaterialTheme.typography.labelLarge,
-                        maxLines = 1,
-                        softWrap = false,
-                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                    )
-                },
-                colors = FilterChipDefaults.filterChipColors(
-                    containerColor = androidx.compose.ui.graphics.Color.Transparent,
-                    labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                    selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                    selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                ),
-                border = FilterChipDefaults.filterChipBorder(
-                    enabled = true,
-                    selected = isSelected,
-                    borderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.35f),
-                    selectedBorderColor = androidx.compose.ui.graphics.Color.Transparent,
-                    borderWidth = 1.dp,
-                    selectedBorderWidth = 0.dp,
-                ),
-            )
-        }
-    }
-}
 
 /**
  * Hint chip surfaced under the tab row when MemPalace browse is scoped

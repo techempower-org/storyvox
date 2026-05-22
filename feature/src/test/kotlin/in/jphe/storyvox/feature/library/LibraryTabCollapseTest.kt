@@ -10,7 +10,7 @@ import org.junit.Test
 
 /**
  * Issue #438 — regression guard for the four-tab/four-chip overlap, plus
- * v0.5.40 nav-restructure follow-up.
+ * v0.5.40 nav-restructure follow-up and v0.5.72 Browse promotion.
  *
  * v0.5.36 stacked the four-entry `LibraryTab` strip (All / Reading /
  * Inbox / History) directly on top of the four-entry shelf chip row
@@ -20,21 +20,27 @@ import org.junit.Test
  * time.
  *
  * v0.5.40 restructure — JP directive "put follows and browse into the
- * library tab" — grew the tab strip back to five entries, but the
- * #438 invariants still hold: no tab label may collide with a shelf
- * chip label. The new tabs are [LibraryTab.Browse] and
- * [LibraryTab.Follows], neither of which is a shelf name, so the
- * collision contract is preserved.
+ * library tab" — grew the tab strip back to five entries.
+ *
+ * v0.5.72 — Browse promoted to first-class bottom-nav destination (its
+ * own pill with the compass icon). LibraryTab drops Browse so there's
+ * exactly one place named "Browse" in the app. Follows stays embedded
+ * (it's per-user / signed-in scope, tightly coupled to the Library
+ * umbrella). Final shape: `Library / Follows / Inbox / History`.
+ *
+ * The #438 invariants still hold: no tab label may collide with a shelf
+ * chip label.
  */
 class LibraryTabCollapseTest {
 
     @Test
-    fun `LibraryTab has exactly five entries`() {
-        // v0.5.40 restructure — Library / Browse / Follows / Inbox /
-        // History. Five is the new ceiling; growing past five needs a
-        // UX review since SecondaryScrollableTabRow is already required
-        // to fit five labels on Flip3 portrait.
-        assertEquals(5, LibraryTab.entries.size)
+    fun `LibraryTab has exactly four entries`() {
+        // v0.5.72 — Library / Follows / Inbox / History. Browse was
+        // pulled out of the strip when it became a first-class bottom-
+        // nav destination. Four is the new ceiling; growing past four
+        // needs a UX review since SecondaryScrollableTabRow already
+        // packs four labels onto Flip3 portrait.
+        assertEquals(4, LibraryTab.entries.size)
     }
 
     @Test
@@ -75,24 +81,35 @@ class LibraryTabCollapseTest {
     fun `Library is the first tab and is the default landing surface`() {
         // The Library tab hosts the chip row + the user's books; it
         // must be the landing tab so a fresh launch shows the user
-        // what they own, not the Browse / Follows / Inbox feeds.
+        // what they own, not the Follows / Inbox feeds.
         val first = LibraryTab.entries.first()
         assertEquals(LibraryTab.Library, first)
         assertEquals("Library", first.label)
     }
 
     @Test
-    fun `Browse and Follows are folded under Library as sub-tabs`() {
-        // v0.5.40 restructure pin — Browse / Follows are no longer
-        // top-level bottom-bar destinations; they're sub-tabs inside
-        // the Library destination. If anyone reverts to a top-bar
-        // Browse / Follows, this assertion still passes (the enum
-        // entries can coexist), but the bottom-nav assertions in
-        // BottomTabBar HomeTab.entries catch the regression there.
-        assertNotNull(
-            "LibraryTab.Browse missing — v0.5.40 folded Browse under Library.",
-            LibraryTab.entries.firstOrNull { it == LibraryTab.Browse },
+    fun `Browse is NOT a Library sub-tab (v0_5_72 promotion)`() {
+        // v0.5.72 pin — Browse was promoted to a first-class bottom-nav
+        // destination. A regression that re-adds `LibraryTab.Browse`
+        // would re-introduce two destinations both labelled "Browse" —
+        // one in the dock, one inside Library — which is exactly the
+        // confusion the promotion was meant to fix. The standalone
+        // StoryvoxRoutes.BROWSE deep-link route still exists; this
+        // assertion only pins the absence from the in-Library tab strip.
+        val browseByName = LibraryTab.entries.firstOrNull { it.name == "Browse" }
+        assertNull(
+            "LibraryTab.Browse must NOT exist — Browse is a first-class " +
+                "bottom-nav destination as of v0.5.72.",
+            browseByName,
         )
+    }
+
+    @Test
+    fun `Follows stays folded under Library as a sub-tab`() {
+        // v0.5.40 restructure pin — Follows is still embedded inside
+        // Library because it's per-user / signed-in scope (tightly
+        // coupled to "your books"). Browse left this strip in v0.5.72
+        // but Follows belongs here.
         assertNotNull(
             "LibraryTab.Follows missing — v0.5.40 folded Follows under Library.",
             LibraryTab.entries.firstOrNull { it == LibraryTab.Follows },
@@ -110,13 +127,13 @@ class LibraryTabCollapseTest {
 
     @Test
     fun `LibraryTab order matches reading flow`() {
-        // Left-to-right: own-it (Library) → find-it (Browse / Follows)
+        // Left-to-right: own-it (Library) → find-via-author (Follows)
         // → new updates (Inbox) → revisit (History). The order isn't
         // alphabetical or random; it's narratively grouped, and the
         // SecondaryScrollableTabRow indicator pill follows this order.
+        // Browse (the find-everything-else flow) is now in the dock.
         val expectedOrder = listOf(
             LibraryTab.Library,
-            LibraryTab.Browse,
             LibraryTab.Follows,
             LibraryTab.Inbox,
             LibraryTab.History,

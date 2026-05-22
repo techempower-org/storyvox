@@ -21,10 +21,12 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoStories
+import androidx.compose.material.icons.filled.Explore
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.RecordVoiceOver
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.outlined.AutoStories
+import androidx.compose.material.icons.outlined.Explore
 import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material.icons.outlined.RecordVoiceOver
 import androidx.compose.material.icons.outlined.Settings
@@ -72,27 +74,33 @@ import androidx.compose.ui.unit.dp
  *
  * **v0.5.48 partial revert** (JP feedback 2026-05-15) — Playing + Voices
  * restored as primary nav destinations alongside Library + Settings.
- * Browse + Follows + Inbox + History stay as Library sub-tabs (the user
- * liked that part of the restructure); the two destinations being added
- * back are the ones the user reaches often enough that the gear-menu
- * detour was friction:
- *  - **Playing** — currently-playing chapter transport. Returns the
- *    Apple-Books pattern of "tap-and-you're-back-in-audio".
- *  - **Voices** — Voice Library, was at Settings → Voices in the
- *    restructure; JP reaches it often enough to deserve the dock.
  *
- * Four tabs now in the dock: `{Library, Playing, Voices, Settings}`.
+ * **v0.5.72 — Browse promoted to first-class** (issues #712/#713 follow-up,
+ * 2026-05-22). Browse was a Library sub-tab in the v0.5.40 restructure but
+ * the discovery surface (multi-backend source switching + content grid)
+ * carried enough first-class behavior — its own ViewModel, sub-tabs of its
+ * own, and the standalone BROWSE deep-link route — that hiding it behind a
+ * Library sub-tab cost a tap on the most common "what should I read next"
+ * flow. The compass icon reads as "go look around" without overloading the
+ * other dock metaphors (Playing = transport, Library = your shelves,
+ * Voices = TTS, Settings = gear).
+ *
+ * Five tabs now in the dock: `{Playing, Library, Browse, Voices, Settings}`.
  */
 // Order matters — entries' ordinal positions the sliding indicator
-// pill left-to-right in the bar. JP final on 2026-05-15 (after one
-// earlier flip-flop): Playing leads the dock since it's the
-// most-touched destination during a listening session. Library stays
-// second + remains the cold-launch landing (NavHost startDestination
-// is independent of dock order).
+// pill left-to-right in the bar. v0.5.72 final order: Playing leads
+// (most-touched during a listening session); Library second (the
+// cold-launch landing — NavHost startDestination is independent of
+// dock order but adjacency matters for the "I just opened the app"
+// glance); Browse third (discovery sits between "your stuff" and
+// "everything else about playback"); Voices fourth; Settings always
+// last. Library + Browse adjacent is intentional — a user finishing
+// a book in Library can swipe one tab to discover the next.
 @Immutable
 enum class HomeTab(val label: String, val filled: ImageVector, val outlined: ImageVector) {
     Playing("Playing", Icons.Filled.PlayArrow, Icons.Outlined.PlayArrow),
     Library("Library", Icons.Filled.AutoStories, Icons.Outlined.AutoStories),
+    Browse("Browse", Icons.Filled.Explore, Icons.Outlined.Explore),
     Voices("Voices", Icons.Filled.RecordVoiceOver, Icons.Outlined.RecordVoiceOver),
     Settings("Settings", Icons.Filled.Settings, Icons.Outlined.Settings),
 }

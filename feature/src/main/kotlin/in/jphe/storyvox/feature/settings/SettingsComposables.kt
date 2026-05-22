@@ -360,7 +360,7 @@ fun SettingsSliderBlock(
 
 /**
  * Three-stop selector built on Material 3's `SingleChoiceSegmentedButtonRow`
- * with the same brass-tinted active treatment as [BrowseSourcePicker].
+ * with the same brass-tinted active treatment as [BrowseSourceCarousel].
  *
  * Earlier revisions used a row of [BrassButton]s where the selected stop
  * was `Primary` (filled brass) and the unselected were `Secondary`
