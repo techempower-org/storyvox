@@ -103,6 +103,25 @@ import kotlinx.coroutines.withContext
  * trying to keep state coherent across a `pause()` call.
  */
 /**
+ * Issue #728 — pure decision rule for whether [EnginePlayer.advanceChapter]
+ * should kick off playback after the next chapter's body lands.
+ *
+ * Called with the [PlaybackState] sampled **after** the chapter-body wait
+ * completes. If a pause (sleep timer fade-and-pause, audio focus loss,
+ * manual user pause tap) fired during the wait, [PlaybackState.isPlaying]
+ * is already false and we must honor it — the caller forwards the result
+ * as [EnginePlayer.loadAndPlay]'s `autoPlay` argument so the chapter
+ * loads paused instead of force-starting playback.
+ *
+ * Extracted as a top-level function so the race semantics can be
+ * exercised in a pure unit test (EnginePlayerAutoPlayDecisionTest) without
+ * standing up the full EnginePlayer + Hilt + sherpa-onnx graph (same
+ * constraint that gates PlaybackControllerSkipSeekTest).
+ */
+internal fun shouldAutoPlayAfterAdvance(stateAfterWait: PlaybackState): Boolean =
+    stateAfterWait.isPlaying
+
+/**
  * Issue #189 — playback state for the one-shot recap-aloud TTS pipeline.
  * Distinct from [PlaybackState] because the recap is a transient utterance
  * with its own AudioTrack; conflating the two would force every chapter
@@ -1164,7 +1183,12 @@ class EnginePlayer @AssistedInject constructor(
 
     // ----- Storyvox-internal API -----
 
-    suspend fun loadAndPlay(fictionId: String, chapterId: String, charOffset: Int) {
+    suspend fun loadAndPlay(
+        fictionId: String,
+        chapterId: String,
+        charOffset: Int,
+        autoPlay: Boolean = true,
+    ) {
         // PR-6 (#185) — fallback toast dedupe is per-chapter; reset
         // here so the next chapter's first Azure failure can re-fire
         // the toast. Cheap (one volatile write) so we don't gate it
@@ -1290,7 +1314,15 @@ class EnginePlayer @AssistedInject constructor(
                 currentFictionId = fictionId,
                 currentChapterId = chapterId,
                 charOffset = charOffset,
-                isPlaying = true,
+                // Issue #728 — respect a pause that landed during the
+                // chapter-body wait. Pre-fix this was hardcoded to `true`,
+                // which silently undid `pauseTts()` calls fired by the
+                // sleep timer (or audio-focus loss, or a user tap) between
+                // `handleChapterDone()` and the next chapter's body landing.
+                // The natural-end auto-advance still defaults `autoPlay=true`;
+                // only [advanceChapter]'s post-wait snapshot threads `false`
+                // through here when [shouldAutoPlayAfterAdvance] says so.
+                isPlaying = autoPlay,
                 // Issue #524 — clear the chapter-advance buffering flag
                 // we set in advanceChapter while waiting for the next
                 // chapter's body. The new pipeline takes over and the
@@ -1373,7 +1405,15 @@ class EnginePlayer @AssistedInject constructor(
             // are still warm in the singleton + secondaries lists.
             voiceReloadPending = false
             _observableState.update { it.copy(voiceId = active.id, error = null) }
-            startPlaybackPipeline()
+            // Issue #728 — when the caller wants the chapter loaded
+            // paused (sleep timer or other pause fired during the
+            // chapter-body wait), surface the new chapter id and stop
+            // here. The earlier [stopPlaybackPipeline] call has already
+            // killed any prior audio; not starting the new pipeline
+            // means the user stays in silence until [resume] is called.
+            if (autoPlay) {
+                startPlaybackPipeline()
+            }
             invalidateState()
             return
         }
@@ -1791,7 +1831,14 @@ class EnginePlayer @AssistedInject constructor(
                         "(${it.javaClass.simpleName}: ${it.message}) — continuing",
                 )
             }
-        startPlaybackPipeline()
+        // Issue #728 — only spin the producer/consumer pair when the
+        // caller wants audio. The state update above already set
+        // `isPlaying = autoPlay`; skipping startPlaybackPipeline here
+        // when `autoPlay = false` is what actually keeps the device
+        // silent on a sleep-timer-during-chapter-advance race.
+        if (autoPlay) {
+            startPlaybackPipeline()
+        }
         invalidateState()
     }
 
@@ -3426,11 +3473,20 @@ class EnginePlayer @AssistedInject constructor(
             invalidateState()
             return
         }
+        // Issue #728 — snapshot the pause-truthful flag AFTER the body
+        // wait completes and BEFORE calling loadAndPlay. If anything
+        // flipped `isPlaying` to false during the wait — sleep timer
+        // expiry, audio-focus loss from a phone call, manual user
+        // pause — [shouldAutoPlayAfterAdvance] returns false and the
+        // next chapter loads paused. Pre-fix loadAndPlay unconditionally
+        // wrote `isPlaying = true` here, undoing the pause seconds after
+        // it fired and waking the user back up.
+        val autoPlayNext = shouldAutoPlayAfterAdvance(_observableState.value)
         android.util.Log.i(
             "EnginePlayer",
-            "advanceChapter: body ready for $nextId, calling loadAndPlay",
+            "advanceChapter: body ready for $nextId, calling loadAndPlay autoPlay=$autoPlayNext",
         )
-        loadAndPlay(fiction, nextId, charOffset = 0)
+        loadAndPlay(fiction, nextId, charOffset = 0, autoPlay = autoPlayNext)
         // Issue #287 / #563 (stuck-state-fixer) — persist the new
         // chapter's id immediately so the Library "Continue listening"
         // join sees the freshly-loaded chapter on its next emission.
