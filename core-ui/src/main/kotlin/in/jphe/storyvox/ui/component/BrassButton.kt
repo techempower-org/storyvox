@@ -24,6 +24,15 @@ import `in`.jphe.storyvox.ui.a11y.LocalAccessibleTouchTargets
 enum class BrassButtonVariant { Primary, Secondary, Text }
 
 /**
+ * Structural canary for issue #743. Pinned by
+ * `BrassButtonSemanticsTest` — if a future refactor drops
+ * `mergeDescendants = true` from BrassButton's semantics, the test fails
+ * and forces a re-verification with uiautomator / TalkBack. See the
+ * inline comment on `baseSem` for the failure mode this guards.
+ */
+internal const val brassButtonMergesDescendantsForLabel: Boolean = true
+
+/**
  * The realm's brass button.
  *
  * @param loading when true, the button reads disabled and renders a small
@@ -49,7 +58,14 @@ fun BrassButton(
     // same (visual size scales with label); the minimum just floors it.
     val enlarged = LocalAccessibleTouchTargets.current
     val padding = PaddingValues(horizontal = 24.dp, vertical = 12.dp)
-    val baseSem = Modifier.semantics { role = Role.Button }
+    // #743 — mergeDescendants=true folds the inner Text(label) into this
+    // node's accessibility tree. Without it, `Modifier.semantics { role =
+    // Role.Button }` *replaces* the M3 button's default semantics and the
+    // child label never bubbles up: uiautomator sees a clickable node with
+    // text="" content-desc="" and flags NAF (the network-error retry
+    // button under Browse → Hacker News was the report site, but every
+    // BrassButton was affected).
+    val baseSem = Modifier.semantics(mergeDescendants = true) { role = Role.Button }
     val sem = if (enlarged) {
         baseSem.then(Modifier.defaultMinSize(minHeight = 64.dp))
     } else {
