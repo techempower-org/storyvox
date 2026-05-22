@@ -39,6 +39,10 @@ class BrowseSourceUiTest {
             SourceIds.DISCORD to "Discord",
         )
 
+        // 18 = 11 catalog backends + Radio/Kvmr alias + Notion + HN +
+        // arXiv + PLOS + Discord. Slack and Telegram intentionally fall
+        // through to the registry's displayName (chip strip uses the
+        // same string as the Settings → Plugins label).
         assertEquals(18, expected.size)
         for ((id, label) in expected) {
             assertEquals(
@@ -73,6 +77,55 @@ class BrowseSourceUiTest {
         assertTrue(BrowseTab.Gists in authed)
     }
 
+    /**
+     * Issue #695 — sources that declare `supportsSearch = false` on
+     * their `@SourcePlugin` annotation (Slack, Telegram) used to fall
+     * through to the default `Popular + Search` branch and surface a
+     * Search tab that did nothing. The new `supportsSearch` parameter
+     * strips Search from whatever branch matched.
+     */
+    @Test fun `supportedTabs strips Search when descriptor declares supportsSearch false`() {
+        val withSearch = BrowseSourceUi.supportedTabs(SourceIds.SLACK, supportsSearch = true)
+        val withoutSearch = BrowseSourceUi.supportedTabs(SourceIds.SLACK, supportsSearch = false)
+        assertTrue(
+            "Slack with supportsSearch=true should keep Search (legacy default)",
+            BrowseTab.Search in withSearch,
+        )
+        assertFalse(
+            "Slack with supportsSearch=false must not surface a Search tab",
+            BrowseTab.Search in withoutSearch,
+        )
+        // Popular still present — only the Search tab is filtered.
+        assertTrue(BrowseTab.Popular in withoutSearch)
+    }
+
+    /**
+     * Issue #695 — defense-in-depth: even sources whose explicit branch
+     * lists `Search` should honor the descriptor flag. Verifies the
+     * filter runs after the per-source branch, not only on the `else`
+     * fallthrough.
+     */
+    @Test fun `supportedTabs strips Search even from sources with an explicit branch`() {
+        // Wikipedia has an explicit `Popular + Search` branch.
+        val filtered = BrowseSourceUi.supportedTabs(SourceIds.WIKIPEDIA, supportsSearch = false)
+        assertFalse(
+            "Wikipedia branch lists Search explicitly; descriptor flag must still win",
+            BrowseTab.Search in filtered,
+        )
+        assertTrue(BrowseTab.Popular in filtered)
+    }
+
+    /**
+     * Issue #695 — the `supportsSearch` parameter defaults to `true`,
+     * matching the pre-fix behavior for every caller that doesn't yet
+     * thread the descriptor flag through.
+     */
+    @Test fun `supportedTabs default supportsSearch preserves legacy behavior`() {
+        val withDefault = BrowseSourceUi.supportedTabs(SourceIds.WIKIPEDIA)
+        val withExplicitTrue = BrowseSourceUi.supportedTabs(SourceIds.WIKIPEDIA, supportsSearch = true)
+        assertEquals(withDefault, withExplicitTrue)
+    }
+
     @Test fun `filterShape RoyalRoad GitHub MemPalace get sheet, others get None`() {
         assertEquals(FilterShape.RoyalRoad, BrowseSourceUi.filterShape(SourceIds.ROYAL_ROAD))
         assertEquals(FilterShape.GitHub, BrowseSourceUi.filterShape(SourceIds.GITHUB))
@@ -86,7 +139,13 @@ class BrowseSourceUiTest {
     }
 
     @Test fun `searchHint returns sensible copy for every in-tree source`() {
-        for (id in IN_TREE_IDS) {
+        // Issue #695 — sources that declare `supportsSearch = false`
+        // (Slack, Telegram) never reach the Search tab's empty state,
+        // so a dedicated `searchHint` entry is unreachable copy. The
+        // generic "Search <displayName>" fallback is fine for them.
+        // Every other in-tree source must override.
+        val noSearchSources = setOf(SourceIds.SLACK, SourceIds.TELEGRAM)
+        for (id in IN_TREE_IDS - noSearchSources) {
             val hint = BrowseSourceUi.searchHint(id, displayName = "FallbackName")
             assertTrue(
                 "Expected non-empty searchHint for $id (got: '$hint')",
@@ -106,9 +165,11 @@ class BrowseSourceUiTest {
     }
 
     private companion object {
-        /** All 17 in-tree backends. Adding a row here when a new
-         *  backend lands is the explicit "did we add the UI hint?"
-         *  audit step. */
+        /** All in-tree backends. Adding a row here when a new backend
+         *  lands is the explicit "did we add the UI hint?" audit step.
+         *  Slack and Telegram were missing pre-#695 — adding them here
+         *  surfaces any future drop-through-to-default bug for
+         *  supportsSearch=false sources via the existing smoke loops. */
         val IN_TREE_IDS = setOf(
             SourceIds.ROYAL_ROAD, SourceIds.GITHUB, SourceIds.MEMPALACE,
             SourceIds.RSS, SourceIds.EPUB, SourceIds.OUTLINE,
@@ -119,6 +180,10 @@ class BrowseSourceUiTest {
             SourceIds.RADIO, SourceIds.KVMR,
             SourceIds.NOTION, SourceIds.HACKERNEWS, SourceIds.ARXIV,
             SourceIds.PLOS, SourceIds.DISCORD,
+            // Issue #695 — Slack/Telegram declare supportsSearch=false;
+            // the smoke loops verify their tab list still includes
+            // Popular and isn't accidentally empty.
+            SourceIds.SLACK, SourceIds.TELEGRAM,
         )
     }
 }
