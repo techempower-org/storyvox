@@ -86,12 +86,23 @@ class AnthropicTeamsSignInViewModel @Inject constructor(
     }
 
     /**
-     * Exchange the pasted code for a bearer + refresh. The code's
-     * format on Anthropic's callback page is a plain string; we trim
-     * whitespace defensively for users pasting from a screen reader.
+     * Exchange the pasted code for a bearer + refresh.
+     *
+     * The string Anthropic renders on the `console.anthropic.com/oauth/code/callback`
+     * page is `<code>#<state>` — the authorization code, a literal `#`, and the
+     * state nonce that was passed on the authorize URL. Claude Code's CLI does
+     * the same split (see Anthropic's `Bw8` manual-flow handler), and the token
+     * endpoint rejects the request as `invalid_grant` ("Invalid 'code' in request")
+     * if the unsplit string is sent as `code` — #692.
+     *
+     * We split on the first `#`, send only the prefix as `code`, and prefer the
+     * state from the pasted string over the stored nonce (matches Claude Code's
+     * shape; the two must match anyway since the browser round-trip echoes our
+     * nonce back). Whitespace is trimmed defensively for users pasting via a
+     * screen-reader's copy-with-trailing-newline behaviour.
      */
     fun submitCode(rawCode: String) {
-        val code = rawCode.trim().takeIf { it.isNotBlank() }
+        val trimmed = rawCode.trim().takeIf { it.isNotBlank() }
             ?: run {
                 _state.value = SignInState.Failure(
                     message = "Paste the authorization code Anthropic showed you in the browser.",
@@ -106,7 +117,17 @@ class AnthropicTeamsSignInViewModel @Inject constructor(
             )
             return
         }
-        val stateNonce = pendingState.orEmpty()
+        val hashIdx = trimmed.indexOf('#')
+        val code = if (hashIdx >= 0) trimmed.substring(0, hashIdx) else trimmed
+        val pastedState = if (hashIdx >= 0) trimmed.substring(hashIdx + 1) else ""
+        if (code.isBlank()) {
+            _state.value = SignInState.Failure(
+                message = "That looks like just the `#state` half — copy the whole code from the Anthropic page.",
+                retryable = true,
+            )
+            return
+        }
+        val stateNonce = pastedState.ifBlank { pendingState.orEmpty() }
         _state.value = SignInState.Capturing
         viewModelScope.launch {
             when (val r = authApi.exchangeCode(
