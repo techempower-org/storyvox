@@ -191,11 +191,27 @@ fun BrowseScreen(
             modifier = Modifier.fillMaxWidth(),
         )
 
-        val supportedTabs = remember(state.sourceId, state.githubSignedIn, state.ao3SignedIn) {
+        // Issue #695 — read the active source's `supportsSearch`
+        // annotation off its descriptor so the Search tab disappears for
+        // sources that declared `supportsSearch = false`
+        // (Slack, Telegram). Sources missing from `visibleSources` (an
+        // unenabled-id race) default to `true` so we don't accidentally
+        // strip Search while the picker is still loading.
+        val supportsSearch = state.visibleSources
+            .firstOrNull { it.id == state.sourceId }
+            ?.supportsSearch
+            ?: true
+        val supportedTabs = remember(
+            state.sourceId,
+            state.githubSignedIn,
+            state.ao3SignedIn,
+            supportsSearch,
+        ) {
             BrowseSourceUi.supportedTabs(
                 state.sourceId,
                 githubSignedIn = state.githubSignedIn,
                 ao3SignedIn = state.ao3SignedIn,
+                supportsSearch = supportsSearch,
             )
         }
         Row(

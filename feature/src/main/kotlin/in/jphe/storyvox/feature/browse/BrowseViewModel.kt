@@ -437,10 +437,18 @@ class BrowseViewModel @Inject constructor(
     fun selectSource(id: String) {
         if (_sourceId.value == id) return
         _sourceId.value = id
+        // Issue #695 — descriptor-driven supportsSearch so Slack /
+        // Telegram (which declare `supportsSearch = false`) don't end up
+        // with an active Search tab after the user picks them. Missing
+        // descriptor (out-of-tree id) defaults to true to preserve the
+        // old fallthrough behavior.
+        val supportsSearch = registry.descriptors.firstOrNull { it.id == id }
+            ?.supportsSearch ?: true
         val supported = BrowseSourceUi.supportedTabs(
             id,
             githubSignedIn = githubSignedIn.value,
             ao3SignedIn = ao3SignedIn.value,
+            supportsSearch = supportsSearch,
         )
         if (_tab.value !in supported) {
             _tab.value = BrowseTab.Popular

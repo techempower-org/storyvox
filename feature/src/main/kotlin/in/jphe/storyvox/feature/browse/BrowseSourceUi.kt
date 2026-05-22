@@ -67,11 +67,33 @@ internal object BrowseSourceUi {
      * (`Ao3MySubscriptions` / `Ao3MarkedForLater`, #426 PR2).
      * Unknown ids fall through to a reasonable default of
      * Popular + Search.
+     *
+     * Issue #695 — when [supportsSearch] is `false`, the
+     * [BrowseTab.Search] tab is stripped out of whichever branch
+     * matched. Sources that declare `supportsSearch = false` on their
+     * `@SourcePlugin` annotation (Slack, Telegram) used to hit the
+     * `else` fallthrough below and surface a Search tab that did
+     * nothing — typing a query returned `empty ListPage` and the user
+     * concluded the source was broken. Filtering here is the
+     * single-source-of-truth fix; the per-source branches stay as
+     * "ideal default tab set" and the descriptor's annotation wins
+     * when it disagrees. Defaulting to `true` keeps every existing
+     * caller and test path unchanged.
      */
     fun supportedTabs(
         id: String,
         githubSignedIn: Boolean = false,
         ao3SignedIn: Boolean = false,
+        supportsSearch: Boolean = true,
+    ): List<BrowseTab> {
+        val tabs = supportedTabsRaw(id, githubSignedIn, ao3SignedIn)
+        return if (supportsSearch) tabs else tabs.filterNot { it == BrowseTab.Search }
+    }
+
+    private fun supportedTabsRaw(
+        id: String,
+        githubSignedIn: Boolean,
+        ao3SignedIn: Boolean,
     ): List<BrowseTab> = when (id) {
         SourceIds.ROYAL_ROAD -> listOf(
             BrowseTab.Popular,
