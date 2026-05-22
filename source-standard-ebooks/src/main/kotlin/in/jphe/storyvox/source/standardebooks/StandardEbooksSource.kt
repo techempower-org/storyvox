@@ -239,8 +239,15 @@ internal class StandardEbooksSource @Inject constructor(
     ): FictionResult<EpubBook> {
         parsedCache[fictionId]?.let { return FictionResult.Success(it) }
         val onDisk = epubFileFor(authorSlug, bookSlug)
-        if (onDisk.exists() && onDisk.length() > 0L) {
+        if (onDisk.exists() && isLikelyZip(onDisk)) {
             return reparseFromDisk(fictionId)
+        }
+        // Issue #735 — releases v0.5.71 and earlier persisted SE's HTML
+        // interstitial page to this path (the bug). If a non-zip file is
+        // sitting here from a prior install, delete it before re-fetching
+        // so the user doesn't stay stuck on a cached error.
+        if (onDisk.exists()) {
+            withContext(Dispatchers.IO) { onDisk.delete() }
         }
         val bytes = when (val r = api.downloadEpub(authorSlug, bookSlug)) {
             is FictionResult.Success -> r.value
@@ -266,6 +273,17 @@ internal class StandardEbooksSource @Inject constructor(
         if (!onDisk.exists()) {
             return FictionResult.NotFound("No cached EPUB for $fictionId")
         }
+        // Issue #735 — a v0.5.71-era poisoned cache file (HTML
+        // interstitial) gets here on cold start. Delete and surface a
+        // distinct error so the next user action (re-add / refresh)
+        // re-downloads cleanly.
+        if (!isLikelyZip(onDisk)) {
+            withContext(Dispatchers.IO) { onDisk.delete() }
+            return FictionResult.NetworkError(
+                "Cached EPUB was invalid — please retry to re-download.",
+                java.io.IOException("non-zip cached EPUB"),
+            )
+        }
         val bytes = withContext(Dispatchers.IO) { onDisk.readBytes() }
         val parsed = try {
             withContext(Dispatchers.IO) { EpubParser.parseFromBytes(bytes) }
@@ -277,6 +295,24 @@ internal class StandardEbooksSource @Inject constructor(
         }
         parsedCache[fictionId] = parsed
         return FictionResult.Success(parsed)
+    }
+
+    /** Cheap content check — every EPUB starts with the four-byte zip
+     *  local-file-header signature `PK\x03\x04`. A file too small to
+     *  contain that signature, or with anything else in those positions,
+     *  is treated as a poisoned cache entry (see #735). */
+    private fun isLikelyZip(file: File): Boolean = try {
+        if (file.length() < 4) false else file.inputStream().use { input ->
+            val header = ByteArray(4)
+            val read = input.read(header)
+            read == 4 &&
+                header[0] == 'P'.code.toByte() &&
+                header[1] == 'K'.code.toByte() &&
+                header[2] == 0x03.toByte() &&
+                header[3] == 0x04.toByte()
+        }
+    } catch (_: Throwable) {
+        false
     }
 
     private fun epubFileFor(authorSlug: String, bookSlug: String): File =

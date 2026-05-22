@@ -46,9 +46,13 @@ import javax.inject.Singleton
  * so any rate-limit hits can be routed to a real maintainer.
  */
 @Singleton
-internal class StandardEbooksApi @Inject constructor(
+internal open class StandardEbooksApi @Inject constructor(
     private val client: OkHttpClient,
 ) {
+
+    /** Base URL — `open` so JVM unit tests can point this at a
+     *  MockWebServer without restructuring the call sites. */
+    internal open val baseUrl: String = BASE_URL
 
     /** Popular = SE-side "Popularity (most → least)" sort. */
     suspend fun popular(page: Int): FictionResult<SeListPage> =
@@ -80,20 +84,30 @@ internal class StandardEbooksApi @Inject constructor(
      */
     suspend fun bookPage(authorSlug: String, bookSlug: String): FictionResult<String> =
         withContext(Dispatchers.IO) {
-            val url = "$BASE_URL/ebooks/$authorSlug/$bookSlug"
+            val url = "$baseUrl/ebooks/$authorSlug/$bookSlug"
             fetchString(url)
         }
 
     /**
      * Binary EPUB download — the "Recommended compatible epub" build,
      * which is the variant SE markets as "All devices and apps except
-     * Kindles and Kobos" (i.e., the plain EPUB 3 file). URL pattern is
-     * documented and stable.
+     * Kindles and Kobos" (i.e., the plain EPUB 3 file).
+     *
+     * Issue #735 — SE serves an HTML interstitial ("Your Download Has
+     * Started!") page at the bare `.../<author>_<book>.epub` URL that
+     * relies on a `<meta http-equiv="refresh">` to deliver the actual
+     * binary. The interstitial is ~8KB of XHTML and parses as
+     * "container.xml missing" downstream. Appending `?source=download`
+     * (the query SE's own download buttons emit) bypasses the
+     * interstitial and returns the EPUB binary directly. We also
+     * sanity-check the local "PK" zip signature so any future regression
+     * surfaces as an immediate, actionable error rather than confusing
+     * the EPUB parser.
      */
     suspend fun downloadEpub(authorSlug: String, bookSlug: String): FictionResult<ByteArray> =
         withContext(Dispatchers.IO) {
-            val url = "$BASE_URL/ebooks/$authorSlug/$bookSlug/downloads/" +
-                "${authorSlug}_${bookSlug}.epub"
+            val url = "$baseUrl/ebooks/$authorSlug/$bookSlug/downloads/" +
+                "${authorSlug}_${bookSlug}.epub?source=download"
             try {
                 val req = Request.Builder()
                     .url(url)
@@ -114,6 +128,13 @@ internal class StandardEbooksApi @Inject constructor(
                                     "empty EPUB body",
                                     IOException("empty body"),
                                 )
+                            if (!looksLikeZip(bytes)) {
+                                return@withContext FictionResult.NetworkError(
+                                    "Standard Ebooks returned non-EPUB content at $url" +
+                                        " (got ${bytes.size}B, no PK header)",
+                                    IOException("non-EPUB response"),
+                                )
+                            }
                             FictionResult.Success(bytes)
                         }
                     }
@@ -122,6 +143,16 @@ internal class StandardEbooksApi @Inject constructor(
                 FictionResult.NetworkError(e.message ?: "EPUB download failed", e)
             }
         }
+
+    /** All zip files (and therefore all EPUBs) start with the four
+     *  bytes `PK\x03\x04`. Lets us distinguish a real EPUB from SE's
+     *  HTML interstitial without parsing the response. */
+    private fun looksLikeZip(bytes: ByteArray): Boolean =
+        bytes.size >= 4 &&
+            bytes[0] == 'P'.code.toByte() &&
+            bytes[1] == 'K'.code.toByte() &&
+            bytes[2] == 0x03.toByte() &&
+            bytes[3] == 0x04.toByte()
 
     /**
      * One catalog page. Composes the query string then parses the
@@ -150,7 +181,7 @@ internal class StandardEbooksApi @Inject constructor(
             val ev = java.net.URLEncoder.encode(v, Charsets.UTF_8)
             "$ek=$ev"
         }
-        val url = "$BASE_URL/ebooks?$params"
+        val url = "$baseUrl/ebooks?$params"
         when (val r = fetchString(url)) {
             is FictionResult.Success -> {
                 val parsed = SeHtmlParser.parseListPage(r.value)

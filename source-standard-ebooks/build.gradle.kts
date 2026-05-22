@@ -46,4 +46,7 @@ dependencies {
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
+    // #735 — MockWebServer for the EPUB-download interstitial regression
+    // test. Same version :source-github and :source-azure already pin.
+    testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
 }
