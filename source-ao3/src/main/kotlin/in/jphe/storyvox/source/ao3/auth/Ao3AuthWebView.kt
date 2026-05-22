@@ -3,13 +3,18 @@ package `in`.jphe.storyvox.source.ao3.auth
 import android.annotation.SuppressLint
 import android.graphics.Bitmap
 import android.view.View
+import android.view.ViewGroup
 import android.webkit.CookieManager
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
 import `in`.jphe.storyvox.source.ao3.net.Ao3Api
@@ -47,6 +52,15 @@ fun Ao3AuthWebView(
     onCancelled: () -> Unit = {},
 ) {
     val capturedHandler = remember { Ao3CapturedSession(onSession) }
+    // #719 — track the WebView so BackHandler can drive its history.
+    // Same shape as RoyalRoadAuthWebView; see the comment there for
+    // why `canGoBack()` is read inside the BackHandler `enabled`
+    // lambda rather than snapshotted into Compose state.
+    var webView: WebView? by remember { mutableStateOf(null) }
+
+    BackHandler(enabled = webView?.canGoBack() == true) {
+        webView?.goBack()
+    }
 
     AndroidView(
         modifier = modifier.fillMaxSize(),
@@ -96,10 +110,21 @@ fun Ao3AuthWebView(
                     }
                 }
                 loadUrl("${Ao3Api.BASE_URL}/users/login")
-            }
+            }.also { webView = it }
         },
         onRelease = { wv ->
             if (!capturedHandler.delivered) onCancelled()
+            // #720 — `WebView.destroy()`'s javadoc requires the WebView to
+            // be detached from its parent first, with no pending loads or
+            // active client references. Same teardown sequence as
+            // RoyalRoadAuthWebView; see the comment there for why each
+            // step is required (renderer-process leak, mid-redirect
+            // cookie-write window, closure-over-composable-scope in our
+            // WebViewClient).
+            wv.stopLoading()
+            wv.webViewClient = WebViewClient()
+            wv.clearHistory()
+            (wv.parent as? ViewGroup)?.removeView(wv)
             wv.destroy()
         },
     )

@@ -41,6 +41,11 @@ dependencies {
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.foundation)
+    // #719 — `BackHandler` ships in `androidx.activity:activity-compose`.
+    // The Compose BOM does NOT pin it, and we don't pull
+    // `navigation-compose` here (the auth WebView is hosted by `:app`),
+    // so the dep has to be declared explicitly.
+    implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.webkit)
 
     // WorkManager — Royal Road tag-sync periodic worker (#178). The
