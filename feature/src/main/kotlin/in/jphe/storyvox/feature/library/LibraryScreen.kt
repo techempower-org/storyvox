@@ -584,6 +584,14 @@ private fun EmptyLibrary() {
     // headline, bodyMedium body. No CTA: Browse is one tap away in the
     // bottom nav and Add-by-URL is on the FAB above. Empty state's job
     // is to acknowledge and invite, not duplicate navigation.
+    //
+    // Issue #741 — on narrow viewports (Flip 3 cover, ~720dp portrait)
+    // the body copy is long enough that its last line wraps under the
+    // floating + FAB at the bottom-right. Inset the body text by FAB
+    // container width (56dp) + gap (16dp) on both sides so the wrapped
+    // line cannot draw into the FAB's column. Symmetric so the centered
+    // text stays visually centered (asymmetric end-only padding would
+    // shift the optical center left).
     Column(
         modifier = Modifier.fillMaxSize().padding(spacing.lg),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -607,6 +615,7 @@ private fun EmptyLibrary() {
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
+            modifier = Modifier.padding(horizontal = 72.dp),
         )
     }
 }
