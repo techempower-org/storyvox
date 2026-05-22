@@ -183,7 +183,10 @@ class AnthropicTeamsSignInViewModelTest {
         }
 
         override fun clearTeamsSession() {
-            bearer = null; refresh = null; expiresAt = 0; scopes = null
+            bearer = null
+            refresh = null
+            expiresAt = 0
+            scopes = null
         }
     }
 }

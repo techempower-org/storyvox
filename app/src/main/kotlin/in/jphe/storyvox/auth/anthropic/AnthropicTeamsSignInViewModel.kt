@@ -117,9 +117,8 @@ class AnthropicTeamsSignInViewModel @Inject constructor(
             )
             return
         }
-        val hashIdx = trimmed.indexOf('#')
-        val code = if (hashIdx >= 0) trimmed.substring(0, hashIdx) else trimmed
-        val pastedState = if (hashIdx >= 0) trimmed.substring(hashIdx + 1) else ""
+        val code = trimmed.substringBefore('#')
+        val pastedState = trimmed.substringAfter('#', missingDelimiterValue = "")
         if (code.isBlank()) {
             _state.value = SignInState.Failure(
                 message = "That looks like just the `#state` half — copy the whole code from the Anthropic page.",
