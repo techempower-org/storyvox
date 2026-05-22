@@ -31,8 +31,17 @@ import java.io.IOException
 interface InstantHttpTransport {
     /** Returns the response body as a string. Throws [IOException] on
      *  network failure; returns the body even on non-2xx so callers can
-     *  surface server-side error messages. */
-    suspend fun postJson(url: String, jsonBody: String): TransportResult
+     *  surface server-side error messages.
+     *
+     *  [headers] is optional — auth callers (magic-code, verify, signout)
+     *  pass none and let the body carry the app-id. Data-plane callers
+     *  (`/admin/query`, `/admin/transact`) require header-side auth
+     *  (`app-id`, `as-token`) per the Instant admin HTTP API contract. */
+    suspend fun postJson(
+        url: String,
+        jsonBody: String,
+        headers: Map<String, String> = emptyMap(),
+    ): TransportResult
 }
 
 data class TransportResult(
@@ -47,7 +56,11 @@ class OkHttpInstantTransport(
     private val client: OkHttpClient = defaultClient(),
 ) : InstantHttpTransport {
 
-    override suspend fun postJson(url: String, jsonBody: String): TransportResult =
+    override suspend fun postJson(
+        url: String,
+        jsonBody: String,
+        headers: Map<String, String>,
+    ): TransportResult =
         // Issue #559 — explicit IO dispatch. OkHttp's synchronous
         // `execute()` performs DNS + TCP + TLS on the calling thread,
         // and the magic-code endpoints aren't cached, so this is a
@@ -55,10 +68,11 @@ class OkHttpInstantTransport(
         // by default runs on `Main.immediate`; without this switch the
         // first sign-in tap throws NetworkOnMainThreadException.
         withContext(Dispatchers.IO) {
-            val req = Request.Builder()
+            val builder = Request.Builder()
                 .url(url)
                 .post(jsonBody.toRequestBody(JSON_MEDIA))
-                .build()
+            headers.forEach { (k, v) -> builder.header(k, v) }
+            val req = builder.build()
             try {
                 client.newCall(req).execute().use { resp: Response ->
                     TransportResult(

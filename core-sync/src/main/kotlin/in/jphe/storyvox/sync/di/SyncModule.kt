@@ -11,12 +11,12 @@ import dagger.multibindings.ElementsIntoSet
 import dagger.multibindings.IntoSet
 import `in`.jphe.storyvox.sync.BuildConfig
 import `in`.jphe.storyvox.sync.client.DisabledBackend
+import `in`.jphe.storyvox.sync.client.HttpInstantBackend
 import `in`.jphe.storyvox.sync.client.InstantBackend
 import `in`.jphe.storyvox.sync.client.InstantClient
 import `in`.jphe.storyvox.sync.client.InstantHttpTransport
 import `in`.jphe.storyvox.sync.client.InstantSession
 import `in`.jphe.storyvox.sync.client.OkHttpInstantTransport
-import `in`.jphe.storyvox.sync.client.WsInstantBackend
 import `in`.jphe.storyvox.sync.coordinator.Syncer
 import `in`.jphe.storyvox.sync.coordinator.TombstoneStore
 import `in`.jphe.storyvox.sync.domain.BookmarksSyncer
@@ -34,7 +34,7 @@ import javax.inject.Singleton
  * Hilt wiring for the `:core-sync` module.
  *
  * The DI graph:
- *  - [InstantBackend]: the data-plane stub. Resolves to [WsInstantBackend]
+ *  - [InstantBackend]: the data-plane. Resolves to [HttpInstantBackend]
  *    when [BuildConfig.INSTANTDB_APP_ID] is a real value; to
  *    [DisabledBackend] when it's the sentinel placeholder. The sentinel
  *    keeps the app building on CI runners that don't have the secret.
@@ -79,12 +79,20 @@ object SyncModule {
 
     @Provides
     @Singleton
-    fun provideInstantBackend(): InstantBackend {
+    fun provideInstantBackend(transport: InstantHttpTransport): InstantBackend {
         val appId = BuildConfig.INSTANTDB_APP_ID
-        return if (appId.isBlank() || appId == WsInstantBackend.PLACEHOLDER_APP_ID) {
+        return if (appId.isBlank() || appId == HttpInstantBackend.PLACEHOLDER_APP_ID) {
             DisabledBackend()
         } else {
-            WsInstantBackend(appId)
+            // Issue #691 — the previous wiring used a WebSocket backend
+            // (`WsInstantBackend`) against `/runtime/session`. That endpoint
+            // returns EAV triples wrapped in a `datalog-result` envelope, not
+            // the materialized rows the syncers expect; every domain failed
+            // with `JsonArray is not a JsonObject`. The admin HTTP API
+            // (`/admin/query`, `/admin/transact`) accepts as-token
+            // impersonation (no admin token shipped) and returns rows keyed
+            // by entity name — exactly the shape our syncers consume.
+            HttpInstantBackend(appId = appId, transport = transport)
         }
     }
 

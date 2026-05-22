@@ -34,7 +34,8 @@ mutate (add fiction) ───────► transact
 │   ├── InstantBackend       — data-plane seam (fetch + upsert per (entity, id))
 │   ├── DisabledBackend      — used when INSTANTDB_APP_ID is the placeholder
 │   ├── FakeInstantBackend   — in-memory; tests + offline-only mode
-│   └── WsInstantBackend     — production; WebSocket transact over wss://api.instantdb.com
+│   └── HttpInstantBackend   — production; HTTP /admin/query + /admin/transact
+│                              (as-token impersonation, no admin secret shipped)
 ├── crypto/
 │   └── UserDerivedKey       — PBKDF2 + AES-GCM for secrets-before-push
 ├── coordinator/
@@ -232,9 +233,14 @@ These are documented gaps, not bugs:
   start — so a reinstall recovery still works; you just may lose
   the last write made offline if the device dies before the next
   cold start.
-- **No real-time pull.** v2 holds the WebSocket open and subscribes
-  to `add-query`, surfacing changes from other devices in real
-  time. v1 pulls only on launch.
+- **No real-time pull.** v1 talks to `/admin/query` and `/admin/transact`
+  as one-shot requests on each sync round. v2 will hoist this onto a
+  long-lived WebSocket against `/runtime/session` and subscribe to
+  `add-query`, surfacing changes from other devices in real time. The
+  first attempt at the WS path (v0.5.41) shipped broken — see issue
+  #691 — because it parsed the `datalog-result`/EAV envelope as the
+  materialised entity-keyed shape; the admin HTTP API returns the
+  shape we actually want, at the cost of one TCP handshake per round.
 - **Settings sync is stubbed.** The seam exists; per-preference
   wiring lands in a follow-up.
 - **LLM session sync is deferred.** Same story as settings.

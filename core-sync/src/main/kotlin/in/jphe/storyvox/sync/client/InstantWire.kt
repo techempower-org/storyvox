@@ -2,8 +2,6 @@ package `in`.jphe.storyvox.sync.client
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.JsonElement
-import kotlinx.serialization.json.JsonObject
 
 /**
  * Wire-format data classes for the InstantDB runtime API.
@@ -74,43 +72,6 @@ internal data class SignOutRequest(
     @SerialName("refresh_token") val refreshToken: String,
 )
 
-/* ----- Transaction step tuple ----- */
-
-/**
- * A single step in an Instant transaction. The wire shape is a tuple
- * `["update"|"delete"|"link"|"unlink", entityName, id, fieldsOrLinks]`.
- *
- * We model these as a small sealed hierarchy and serialize manually via
- * [TxStepSerializer] (in InstantTransact.kt) — kotlinx-serialization
- * doesn't speak heterogeneous tuples natively.
- */
-sealed interface TxStep {
-    val entity: String
-    val id: String
-
-    data class Update(
-        override val entity: String,
-        override val id: String,
-        val fields: JsonObject,
-    ) : TxStep
-
-    data class Delete(
-        override val entity: String,
-        override val id: String,
-    ) : TxStep
-
-    data class Link(
-        override val entity: String,
-        override val id: String,
-        val links: JsonObject,
-    ) : TxStep
-
-    data class Unlink(
-        override val entity: String,
-        override val id: String,
-        val links: JsonObject,
-    ) : TxStep
-}
-
-/** Internal helper — wraps `Map<String, JsonElement>` for use in fields blobs. */
-internal typealias FieldsMap = Map<String, JsonElement>
+// Transaction steps are built inline in [HttpInstantBackend.upsert] —
+// the v1 sync layer only ever issues `["update", entity, id, fields]`,
+// which is a 5-line buildJsonArray that doesn't earn its own type.
