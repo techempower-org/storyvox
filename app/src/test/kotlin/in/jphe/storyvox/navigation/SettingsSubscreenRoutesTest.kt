@@ -1,7 +1,9 @@
 package `in`.jphe.storyvox.navigation
 
+import java.io.File
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
 import org.junit.Test
 
 /**
@@ -83,5 +85,60 @@ class SettingsSubscreenRoutesTest {
     @Test
     fun `SETTINGS_HUB stays the gear-icon destination`() {
         assertEquals("settings/hub", StoryvoxRoutes.SETTINGS_HUB)
+    }
+
+    /**
+     * Pins that every NavHost call site wiring `onOpenAiSettings`
+     * routes to [StoryvoxRoutes.SETTINGS_AI], not the legacy
+     * [StoryvoxRoutes.SETTINGS] long-scroll page. Earlier revisions
+     * dumped users into the 3,600-line legacy page when they tapped
+     * "Open AI settings" from contexts like the recap modal, the
+     * chat empty state, or the chat error banner — pages where the
+     * user is specifically reaching for AI configuration. Routing
+     * them through the dedicated AI subscreen is the whole point of
+     * the hub follow-up to #440.
+     *
+     * Scans the NavHost source file textually because Compose-UI-test
+     * infrastructure to introspect actual navigation wiring isn't on
+     * the JVM unit-test path. A `git grep` regression net is cheaper
+     * than nothing.
+     */
+    @Test
+    fun `every onOpenAiSettings call site routes to the dedicated AI subscreen`() {
+        val navHost = locateNavHostSource()
+        val src = navHost.readText()
+        val callSiteRegex = Regex(
+            """onOpenAiSettings\s*=\s*\{\s*navController\.navigate\(StoryvoxRoutes\.([A-Z_]+)\)""",
+        )
+        val matches = callSiteRegex.findAll(src).map { it.groupValues[1] }.toList()
+        assertTrue(
+            "Expected at least one onOpenAiSettings = { navController.navigate(...) } " +
+                "call site in StoryvoxNavHost.kt — did the file move?",
+            matches.isNotEmpty(),
+        )
+        val nonAiTargets = matches.filter { it != "SETTINGS_AI" }
+        assertTrue(
+            "onOpenAiSettings must land on SETTINGS_AI, not the legacy long-scroll page. " +
+                "Offending targets: $nonAiTargets",
+            nonAiTargets.isEmpty(),
+        )
+    }
+
+    private fun locateNavHostSource(): File {
+        val candidates = listOf(
+            // Default working directory when tests run from :app.
+            File("src/main/kotlin/in/jphe/storyvox/navigation/StoryvoxNavHost.kt"),
+            // Gradle sometimes runs with the repo root as CWD.
+            File("app/src/main/kotlin/in/jphe/storyvox/navigation/StoryvoxNavHost.kt"),
+        )
+        val found = candidates.firstOrNull { it.exists() }
+        if (found == null) {
+            fail(
+                "StoryvoxNavHost.kt not found at expected paths " +
+                    "(cwd=${File(".").absolutePath}); update locateNavHostSource()",
+            )
+            error("unreachable") // fail() throws AssertionError; satisfies non-null return
+        }
+        return found
     }
 }

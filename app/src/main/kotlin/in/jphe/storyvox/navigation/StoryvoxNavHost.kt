@@ -591,7 +591,7 @@ private fun StoryvoxNavHostContent(
             ) {
                 HybridReaderScreen(
                     onPickVoice = { navController.navigate(StoryvoxRoutes.VOICE_LIBRARY) },
-                    onOpenAiSettings = { navController.navigate(StoryvoxRoutes.SETTINGS) },
+                    onOpenAiSettings = { navController.navigate(StoryvoxRoutes.SETTINGS_AI) },
                     onOpenSettings = { navController.navigate(StoryvoxRoutes.SETTINGS_HUB) },
                     onOpenChat = { fId, prefill -> navController.navigate(StoryvoxRoutes.chat(fId, prefill)) },
                     // ResumeEmptyPrompt's "Browse the realms" CTA — only
@@ -775,7 +775,7 @@ private fun StoryvoxNavHostContent(
             ) {
                 HybridReaderScreen(
                     onPickVoice = { navController.navigate(StoryvoxRoutes.VOICE_LIBRARY) },
-                    onOpenAiSettings = { navController.navigate(StoryvoxRoutes.SETTINGS) },
+                    onOpenAiSettings = { navController.navigate(StoryvoxRoutes.SETTINGS_AI) },
                     onOpenSettings = { navController.navigate(StoryvoxRoutes.SETTINGS_HUB) },
                     onOpenChat = { fId, prefill -> navController.navigate(StoryvoxRoutes.chat(fId, prefill)) },
                     // Issue #437 — Back arrow on deep-linked reader /
@@ -805,7 +805,7 @@ private fun StoryvoxNavHostContent(
             ) {
                 HybridReaderScreen(
                     onPickVoice = { navController.navigate(StoryvoxRoutes.VOICE_LIBRARY) },
-                    onOpenAiSettings = { navController.navigate(StoryvoxRoutes.SETTINGS) },
+                    onOpenAiSettings = { navController.navigate(StoryvoxRoutes.SETTINGS_AI) },
                     onOpenSettings = { navController.navigate(StoryvoxRoutes.SETTINGS_HUB) },
                     onOpenChat = { fId, prefill -> navController.navigate(StoryvoxRoutes.chat(fId, prefill)) },
                     // Issue #437 — Back arrow on deep-linked reader /
@@ -845,19 +845,19 @@ private fun StoryvoxNavHostContent(
             ) {
                 ChatScreen(
                     onBack = { navController.popBackStack() },
-                    onOpenAiSettings = { navController.navigate(StoryvoxRoutes.SETTINGS) },
+                    onOpenAiSettings = { navController.navigate(StoryvoxRoutes.SETTINGS_AI) },
                     onOpenVoiceLibrary = { navController.navigate(StoryvoxRoutes.VOICE_LIBRARY) },
                 )
             }
 
             // Issue #440 — Settings hub. New gear-icon destination as of
             // v0.5.38. The hub presents an ordered list of section cards;
-            // each row routes either to a dedicated subscreen (Voice
-            // library, Plugins, AI sessions, Pronunciation, Debug) or to
-            // [SETTINGS] (the legacy long-scroll page) for sections that
-            // haven't been broken out yet. Uses homeEnter/Exit (same as
-            // SETTINGS) so the hub feels like a peer of the bottom-tab
-            // surfaces, not a deep stack push.
+            // every named section routes to its own dedicated subscreen.
+            // Only the explicit "All settings" escape-hatch row routes to
+            // [SETTINGS] (the legacy long-scroll page); the per-section
+            // fallback that earlier hub revisions used is gone. Uses
+            // homeEnter/Exit (same as SETTINGS) so the hub feels like a
+            // peer of the bottom-tab surfaces, not a deep stack push.
             composable(
                 StoryvoxRoutes.SETTINGS_HUB,
                 enterTransition = homeEnter,
