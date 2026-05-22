@@ -1,0 +1,14 @@
+{
+  "steps": [
+    [
+      "update",
+      "blobs",
+      "settings:u-1",
+      {
+        "payload": "{\"theme\":\"dark\"}",
+        "updatedAt": 1716393600000
+      }
+    ]
+  ],
+  "throw-on-missing-attrs?": false
+}

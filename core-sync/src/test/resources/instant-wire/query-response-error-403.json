@@ -1,0 +1,7 @@
+{
+  "message": "permission denied: as-token does not authorize read on entity blobs",
+  "type": "permission-denied",
+  "hint": {
+    "rule": "blobs.allow.view"
+  }
+}

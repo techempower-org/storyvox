@@ -1,0 +1,4 @@
+{
+  "message": "validation error: updatedAt must be a number, got string",
+  "type": "validation-error"
+}

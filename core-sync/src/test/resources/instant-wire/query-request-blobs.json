@@ -1,0 +1,12 @@
+{
+  "query": {
+    "blobs": {
+      "$": {
+        "where": {
+          "id": "settings:u-1"
+        }
+      }
+    }
+  },
+  "inference?": false
+}
