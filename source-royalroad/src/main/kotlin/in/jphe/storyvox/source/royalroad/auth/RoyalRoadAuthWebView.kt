@@ -6,10 +6,14 @@ import android.view.View
 import android.webkit.CookieManager
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
 import `in`.jphe.storyvox.source.royalroad.model.RoyalRoadIds
@@ -33,6 +37,17 @@ fun RoyalRoadAuthWebView(
     onCancelled: () -> Unit = {},
 ) {
     val capturedHandler = remember { CapturedSession(onSession) }
+    // #719 — track the WebView so BackHandler can drive its history.
+    // We can't read `canGoBack()` from a remembered reference alone
+    // (it doesn't snapshot into recomposition); reading it inside
+    // BackHandler's `enabled` lambda re-evaluates on each Back gesture,
+    // which is the behavior we want. A null guard covers the brief
+    // moment before AndroidView's factory has run.
+    var webView: WebView? by remember { mutableStateOf(null) }
+
+    BackHandler(enabled = webView?.canGoBack() == true) {
+        webView?.goBack()
+    }
 
     AndroidView(
         modifier = modifier.fillMaxSize(),
@@ -79,7 +94,7 @@ fun RoyalRoadAuthWebView(
                     }
                 }
                 loadUrl("${RoyalRoadIds.BASE_URL}/account/login")
-            }
+            }.also { webView = it }
         },
         onRelease = { wv ->
             if (!capturedHandler.delivered) onCancelled()

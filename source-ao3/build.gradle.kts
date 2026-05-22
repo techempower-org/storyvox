@@ -58,6 +58,10 @@ dependencies {
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.foundation)
+    // #719 — `BackHandler` ships in `androidx.activity:activity-compose`.
+    // Same rationale as `:source-royalroad` — the BOM does not pin it
+    // and we don't pull navigation-compose here.
+    implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.webkit)
 
     implementation(libs.hilt.android)
