@@ -244,6 +244,8 @@ open class BedrockProvider @Inject constructor(
          *  shows. */
         val BEDROCK_MODEL_MAP = mapOf(
             "claude-haiku-4.5" to "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+            "claude-sonnet-4.7" to "us.anthropic.claude-sonnet-4-7",
+            "claude-opus-4.7" to "us.anthropic.claude-opus-4-7",
             "claude-sonnet-4.6" to "us.anthropic.claude-sonnet-4-6",
             "claude-opus-4.6" to "us.anthropic.claude-opus-4-6-v1",
             "claude-sonnet-4.5" to "us.anthropic.claude-sonnet-4-5-20250929-v1:0",
@@ -265,6 +267,8 @@ object BedrockModels {
         "claude-haiku-4.5",
         "claude-sonnet-4.6",
         "claude-opus-4.6",
+        "claude-sonnet-4.7",
+        "claude-opus-4.7",
         "nova-pro",
         "nova-lite",
         "llama4-maverick-17b",

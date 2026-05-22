@@ -2310,7 +2310,13 @@ private fun ClaudeProviderRows(
         )
         // Model picker as a row of Brass chips. Hardcoded list for v1.
         FlowRow(horizontalArrangement = Arrangement.spacedBy(spacing.xs), verticalArrangement = Arrangement.spacedBy(spacing.xs)) {
-            listOf("claude-haiku-4.5", "claude-sonnet-4.6", "claude-opus-4.6").forEach { m ->
+            listOf(
+                "claude-haiku-4.5",
+                "claude-sonnet-4.6",
+                "claude-opus-4.6",
+                "claude-sonnet-4.7",
+                "claude-opus-4.7",
+            ).forEach { m ->
                 BrassButton(
                     label = m.removePrefix("claude-"),
                     onClick = { onSetClaudeModel(m) },
@@ -2919,6 +2925,7 @@ private fun BedrockProviderRows(
             listOf(
                 "claude-haiku-4.5",
                 "claude-sonnet-4.6",
+                "claude-sonnet-4.7",
                 "nova-lite",
                 "llama4-maverick-17b",
             ).forEach { m ->
