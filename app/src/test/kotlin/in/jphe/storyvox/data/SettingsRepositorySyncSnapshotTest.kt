@@ -231,6 +231,25 @@ class SettingsRepositorySyncSnapshotTest {
         assertEquals(first, second)
     }
 
+    @Test fun `source favorites key IS in SYNC_ALLOWLIST (same family as plugins-enabled)`() {
+        // v0.5.76 — Browse-carousel favorites. The user's set of
+        // starred sources is cross-device intent ("AO3 is my main
+        // source"), the same kind of preference that drives
+        // pref_source_plugins_enabled_v1 into the allowlist. If a
+        // future refactor accidentally drops it, the favorites star
+        // becomes per-device — easy to miss on dogfood, painful to
+        // notice on a sign-in to a new device.
+        assertTrue(
+            "pref_source_favorites_v1 must sync — cross-device intent",
+            "pref_source_favorites_v1" in SettingsRepositoryUiImpl.SYNC_ALLOWLIST,
+        )
+        assertEquals(
+            "pref_source_favorites_v1 is JSON-encoded, must use STRING codec",
+            SettingsRepositoryUiImpl.SyncedType.STRING,
+            SettingsRepositoryUiImpl.SYNC_KEY_TYPES["pref_source_favorites_v1"],
+        )
+    }
+
     @Test fun `pronunciation dict key is NOT in SYNC_ALLOWLIST (handled by its own syncer)`() {
         assertFalse(
             "pronunciation dict must NOT be in the settings allowlist — it has its own syncer",

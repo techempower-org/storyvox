@@ -2074,16 +2074,28 @@ class SettingsRepositoryUiImpl(
      * other (DataStore serializes the edit block, so reading inside
      * is safe). Unknown ids round-trip into the set without
      * validation — same posture as [setSourcePluginEnabled].
+     *
+     * Idempotent: a no-op favorite (re-add of an already-favorited id,
+     * or remove of one that's not present) skips the JSON write.
+     * [stampSyncedWrite] still fires unconditionally so a deliberate
+     * "touch" by the user after a sync conflict still pushes their
+     * intent forward. The key is in [SYNC_ALLOWLIST] + [SYNC_KEY_TYPES]
+     * so favorites ride the next InstantDB sync round to the user's
+     * other devices — cross-device intent ("AO3 is my main source") is
+     * the kind of preference users want mirrored everywhere.
      */
     override suspend fun setSourceFavorite(id: String, favorite: Boolean) {
         store.edit { prefs ->
             val current = `in`.jphe.storyvox.data.source.plugin.decodeSourceFavoritesJson(
                 prefs[Keys.SOURCE_FAVORITES_JSON],
             ).toMutableSet()
-            if (favorite) current.add(id) else current.remove(id)
-            prefs[Keys.SOURCE_FAVORITES_JSON] =
-                `in`.jphe.storyvox.data.source.plugin.encodeSourceFavoritesJson(current)
+            val changed = if (favorite) current.add(id) else current.remove(id)
+            if (changed) {
+                prefs[Keys.SOURCE_FAVORITES_JSON] =
+                    `in`.jphe.storyvox.data.source.plugin.encodeSourceFavoritesJson(current)
+            }
         }
+        stampSyncedWrite()
     }
 
     /**
@@ -2783,6 +2795,10 @@ class SettingsRepositoryUiImpl(
             "pref_source_plos_enabled",
             "pref_source_discord_enabled",
             "pref_source_plugins_enabled_v1",
+            // v0.5.76 — Browse-carousel favorites. Same family as the
+            // enabled-plugins map: cross-device intent ("AO3 is my main
+            // source") rides the sync.
+            "pref_source_favorites_v1",
             // Sleep timer.
             "pref_sleep_shake_to_extend_enabled",
             // Azure fallback.
@@ -2851,6 +2867,7 @@ class SettingsRepositoryUiImpl(
             "pref_ai_bedrock_region" to SyncedType.STRING,
             "pref_ai_bedrock_model" to SyncedType.STRING,
             "pref_source_plugins_enabled_v1" to SyncedType.STRING,
+            "pref_source_favorites_v1" to SyncedType.STRING,
             "pref_azure_fallback_voice_id" to SyncedType.STRING,
             // Float keys.
             "pref_default_speed" to SyncedType.FLOAT,
