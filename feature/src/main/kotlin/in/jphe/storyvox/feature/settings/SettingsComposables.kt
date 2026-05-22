@@ -44,6 +44,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import `in`.jphe.storyvox.ui.a11y.LocalAccessibleTouchTargets
 import `in`.jphe.storyvox.ui.component.BrassButton
 import `in`.jphe.storyvox.ui.component.BrassButtonVariant
 import `in`.jphe.storyvox.ui.theme.LibraryNocturneTheme
@@ -157,9 +158,17 @@ fun SettingsRow(
     onClick: (() -> Unit)? = null,
 ) {
     val spacing = LocalSpacing.current
+    // #690 Phase 2 — widen the 64dp min-height to 80dp under
+    // [LocalAccessibleTouchTargets] (1.25×, matching the
+    // [accessibleSize] 48→64dp ratio used elsewhere). The Settings
+    // surface is the most common tap target in the app outside
+    // playback, and Switch Access / motor-impaired users routinely
+    // re-traverse it, so the row growth is load-bearing.
+    val enlarged = LocalAccessibleTouchTargets.current
+    val minRowHeight = if (enlarged) 80.dp else 64.dp
     val rowModifier = modifier
         .fillMaxWidth()
-        .heightIn(min = 64.dp)
+        .heightIn(min = minRowHeight)
         .let { m -> if (onClick != null) m.clickable(role = Role.Button, onClick = onClick) else m }
         .padding(horizontal = spacing.md, vertical = spacing.sm)
 
@@ -241,9 +250,14 @@ fun SettingsSwitchRow(
         checkedBorderColor = MaterialTheme.colorScheme.primary,
         uncheckedThumbColor = MaterialTheme.colorScheme.outline,
     )
+    // #690 Phase 2 — same widened min-height as [SettingsRow]; switch
+    // rows are the most numerous tap target in the accessibility
+    // subscreen itself, so this matters even more here.
+    val enlarged = LocalAccessibleTouchTargets.current
+    val minRowHeight = if (enlarged) 80.dp else 64.dp
     val rowModifier = modifier
         .fillMaxWidth()
-        .heightIn(min = 64.dp)
+        .heightIn(min = minRowHeight)
         .toggleable(
             value = checked,
             enabled = enabled,

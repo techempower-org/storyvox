@@ -2,6 +2,7 @@ package `in`.jphe.storyvox.ui.component
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -18,6 +19,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import `in`.jphe.storyvox.ui.a11y.LocalAccessibleTouchTargets
 
 enum class BrassButtonVariant { Primary, Secondary, Text }
 
@@ -40,8 +42,19 @@ fun BrassButton(
     enabled: Boolean = true,
     loading: Boolean = false,
 ) {
+    // #690 Phase 2 — under [LocalAccessibleTouchTargets], grow the
+    // button's minimum height from the M3 default 40dp to 64dp so
+    // motor-impaired / Switch Access users get the wider tap surface
+    // promised by the "Larger touch targets" toggle. Padding stays the
+    // same (visual size scales with label); the minimum just floors it.
+    val enlarged = LocalAccessibleTouchTargets.current
     val padding = PaddingValues(horizontal = 24.dp, vertical = 12.dp)
-    val sem = Modifier.semantics { role = Role.Button }
+    val baseSem = Modifier.semantics { role = Role.Button }
+    val sem = if (enlarged) {
+        baseSem.then(Modifier.defaultMinSize(minHeight = 64.dp))
+    } else {
+        baseSem
+    }
     // Disabled colors stay in the brass family rather than falling through to
     // M3's default `onSurface * 0.12 / 0.38`, which renders as cool grey and
     // breaks the brass aesthetic during reachable disabled flows (e.g.,

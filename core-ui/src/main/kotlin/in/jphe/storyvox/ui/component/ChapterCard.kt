@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
@@ -30,6 +31,7 @@ import androidx.compose.ui.unit.dp
 import `in`.jphe.storyvox.playback.cache.ChapterCacheState
 import `in`.jphe.storyvox.ui.a11y.A11ySpeakChapterMode
 import `in`.jphe.storyvox.ui.a11y.LocalA11ySpeakChapterMode
+import `in`.jphe.storyvox.ui.a11y.LocalAccessibleTouchTargets
 import `in`.jphe.storyvox.ui.theme.LocalSpacing
 
 @Immutable
@@ -120,9 +122,16 @@ fun ChapterCard(
     // clickable still owns the action — `clearAndSetSemantics` doesn't
     // strip merged actions from the SAME modifier chain (only from
     // descendants), so the row stays tappable.
+    // #690 Phase 2 — under [LocalAccessibleTouchTargets], floor the
+    // chapter row to 80dp so motor-impaired / Switch Access users have
+    // a comfortably wide tap surface for chapter selection. The
+    // chapter list is the deepest scrollable list in the reader flow,
+    // so the row growth is load-bearing for those users.
+    val enlarged = LocalAccessibleTouchTargets.current
     Card(
         modifier = modifier
             .fillMaxWidth()
+            .let { m -> if (enlarged) m.heightIn(min = 80.dp) else m }
             .clickable(
                 role = Role.Button,
                 onClickLabel = "Open chapter",
