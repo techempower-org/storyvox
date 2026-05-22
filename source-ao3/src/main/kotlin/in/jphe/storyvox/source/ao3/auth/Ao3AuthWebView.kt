@@ -3,6 +3,7 @@ package `in`.jphe.storyvox.source.ao3.auth
 import android.annotation.SuppressLint
 import android.graphics.Bitmap
 import android.view.View
+import android.view.ViewGroup
 import android.webkit.CookieManager
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -113,6 +114,17 @@ fun Ao3AuthWebView(
         },
         onRelease = { wv ->
             if (!capturedHandler.delivered) onCancelled()
+            // #720 — `WebView.destroy()`'s javadoc requires the WebView to
+            // be detached from its parent first, with no pending loads or
+            // active client references. Same teardown sequence as
+            // RoyalRoadAuthWebView; see the comment there for why each
+            // step is required (renderer-process leak, mid-redirect
+            // cookie-write window, closure-over-composable-scope in our
+            // WebViewClient).
+            wv.stopLoading()
+            wv.webViewClient = WebViewClient()
+            wv.clearHistory()
+            (wv.parent as? ViewGroup)?.removeView(wv)
             wv.destroy()
         },
     )

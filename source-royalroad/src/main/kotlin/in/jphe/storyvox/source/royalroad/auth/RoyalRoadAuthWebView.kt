@@ -3,6 +3,7 @@ package `in`.jphe.storyvox.source.royalroad.auth
 import android.annotation.SuppressLint
 import android.graphics.Bitmap
 import android.view.View
+import android.view.ViewGroup
 import android.webkit.CookieManager
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -98,6 +99,23 @@ fun RoyalRoadAuthWebView(
         },
         onRelease = { wv ->
             if (!capturedHandler.delivered) onCancelled()
+            // #720 — `WebView.destroy()`'s javadoc requires the WebView to
+            // be detached from its parent first, with no pending loads or
+            // active client references. Skipping these steps leaks the
+            // renderer process on some OEM ROMs and lets in-flight
+            // requests (e.g., the Cloudflare `__cf_bm` cookie write during
+            // a captcha → identity redirect) touch a detached
+            // CookieManager. The composable is most likely to be torn
+            // down mid-redirect — same timing window that `tryCapture()`
+            // on `onPageStarted` + `onPageFinished` is designed to catch.
+            wv.stopLoading()
+            // Replace our `WebViewClient` (which closes over
+            // `capturedHandler` → `onSession` → parent composable scope)
+            // with a vanilla one so the rest of the teardown doesn't fire
+            // captures back into a dead composable.
+            wv.webViewClient = WebViewClient()
+            wv.clearHistory()
+            (wv.parent as? ViewGroup)?.removeView(wv)
             wv.destroy()
         },
     )
