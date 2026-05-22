@@ -132,14 +132,12 @@ internal class DiscordSource @Inject constructor(
         // fictionDetail() / chapter() paths — those are channel-id
         // scoped too, so no extra plumbing is required.
         //
-        // TODO(#517 surface): TechEmpower Home's "Featured guides"
-        // strip in `feature/.../techempower/TechEmpowerHomeScreen.kt`
-        // is hard-coded to Notion-only guide titles today; a follow-up
-        // PR should either add a "Peer-support" strip there or
-        // refactor the strip into a cross-source TechEmpower-featured
-        // iterator that picks up this Discord seed automatically. Not
-        // touched here because sibling agent #516 (Emergency Help
-        // card) is editing the same screen.
+        // The Peer-Support channel is also reachable from
+        // TechEmpowerHomeScreen via the dedicated Discord card (the
+        // paired phone+forum row near the top of the screen). The
+        // Notion-served "Featured guides" strip there stays
+        // Notion-only by design — it advertises the `notion:guides`
+        // PageList fiction specifically, not a cross-source category.
         val pinnedItems: List<FictionSummary> = state.pinnedChannelIds.map { channelId ->
             FictionSummary(
                 id = discordFictionId(channelId),
