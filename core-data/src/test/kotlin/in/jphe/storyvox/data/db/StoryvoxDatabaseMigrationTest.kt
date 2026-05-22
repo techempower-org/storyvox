@@ -4,6 +4,9 @@ import android.app.Instrumentation
 import androidx.room.Room
 import androidx.room.testing.MigrationTestHelper
 import androidx.sqlite.db.framework.FrameworkSQLiteOpenHelperFactory
+import `in`.jphe.storyvox.data.db.migration.MIGRATION_1_2
+import `in`.jphe.storyvox.data.db.migration.MIGRATION_2_3
+import `in`.jphe.storyvox.data.db.migration.MIGRATION_3_4
 import `in`.jphe.storyvox.data.db.migration.MIGRATION_4_5
 import `in`.jphe.storyvox.data.db.migration.MIGRATION_5_6
 import `in`.jphe.storyvox.data.db.migration.MIGRATION_6_7
@@ -358,6 +361,249 @@ class StoryvoxDatabaseMigrationTest {
             assertTrue(
                 "index_fiction_memory_entry_fictionId must exist (per-book Notebook feed)",
                 indexes.any { it == "index_fiction_memory_entry_fictionId" },
+            )
+        }
+
+        db.close()
+    }
+
+    /**
+     * Issue #722 — v2 adds `fiction.lastSeenRevision` for the GitHub-source
+     * commit-SHA cheap-poll path. Purely additive nullable TEXT column;
+     * existing rows get NULL so the first post-upgrade poll still hits the
+     * full detail fetch and persists a SHA.
+     *
+     * Test seeds a v1 row with a complete fiction record (using only v1
+     * columns), runs 1→2, and asserts the column exists, is nullable, and
+     * defaults to NULL on the pre-existing row. Catches both malformed
+     * ALTER TABLE SQL and identity-hash drift if the `lastSeenRevision`
+     * field is ever changed without a corresponding migration.
+     */
+    @Test fun `migrate v1 to v2 adds fiction lastSeenRevision column`() {
+        val dbName = "last-seen-revision-migration-test.db"
+
+        helper.createDatabase(dbName, 1).use { db ->
+            // Seed a row in the v1 fiction table so we can prove existing
+            // rows get NULL for the new column post-migration.
+            db.execSQL(
+                """
+                INSERT INTO fiction(
+                    id, sourceId, title, author, genres, tags, status,
+                    chapterCount, firstSeenAt, metadataFetchedAt,
+                    inLibrary, followedRemotely, notesEverSeen
+                ) VALUES (
+                    'gh:repo:42', 'github', 'A Programmer''s Companion', 'octocat',
+                    '[]', '[]', 'ONGOING', 0, 0, 0, 0, 0, 0
+                )
+                """.trimIndent(),
+            )
+        }
+
+        val db = helper.runMigrationsAndValidate(
+            dbName,
+            2,
+            /* validateDroppedTables = */ true,
+            MIGRATION_1_2,
+        )
+
+        db.query("PRAGMA table_info('fiction')").use { c ->
+            var sawLastSeenRevision = false
+            while (c.moveToNext()) {
+                val name = c.getString(c.getColumnIndexOrThrow("name"))
+                if (name == "lastSeenRevision") {
+                    sawLastSeenRevision = true
+                    val type = c.getString(c.getColumnIndexOrThrow("type"))
+                    assertEquals("TEXT", type)
+                    val notnull = c.getInt(c.getColumnIndexOrThrow("notnull"))
+                    assertEquals("lastSeenRevision must be nullable", 0, notnull)
+                }
+            }
+            assertTrue(
+                "fiction.lastSeenRevision column must exist post-migration",
+                sawLastSeenRevision,
+            )
+        }
+
+        // Pre-existing row must round-trip with NULL in the new column.
+        db.query(
+            "SELECT id, lastSeenRevision FROM fiction WHERE id = 'gh:repo:42'",
+        ).use { c ->
+            assertTrue("seeded v1 row must survive the migration", c.moveToFirst())
+            assertEquals("gh:repo:42", c.getString(0))
+            assertTrue(
+                "lastSeenRevision must default to NULL for existing rows",
+                c.isNull(1),
+            )
+        }
+
+        db.close()
+    }
+
+    /**
+     * Issue #722 — v3 introduces the multi-session AI tables (#81).
+     * Purely additive: `llm_session` + `llm_message` with an index on
+     * `llm_message.sessionId` (FK cascade planner). Existing tables are
+     * untouched.
+     *
+     * The new `llm_message` table carries a FK to `llm_session(id)` with
+     * `ON DELETE CASCADE`; the index on `sessionId` is what Room's
+     * schema validator expects to see for that FK column. If the
+     * migration SQL ever drops the CREATE INDEX line, this test fails
+     * with an identity-hash mismatch even though the tables themselves
+     * exist.
+     */
+    @Test fun `migrate v2 to v3 creates llm_session and llm_message tables`() {
+        val dbName = "llm-tables-migration-test.db"
+
+        helper.createDatabase(dbName, 1).close()
+        helper.runMigrationsAndValidate(dbName, 2, true, MIGRATION_1_2).close()
+
+        val db = helper.runMigrationsAndValidate(
+            dbName,
+            3,
+            /* validateDroppedTables = */ true,
+            MIGRATION_2_3,
+        )
+
+        db.query(
+            "SELECT name FROM sqlite_master WHERE type='table' " +
+                "AND name IN ('llm_session', 'llm_message') ORDER BY name",
+        ).use { c ->
+            val tables = mutableListOf<String>()
+            while (c.moveToNext()) tables += c.getString(0)
+            assertEquals(
+                "both llm_session and llm_message must exist post-migration",
+                listOf("llm_message", "llm_session"),
+                tables,
+            )
+        }
+
+        db.query(
+            "SELECT name FROM sqlite_master WHERE type='index' " +
+                "AND tbl_name='llm_message'",
+        ).use { c ->
+            val indexes = mutableListOf<String>()
+            while (c.moveToNext()) indexes += c.getString(0)
+            assertTrue(
+                "index_llm_message_sessionId must exist (FK cascade planner)",
+                indexes.any { it == "index_llm_message_sessionId" },
+            )
+        }
+
+        // Smoke: insert + read back a session+message pair to prove the
+        // CREATE TABLE matches the entity (column names, types,
+        // AUTOINCREMENT on message id).
+        db.execSQL(
+            """
+            INSERT INTO llm_session(
+                id, name, provider, model, systemPrompt,
+                createdAt, lastUsedAt, featureKind,
+                anchorFictionId, anchorChapterId
+            ) VALUES (
+                'sess-1', 'first chat', 'openai', 'gpt-5', NULL,
+                1000, 1500, 'CHAT', NULL, NULL
+            )
+            """.trimIndent(),
+        )
+        db.execSQL(
+            "INSERT INTO llm_message(sessionId, role, content, createdAt) " +
+                "VALUES ('sess-1', 'user', 'hello', 1100)",
+        )
+        db.query(
+            "SELECT sessionId, role, content, createdAt FROM llm_message",
+        ).use { c ->
+            assertTrue("inserted llm_message row must be readable", c.moveToFirst())
+            assertEquals("sess-1", c.getString(0))
+            assertEquals("user", c.getString(1))
+            assertEquals("hello", c.getString(2))
+            assertEquals(1100L, c.getLong(3))
+        }
+
+        db.close()
+    }
+
+    /**
+     * Issue #722 — v4 adds `chapter.bookmarkCharOffset` for the
+     * per-chapter bookmark feature (#121). Single nullable INTEGER
+     * column; existing rows get NULL (the "no bookmark" sentinel the
+     * entity already understands).
+     *
+     * Mirrors the shape of `migrate v6 to v7 adds chapter audioUrl
+     * column` test. We seed a v3 chapter row, run 3→4, and verify the
+     * column exists / is nullable / defaults to NULL on the
+     * pre-existing row.
+     */
+    @Test fun `migrate v3 to v4 adds chapter bookmarkCharOffset column`() {
+        val dbName = "bookmark-char-offset-migration-test.db"
+
+        helper.createDatabase(dbName, 1).close()
+        helper.runMigrationsAndValidate(dbName, 2, true, MIGRATION_1_2).close()
+        helper.runMigrationsAndValidate(dbName, 3, true, MIGRATION_2_3).use { db ->
+            // Seed a fiction + chapter at v3 so the existing row exercises
+            // the NULL-default behaviour after the column is added.
+            db.execSQL(
+                """
+                INSERT INTO fiction(
+                    id, sourceId, title, author, genres, tags, status,
+                    chapterCount, firstSeenAt, metadataFetchedAt,
+                    inLibrary, followedRemotely, notesEverSeen
+                ) VALUES (
+                    'rr:42', 'royalroad', 'Mother of Learning', 'nobody103',
+                    '[]', '[]', 'ONGOING', 1, 0, 0, 0, 0, 0
+                )
+                """.trimIndent(),
+            )
+            db.execSQL(
+                """
+                INSERT INTO chapter(
+                    id, fictionId, sourceChapterId, `index`, title,
+                    downloadState, userMarkedRead
+                ) VALUES (
+                    'rr:42:0', 'rr:42', '0', 0, 'Good Morning Brother',
+                    'NOT_DOWNLOADED', 0
+                )
+                """.trimIndent(),
+            )
+        }
+
+        val db = helper.runMigrationsAndValidate(
+            dbName,
+            4,
+            /* validateDroppedTables = */ true,
+            MIGRATION_3_4,
+        )
+
+        db.query("PRAGMA table_info('chapter')").use { c ->
+            var sawBookmark = false
+            while (c.moveToNext()) {
+                val name = c.getString(c.getColumnIndexOrThrow("name"))
+                if (name == "bookmarkCharOffset") {
+                    sawBookmark = true
+                    val type = c.getString(c.getColumnIndexOrThrow("type"))
+                    assertEquals("INTEGER", type)
+                    val notnull = c.getInt(c.getColumnIndexOrThrow("notnull"))
+                    assertEquals(
+                        "bookmarkCharOffset must be nullable (NULL = no bookmark)",
+                        0,
+                        notnull,
+                    )
+                }
+            }
+            assertTrue(
+                "chapter.bookmarkCharOffset column must exist post-migration",
+                sawBookmark,
+            )
+        }
+
+        // Pre-existing v3 chapter row must round-trip with NULL bookmark.
+        db.query(
+            "SELECT id, bookmarkCharOffset FROM chapter WHERE id = 'rr:42:0'",
+        ).use { c ->
+            assertTrue("seeded v3 chapter row must survive the migration", c.moveToFirst())
+            assertEquals("rr:42:0", c.getString(0))
+            assertTrue(
+                "bookmarkCharOffset must default to NULL for existing rows",
+                c.isNull(1),
             )
         }
 
