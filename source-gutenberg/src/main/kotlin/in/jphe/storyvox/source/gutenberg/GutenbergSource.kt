@@ -244,6 +244,7 @@ internal class GutenbergSource @Inject constructor(
     ): FictionResult<EpubBook> {
         parsedCache[fictionId]?.let { return FictionResult.Success(it) }
         val onDisk = epubFileFor(fictionId)
+            ?: return FictionResult.NotFound("Invalid Gutenberg id: $fictionId")
         if (onDisk.exists() && onDisk.length() > 0L) {
             return reparseFromDisk(fictionId)
         }
@@ -268,6 +269,7 @@ internal class GutenbergSource @Inject constructor(
 
     private suspend fun reparseFromDisk(fictionId: String): FictionResult<EpubBook> {
         val onDisk = epubFileFor(fictionId)
+            ?: return FictionResult.NotFound("Invalid Gutenberg id: $fictionId")
         if (!onDisk.exists()) {
             return FictionResult.NotFound("No cached EPUB for $fictionId")
         }
@@ -281,8 +283,15 @@ internal class GutenbergSource @Inject constructor(
         return FictionResult.Success(parsed)
     }
 
-    private fun epubFileFor(fictionId: String): File {
-        val id = parseGutenbergId(fictionId) ?: 0
+    // Issue #718 — refuse to construct a cache path for an unparseable
+    // id. Previously this fell back to `0.epub`, collapsing every
+    // malformed fictionId (`gutenberg:abc`, `gutenberg:`, deep-link
+    // typos like `gutenberg:1342x`) onto the same on-disk file. First
+    // write poisoned the cache; later reads returned the corrupt bytes
+    // and surfaced an unparseable-EPUB error pointing at the disk
+    // cache rather than the bad id. Callers short-circuit with NotFound.
+    private fun epubFileFor(fictionId: String): File? {
+        val id = parseGutenbergId(fictionId) ?: return null
         return File(cacheDir, "$id.epub")
     }
 }
@@ -293,8 +302,11 @@ internal val GUTENBERG_URL_PATTERN: Regex = Regex(
     RegexOption.IGNORE_CASE,
 )
 
-/** `gutenberg:1342` → `1342`; returns null on malformed input. */
-private fun parseGutenbergId(fictionId: String): Int? =
+/** `gutenberg:1342` → `1342`; returns null on malformed input.
+ *  Issue #718 — null must propagate up through `epubFileFor`; the
+ *  prior `?: 0` fallback collapsed every malformed id onto a single
+ *  on-disk file. Internal for test visibility. */
+internal fun parseGutenbergId(fictionId: String): Int? =
     fictionId.substringAfter("gutenberg:", missingDelimiterValue = "")
         .takeIf { it.isNotEmpty() }
         ?.toIntOrNull()

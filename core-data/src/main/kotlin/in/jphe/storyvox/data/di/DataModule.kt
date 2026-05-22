@@ -66,6 +66,28 @@ object DataModule {
     fun provideDb(@ApplicationContext ctx: Context): StoryvoxDatabase =
         Room.databaseBuilder(ctx, StoryvoxDatabase::class.java, StoryvoxDatabase.NAME)
             .addMigrations(*ALL_MIGRATIONS)
+            // Issue #721 — survive APK downgrade (newer install → older
+            // install) by wiping the DB instead of crashing. ALL_MIGRATIONS
+            // covers v1→v9 forward only; Room doesn't auto-derive
+            // downgrade paths and would throw `IllegalStateException`
+            // ("A migration from N to M was required but not found")
+            // at the first call to provideDb on downgrade — silent
+            // hard-crash at app startup with no recovery short of
+            // uninstall (which wipes the user's library entirely).
+            //
+            // The trade-off — wipe the local Room DB on strict
+            // downgrade — is the right policy here: library content
+            // rehydrates from the source backends (Royal Road, Gutenberg,
+            // etc.) on next sync, and EncryptedSharedPreferences (cookies,
+            // sync state) is untouched. Same-version opens and forward
+            // migrations are unaffected.
+            //
+            // Real-world downgrade scenarios this protects:
+            //   1. Sideload testing on R83W80CAFZB / R5CRB0W66MK
+            //      (`adb install -d v0.5.70.apk` over a v0.5.71 install).
+            //   2. Play Store user-initiated rollback.
+            //   3. Internal-track / beta channel rollback.
+            .fallbackToDestructiveMigrationOnDowngrade()
             // Issue #570 — F2FS_IOC_SET_PIN_FILE SELinux denial silencer.
             // Samsung's One UI 4+ (F2FS filesystem) audits SQLite's WAL
             // file-pinning ioctl as `untrusted_app` cannot perform
