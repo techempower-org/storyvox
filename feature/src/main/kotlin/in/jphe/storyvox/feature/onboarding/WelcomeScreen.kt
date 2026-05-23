@@ -17,11 +17,13 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import `in`.jphe.storyvox.feature.R
 import `in`.jphe.storyvox.ui.component.BrassButton
 import `in`.jphe.storyvox.ui.component.BrassButtonVariant
 import `in`.jphe.storyvox.ui.component.MagicSkeletonTile
@@ -80,7 +82,7 @@ fun WelcomeScreen(
             // benefit headline the page-anchor weight it needs without
             // wrapping on a 360dp narrow phone.
             Text(
-                "Stories, read aloud.",
+                stringResource(R.string.onboarding_welcome_headline),
                 fontFamily = FontFamily.Serif,
                 fontWeight = FontWeight.Medium,
                 fontSize = 32.sp,
@@ -90,8 +92,7 @@ fun WelcomeScreen(
             )
             Spacer(Modifier.height(spacing.md))
             Text(
-                "storyvox reads books, guides, and articles to you " +
-                    "with calming voices. Free, forever, no ads.",
+                stringResource(R.string.onboarding_welcome_body),
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurface,
                 textAlign = TextAlign.Center,
@@ -101,13 +102,13 @@ fun WelcomeScreen(
             )
             Spacer(Modifier.height(spacing.xl))
             BrassButton(
-                label = "Get started",
+                label = stringResource(R.string.onboarding_get_started),
                 onClick = onGetStarted,
                 variant = BrassButtonVariant.Primary,
             )
             Spacer(Modifier.height(spacing.sm))
             BrassButton(
-                label = "I've used storyvox before",
+                label = stringResource(R.string.onboarding_skip_welcome),
                 onClick = onSkip,
                 variant = BrassButtonVariant.Text,
             )

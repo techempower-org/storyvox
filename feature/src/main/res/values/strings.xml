@@ -366,4 +366,45 @@
     <string name="craigslist_subscribe">Subscribe</string>
     <string name="craigslist_subscribed_confirmation">Subscribed: %1$s. See it under Browse → RSS.</string>
 
+    <!-- Onboarding · WelcomeScreen -->
+    <string name="onboarding_welcome_headline">Stories, read aloud.</string>
+    <string name="onboarding_welcome_body">storyvox reads books, guides, and articles to you with calming voices. Free, forever, no ads.</string>
+    <string name="onboarding_get_started">Get started</string>
+    <string name="onboarding_skip_welcome">I\'ve used storyvox before</string>
+
+    <!-- Onboarding · FirstFictionPicker -->
+    <string name="onboarding_first_fiction_headline">What would you like to hear?</string>
+    <string name="onboarding_first_fiction_subtitle">Pick a starting point. You can always add more later.</string>
+    <string name="onboarding_pick_te_title">Browse TechEmpower\'s free guides</string>
+    <string name="onboarding_pick_te_body">Plain-English guides about computers, the internet, and getting set up.</string>
+    <string name="onboarding_pick_add_title">Add a book from a website</string>
+    <string name="onboarding_pick_add_body_clipboard">We noticed a link on your clipboard — tap to use it.</string>
+    <string name="onboarding_pick_add_body_default">Paste a link to a story, article, or book.</string>
+    <string name="onboarding_pick_skip_title">Skip — show me everything</string>
+    <string name="onboarding_pick_skip_body">Go straight to your library.</string>
+
+    <!-- Onboarding · VoicePickerOnboarding -->
+    <string name="onboarding_voice_headline">Pick a voice</string>
+    <string name="onboarding_voice_subtitle">Each voice is a small free download. You can change it any time.</string>
+    <string name="onboarding_voice_more_voices">More voices →</string>
+    <string name="onboarding_voice_skip">Skip — I\'ll choose later</string>
+    <string name="onboarding_voice_install_tts_banner">Install Google TTS for built-in voices, or download a Piper voice (~14 MB) below.</string>
+    <string name="onboarding_voice_install_tts_cta">Install Google TTS</string>
+    <string name="onboarding_voice_free_size">Free · %1$d MB</string>
+    <string name="onboarding_voice_pick_cta">Pick this voice</string>
+    <string name="onboarding_voice_download_resolving">Getting %1$s ready…</string>
+    <string name="onboarding_voice_downloading">Downloading %1$s… %2$d MB / %3$d MB</string>
+    <string name="onboarding_voice_download_done">%1$s is ready.</string>
+    <string name="onboarding_voice_download_failed">Couldn\'t download %1$s. %2$s</string>
+    <string name="onboarding_voice_try_again">Try again</string>
+
+    <!-- Onboarding · Friendly voice descriptions (keyed by catalog displayName) -->
+    <string name="voice_desc_lessac">Warm American narrator — clear and steady.</string>
+    <string name="voice_desc_cori">British, gentle and even — good for long sessions.</string>
+    <string name="voice_desc_amy">Friendly American narrator — easy to follow.</string>
+    <string name="voice_desc_ryan">American narrator — calm and slow.</string>
+    <string name="voice_desc_alan">British narrator — warm and grounded.</string>
+    <string name="voice_desc_alba">British, soft-spoken — quiet hours and bedtime.</string>
+    <string name="voice_desc_fallback">%1$s — small free download.</string>
+
 </resources>

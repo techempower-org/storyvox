@@ -28,6 +28,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -38,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import `in`.jphe.storyvox.feature.R
 import `in`.jphe.storyvox.feature.engine.VoicePickerGateViewModel
 import `in`.jphe.storyvox.playback.voice.UiVoiceInfo
 import `in`.jphe.storyvox.playback.voice.VoiceManager
@@ -157,7 +159,7 @@ private fun VoicePickerOnboardingContent(
         ) {
             Spacer(Modifier.height(spacing.lg))
             Text(
-                "Pick a voice",
+                stringResource(R.string.onboarding_voice_headline),
                 fontFamily = FontFamily.Serif,
                 fontWeight = FontWeight.Medium,
                 fontSize = 28.sp,
@@ -167,8 +169,7 @@ private fun VoicePickerOnboardingContent(
             )
             Spacer(Modifier.height(spacing.sm))
             Text(
-                "Each voice is a small free download. " +
-                    "You can change it any time.",
+                stringResource(R.string.onboarding_voice_subtitle),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
@@ -215,13 +216,13 @@ private fun VoicePickerOnboardingContent(
 
             Spacer(Modifier.height(spacing.md))
             BrassButton(
-                label = "More voices →",
+                label = stringResource(R.string.onboarding_voice_more_voices),
                 onClick = onMoreVoices,
                 variant = BrassButtonVariant.Text,
                 enabled = downloadingVoiceId == null,
             )
             BrassButton(
-                label = "Skip — I'll choose later",
+                label = stringResource(R.string.onboarding_voice_skip),
                 onClick = onSkip,
                 variant = BrassButtonVariant.Text,
                 enabled = downloadingVoiceId == null,
@@ -262,8 +263,7 @@ private fun VoicePickerOnboardingContent(
 private fun InstallSystemTtsBanner() {
     val context = LocalContext.current
     val spacing = LocalSpacing.current
-    val copy = "Install Google TTS for built-in voices, " +
-        "or download a Piper voice (~14 MB) below."
+    val copy = stringResource(R.string.onboarding_voice_install_tts_banner)
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -281,7 +281,7 @@ private fun InstallSystemTtsBanner() {
         )
         Spacer(Modifier.height(spacing.sm))
         BrassButton(
-            label = "Install Google TTS",
+            label = stringResource(R.string.onboarding_voice_install_tts_cta),
             onClick = {
                 val marketUri = Uri.parse("market://details?id=com.google.android.tts")
                 val marketIntent = Intent(Intent.ACTION_VIEW, marketUri).apply {
@@ -357,13 +357,17 @@ private fun FriendlyVoiceTile(
                 )
                 Spacer(Modifier.height(2.dp))
                 Text(
-                    voice.description,
+                    if (voice.descriptionFallbackArg != null) {
+                        stringResource(voice.descriptionRes, voice.descriptionFallbackArg)
+                    } else {
+                        stringResource(voice.descriptionRes)
+                    },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Spacer(Modifier.height(2.dp))
                 Text(
-                    "Free · ${sizeMb} MB",
+                    stringResource(R.string.onboarding_voice_free_size, sizeMb.toInt()),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.primary,
                 )
@@ -387,7 +391,7 @@ private fun FriendlyVoiceTile(
         } else {
             Spacer(Modifier.height(spacing.sm))
             BrassButton(
-                label = "Pick this voice",
+                label = stringResource(R.string.onboarding_voice_pick_cta),
                 onClick = onPick,
                 variant = BrassButtonVariant.Primary,
                 enabled = enabled,
@@ -406,7 +410,7 @@ private fun FriendlyDownloadProgress(
     when (progress) {
         VoiceManager.DownloadProgress.Resolving -> {
             Text(
-                "Getting $voiceName ready…",
+                stringResource(R.string.onboarding_voice_download_resolving, voiceName),
                 style = MaterialTheme.typography.bodySmall,
             )
             Spacer(Modifier.height(spacing.xs))
@@ -419,7 +423,7 @@ private fun FriendlyDownloadProgress(
             val mb = progress.bytesRead / 1_000_000
             val totalMb = progress.totalBytes / 1_000_000
             Text(
-                "Downloading $voiceName… $mb MB / $totalMb MB",
+                stringResource(R.string.onboarding_voice_downloading, voiceName, mb.toInt(), totalMb.toInt()),
                 style = MaterialTheme.typography.bodySmall,
             )
             Spacer(Modifier.height(spacing.xs))
@@ -430,20 +434,20 @@ private fun FriendlyDownloadProgress(
         }
         VoiceManager.DownloadProgress.Done -> {
             Text(
-                "$voiceName is ready.",
+                stringResource(R.string.onboarding_voice_download_done, voiceName),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.primary,
             )
         }
         is VoiceManager.DownloadProgress.Failed -> {
             Text(
-                "Couldn't download $voiceName. " + progress.reason,
+                stringResource(R.string.onboarding_voice_download_failed, voiceName, progress.reason),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.error,
             )
             Spacer(Modifier.height(spacing.xs))
             BrassButton(
-                label = "Try again",
+                label = stringResource(R.string.onboarding_voice_try_again),
                 onClick = onDismissError,
                 variant = BrassButtonVariant.Text,
             )
@@ -454,13 +458,19 @@ private fun FriendlyDownloadProgress(
 /**
  * Friendly-name overlay for a single catalog voice — pairs the
  * engineering-named [UiVoiceInfo] with a plain-English [displayName]
- * and [description] that a 5-year-old reader (or a TalkBack listener)
- * can parse on first read.
+ * and a description resource that a 5-year-old reader (or a TalkBack
+ * listener) can parse on first read.
+ *
+ * [descriptionRes] resolves at render time via [stringResource]. When
+ * [descriptionFallbackArg] is non-null, the resource is formatted with
+ * it (currently used by the [R.string.voice_desc_fallback] template for
+ * voices not in the curated description table).
  */
 internal data class FriendlyVoice(
     val voice: UiVoiceInfo,
     val displayName: String,
-    val description: String,
+    @androidx.annotation.StringRes val descriptionRes: Int,
+    val descriptionFallbackArg: String? = null,
 )
 
 /**
@@ -483,12 +493,12 @@ internal data class FriendlyVoice(
 internal fun friendlyVoiceSelection(recommended: List<UiVoiceInfo>): List<FriendlyVoice> {
     if (recommended.isEmpty()) return emptyList()
     val descriptions = mapOf(
-        "lessac" to "Warm American narrator — clear and steady.",
-        "cori" to "British, gentle and even — good for long sessions.",
-        "amy" to "Friendly American narrator — easy to follow.",
-        "ryan" to "American narrator — calm and slow.",
-        "alan" to "British narrator — warm and grounded.",
-        "alba" to "British, soft-spoken — quiet hours and bedtime.",
+        "lessac" to R.string.voice_desc_lessac,
+        "cori" to R.string.voice_desc_cori,
+        "amy" to R.string.voice_desc_amy,
+        "ryan" to R.string.voice_desc_ryan,
+        "alan" to R.string.voice_desc_alan,
+        "alba" to R.string.voice_desc_alba,
     )
     // Collapse same-named entries to the FIRST one we see (catalog
     // orders featuredIds by tier: low → medium → high). Picking the
@@ -501,11 +511,21 @@ internal fun friendlyVoiceSelection(recommended: List<UiVoiceInfo>): List<Friend
         if (key in seen) false else { seen.add(key); true }
     }
     return collapsed.take(4).map { v ->
-        FriendlyVoice(
-            voice = v,
-            displayName = v.displayName,
-            description = descriptions[v.displayName.lowercase()]
-                ?: "${v.displayName} — small free download.",
-        )
+        val key = v.displayName.lowercase()
+        val curatedRes = descriptions[key]
+        if (curatedRes != null) {
+            FriendlyVoice(
+                voice = v,
+                displayName = v.displayName,
+                descriptionRes = curatedRes,
+            )
+        } else {
+            FriendlyVoice(
+                voice = v,
+                displayName = v.displayName,
+                descriptionRes = R.string.voice_desc_fallback,
+                descriptionFallbackArg = v.displayName,
+            )
+        }
     }
 }

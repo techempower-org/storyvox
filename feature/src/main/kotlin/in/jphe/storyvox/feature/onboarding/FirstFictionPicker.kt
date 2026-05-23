@@ -37,12 +37,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import `in`.jphe.storyvox.feature.R
 import `in`.jphe.storyvox.ui.component.BrassButton
 import `in`.jphe.storyvox.ui.component.BrassButtonVariant
 import `in`.jphe.storyvox.ui.theme.LocalSpacing
@@ -99,7 +101,7 @@ fun FirstFictionPicker(
         ) {
             Spacer(Modifier.height(spacing.lg))
             Text(
-                "What would you like to hear?",
+                stringResource(R.string.onboarding_first_fiction_headline),
                 fontFamily = FontFamily.Serif,
                 fontWeight = FontWeight.Medium,
                 fontSize = 28.sp,
@@ -109,7 +111,7 @@ fun FirstFictionPicker(
             )
             Spacer(Modifier.height(spacing.sm))
             Text(
-                "Pick a starting point. You can always add more later.",
+                stringResource(R.string.onboarding_first_fiction_subtitle),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
@@ -121,19 +123,18 @@ fun FirstFictionPicker(
 
             BigChoiceCard(
                 icon = Icons.AutoMirrored.Outlined.MenuBook,
-                title = "Browse TechEmpower's free guides",
-                body = "Plain-English guides about computers, " +
-                    "the internet, and getting set up.",
+                title = stringResource(R.string.onboarding_pick_te_title),
+                body = stringResource(R.string.onboarding_pick_te_body),
                 onClick = onBrowseTechEmpower,
             )
             Spacer(Modifier.height(spacing.md))
             BigChoiceCard(
                 icon = Icons.Outlined.Add,
-                title = "Add a book from a website",
+                title = stringResource(R.string.onboarding_pick_add_title),
                 body = if (clipboardUrl != null) {
-                    "We noticed a link on your clipboard — tap to use it."
+                    stringResource(R.string.onboarding_pick_add_body_clipboard)
                 } else {
-                    "Paste a link to a story, article, or book."
+                    stringResource(R.string.onboarding_pick_add_body_default)
                 },
                 onClick = { onAddFromWebsite(clipboardUrl) },
                 highlighted = clipboardUrl != null,
@@ -141,8 +142,8 @@ fun FirstFictionPicker(
             Spacer(Modifier.height(spacing.md))
             BigChoiceCard(
                 icon = Icons.Outlined.AutoStories,
-                title = "Skip — show me everything",
-                body = "Go straight to your library.",
+                title = stringResource(R.string.onboarding_pick_skip_title),
+                body = stringResource(R.string.onboarding_pick_skip_body),
                 onClick = onSkip,
             )
             Spacer(Modifier.height(spacing.xl))
