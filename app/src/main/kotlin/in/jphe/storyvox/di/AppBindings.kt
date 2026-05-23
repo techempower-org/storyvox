@@ -20,27 +20,15 @@ import `in`.jphe.storyvox.data.repository.playback.PlaybackModeConfig
 import `in`.jphe.storyvox.data.repository.playback.VoiceTuningConfig
 import `in`.jphe.storyvox.data.repository.pronunciation.PronunciationDictRepository
 import `in`.jphe.storyvox.data.source.WebViewFetcher
-import `in`.jphe.storyvox.data.source.model.ContentWarning
 import `in`.jphe.storyvox.data.source.model.FictionResult
-import `in`.jphe.storyvox.data.source.model.FictionStatus
 import `in`.jphe.storyvox.data.source.model.FictionSummary
-import `in`.jphe.storyvox.data.source.model.FictionType
 import `in`.jphe.storyvox.data.source.model.SearchOrder
 import `in`.jphe.storyvox.data.source.model.SearchQuery
 import `in`.jphe.storyvox.data.source.model.SortDirection
-import `in`.jphe.storyvox.feature.api.BrowseFilter
 import `in`.jphe.storyvox.feature.api.BrowsePaginator
 import `in`.jphe.storyvox.feature.api.BrowseRepositoryUi
 import `in`.jphe.storyvox.feature.api.BrowseSource
-import `in`.jphe.storyvox.feature.api.GenericBrowseFilter
-import `in`.jphe.storyvox.feature.api.GenericDateRange
-import `in`.jphe.storyvox.feature.api.GenericSortOrder
 import `in`.jphe.storyvox.feature.api.DownloadMode
-import `in`.jphe.storyvox.feature.api.UiContentWarning
-import `in`.jphe.storyvox.feature.api.UiFictionStatus
-import `in`.jphe.storyvox.feature.api.UiFictionType
-import `in`.jphe.storyvox.feature.api.UiSearchOrder
-import `in`.jphe.storyvox.feature.api.UiSortDirection
 import `in`.jphe.storyvox.data.repository.AddByUrlResult
 import `in`.jphe.storyvox.feature.api.FictionRepositoryUi
 import `in`.jphe.storyvox.feature.api.UiAddByUrlResult
@@ -104,7 +92,8 @@ object AppBindings {
         repo: FictionRepository,
         github: `in`.jphe.storyvox.source.github.GitHubAuthedSource,
         ao3: `in`.jphe.storyvox.source.ao3.Ao3AuthedSource,
-    ): BrowseRepositoryUi = RealBrowseRepositoryUi(repo, github, ao3)
+        registry: `in`.jphe.storyvox.data.source.plugin.SourcePluginRegistry,
+    ): BrowseRepositoryUi = RealBrowseRepositoryUi(repo, github, ao3, registry)
 
     @Provides @Singleton
     fun providePlaybackControllerUi(
@@ -634,12 +623,8 @@ private fun relativeTime(epochMs: Long?): String {
 private class RealBrowseRepositoryUi(
     private val repo: FictionRepository,
     private val github: `in`.jphe.storyvox.source.github.GitHubAuthedSource,
-    // #426 PR2 — AO3 authed surface for the Browse → AO3 → My
-    // Subscriptions / Marked-for-Later tabs. Mirrors the GitHub
-    // authed-source injection above; routes `BrowseSource.Ao3*`
-    // variants directly onto the [Ao3AuthedSource] surface
-    // without going through the FictionRepository.search path.
     private val ao3: `in`.jphe.storyvox.source.ao3.Ao3AuthedSource,
+    private val registry: `in`.jphe.storyvox.data.source.plugin.SourcePluginRegistry,
 ) : BrowseRepositoryUi {
     override fun paginator(source: BrowseSource, sourceId: String): BrowsePaginator =
         RealBrowsePaginator { page ->
@@ -662,45 +647,15 @@ private class RealBrowseRepositoryUi(
                     ),
                     sourceId = sourceId,
                 )
-                is BrowseSource.Filtered -> repo.search(
-                    source.filter.toSearchQuery().copy(page = page),
-                    sourceId = sourceId,
-                )
-                is BrowseSource.FilteredGitHub -> repo.search(
-                    SearchQuery(
-                        term = `in`.jphe.storyvox.feature.browse.composeGitHubQuery(
-                            term = source.query,
-                            filter = source.filter,
-                        ),
-                        page = page,
-                    ),
-                    sourceId = sourceId,
-                )
-                // #693 — generic filter routed through the source's
-                // SearchQuery translation. The mapping is per-source
-                // (Gutenberg honors `topic` as a search term, arXiv
-                // expects the category in `genres`, HN ignores most
-                // knobs and keeps only the term) — handled by
-                // [toSearchQueryFor].
-                is BrowseSource.GenericFiltered -> {
-                    val query = source.filter.toSearchQueryFor(
-                        sourceId = sourceId,
+                is BrowseSource.Filtered -> {
+                    val base = SearchQuery(
                         term = source.query,
                         page = page,
                     )
-                    // When the filter encodes a category that the source
-                    // surfaces as a `byGenre` path (Gutenberg topic,
-                    // arXiv category, MemPalace-style wing) the source
-                    // routes the category through `browseByGenre`
-                    // rather than `search`. Otherwise the search path
-                    // applies — most sources funnel a topic into a
-                    // search-term anyway.
-                    val category = source.filter.category
-                    if (category != null && sourceSupportsByGenre(sourceId) && source.query.isBlank()) {
-                        repo.browseByGenre(genre = category, page = page, sourceId = sourceId)
-                    } else {
-                        repo.search(query, sourceId = sourceId)
-                    }
+                    val resolved = registry.byId(sourceId)?.source
+                        ?.applyFilters(base, source.state)
+                        ?: base
+                    repo.search(resolved, sourceId = sourceId)
                 }
                 is BrowseSource.ByGenre -> repo.browseByGenre(
                     genre = source.genre,
@@ -742,189 +697,6 @@ private class RealBrowseRepositoryUi(
             is FictionResult.Success -> r.value
             else -> emptyList()
         }
-}
-
-private fun BrowseFilter.toSearchQuery(): SearchQuery = SearchQuery(
-    term = term,
-    tags = tagsInclude,
-    excludeTags = tagsExclude,
-    statuses = statuses.map { it.toData() }.toSet(),
-    requireWarnings = warningsRequire.map { it.toData() }.toSet(),
-    excludeWarnings = warningsExclude.map { it.toData() }.toSet(),
-    minPages = minPages,
-    maxPages = maxPages,
-    minRating = minRating,
-    maxRating = maxRating,
-    type = type.toData(),
-    orderBy = orderBy.toData(),
-    direction = direction.toData(),
-)
-
-/**
- * #693 — translate a [GenericBrowseFilter] into the source-shaped
- * [SearchQuery] each backend expects. The mapping is per-source
- * because the same generic knob means slightly different things
- * across sources:
- *  - **Gutenberg**: `category` folds into the search term so Gutendex
- *    can fuzzy-match against subjects; `language` is dropped client-
- *    side since the Gutendex `languages=` param isn't on the current
- *    [GutendexApi] surface (a follow-up could expose it). Sort maps
- *    onto Popularity / Newest.
- *  - **arXiv**: `category` becomes the `genres` set (the arXiv source
- *    treats the first element as its category code); date range and
- *    sort are honored as `LAST_UPDATE` + direction.
- *  - **Hacker News**: only `term` survives the Algolia API surface,
- *    sort folds into orderBy (Popular → POPULARITY).
- *  - **Wikipedia / Wikisource**: term + nothing else; language picks
- *    a different host wikipedia.org subdomain in a follow-up. For
- *    today the translation collapses to the term.
- *  - **AO3 / Standard Ebooks / Notion / PLOS / Outline / RSS**:
- *    category folds into the search term + tags; sort maps to
- *    LAST_UPDATE / POPULARITY / TITLE.
- *
- * Everything unsupported by a source's `search()` is silently
- * dropped — the contract on [SourcePlugin] is "translate the relevant
- * subset to whatever advanced-search parameters they support".
- */
-private fun GenericBrowseFilter.toSearchQueryFor(
-    sourceId: String,
-    term: String,
-    page: Int,
-): SearchQuery {
-    val composedTerm = composeTermFor(sourceId, term)
-    val orderBy = sortOrder.toSearchOrder()
-    val cat = category
-    val tags: Set<String> = if (sourceId.passesCategoryAsTag() && !cat.isNullOrBlank()) {
-        setOf(cat.lowercase())
-    } else emptySet()
-    val genres: Set<String> = if (sourceId.passesCategoryAsGenre() && !cat.isNullOrBlank()) {
-        setOf(cat)
-    } else emptySet()
-    return SearchQuery(
-        term = composedTerm,
-        tags = tags,
-        genres = genres,
-        orderBy = orderBy,
-        direction = SortDirection.DESC,
-        page = page,
-    )
-}
-
-private fun GenericBrowseFilter.composeTermFor(sourceId: String, term: String): String {
-    val parts = mutableListOf<String>()
-    if (term.isNotBlank()) parts += term.trim()
-    // For sources where the search endpoint accepts free-text but has
-    // no structured tag field, fold the category into the term so it
-    // still narrows the result set (Gutendex matches subjects; HN
-    // Algolia indexes _tags in the same text field).
-    val cat = category
-    if (!cat.isNullOrBlank() && sourceId.foldsCategoryIntoTerm()) {
-        parts += cat
-    }
-    // Language as a search hint where the source has no structured
-    // language qualifier. Wikipedia / Wikisource ignore this entirely;
-    // Gutenberg's Gutendex matches against the language code in the
-    // `languages` column for a subset of queries.
-    val lang = language
-    if (!lang.isNullOrBlank() && sourceId.foldsLanguageIntoTerm()) {
-        parts += "language:$lang"
-    }
-    return parts.joinToString(" ")
-}
-
-private fun GenericSortOrder.toSearchOrder(): SearchOrder = when (this) {
-    GenericSortOrder.Default -> SearchOrder.RELEVANCE
-    GenericSortOrder.Newest -> SearchOrder.LAST_UPDATE
-    GenericSortOrder.Popular -> SearchOrder.POPULARITY
-    GenericSortOrder.Title -> SearchOrder.TITLE
-}
-
-private fun String.passesCategoryAsTag(): Boolean = when (this) {
-    `in`.jphe.storyvox.data.source.SourceIds.AO3,
-    `in`.jphe.storyvox.data.source.SourceIds.STANDARD_EBOOKS,
-    -> true
-    else -> false
-}
-
-private fun String.passesCategoryAsGenre(): Boolean = when (this) {
-    `in`.jphe.storyvox.data.source.SourceIds.ARXIV,
-    `in`.jphe.storyvox.data.source.SourceIds.GUTENBERG,
-    `in`.jphe.storyvox.data.source.SourceIds.PLOS,
-    -> true
-    else -> false
-}
-
-private fun String.foldsCategoryIntoTerm(): Boolean = when (this) {
-    `in`.jphe.storyvox.data.source.SourceIds.HACKERNEWS,
-    `in`.jphe.storyvox.data.source.SourceIds.RSS,
-    `in`.jphe.storyvox.data.source.SourceIds.NOTION,
-    `in`.jphe.storyvox.data.source.SourceIds.OUTLINE,
-    -> true
-    else -> false
-}
-
-private fun String.foldsLanguageIntoTerm(): Boolean = when (this) {
-    `in`.jphe.storyvox.data.source.SourceIds.GUTENBERG -> true
-    else -> false
-}
-
-/**
- * #693 — true when [sourceId] supports browseByGenre as a category-
- * scoped listing path. Used by the GenericFiltered routing to send a
- * blank-term + category-only filter through `byGenre` rather than
- * `search`, since for these sources `byGenre` is the canonical
- * category-list endpoint (no fuzzy term match).
- */
-private fun sourceSupportsByGenre(sourceId: String): Boolean = when (sourceId) {
-    `in`.jphe.storyvox.data.source.SourceIds.GUTENBERG,
-    `in`.jphe.storyvox.data.source.SourceIds.ARXIV,
-    `in`.jphe.storyvox.data.source.SourceIds.STANDARD_EBOOKS,
-    `in`.jphe.storyvox.data.source.SourceIds.PLOS,
-    -> true
-    else -> false
-}
-
-@Suppress("unused")
-private fun GenericDateRange.unused() = Unit
-
-private fun UiFictionStatus.toData(): FictionStatus = when (this) {
-    UiFictionStatus.Ongoing -> FictionStatus.ONGOING
-    UiFictionStatus.Completed -> FictionStatus.COMPLETED
-    UiFictionStatus.Hiatus -> FictionStatus.HIATUS
-    UiFictionStatus.Stub -> FictionStatus.STUB
-    UiFictionStatus.Dropped -> FictionStatus.DROPPED
-}
-
-private fun UiFictionType.toData(): FictionType = when (this) {
-    UiFictionType.All -> FictionType.ALL
-    UiFictionType.Original -> FictionType.ORIGINAL
-    UiFictionType.FanFiction -> FictionType.FAN_FICTION
-}
-
-private fun UiContentWarning.toData(): ContentWarning = when (this) {
-    UiContentWarning.Profanity -> ContentWarning.PROFANITY
-    UiContentWarning.SexualContent -> ContentWarning.SEXUAL_CONTENT
-    UiContentWarning.GraphicViolence -> ContentWarning.GRAPHIC_VIOLENCE
-    UiContentWarning.SensitiveContent -> ContentWarning.SENSITIVE_CONTENT
-    UiContentWarning.AiAssisted -> ContentWarning.AI_ASSISTED
-    UiContentWarning.AiGenerated -> ContentWarning.AI_GENERATED
-}
-
-private fun UiSearchOrder.toData(): SearchOrder = when (this) {
-    UiSearchOrder.Relevance -> SearchOrder.RELEVANCE
-    UiSearchOrder.Popularity -> SearchOrder.POPULARITY
-    UiSearchOrder.Rating -> SearchOrder.RATING
-    UiSearchOrder.LastUpdate -> SearchOrder.LAST_UPDATE
-    UiSearchOrder.ReleaseDate -> SearchOrder.RELEASE_DATE
-    UiSearchOrder.Followers -> SearchOrder.FOLLOWERS
-    UiSearchOrder.Length -> SearchOrder.LENGTH
-    UiSearchOrder.Views -> SearchOrder.VIEWS
-    UiSearchOrder.Title -> SearchOrder.TITLE
-}
-
-private fun UiSortDirection.toData(): SortDirection = when (this) {
-    UiSortDirection.Asc -> SortDirection.ASC
-    UiSortDirection.Desc -> SortDirection.DESC
 }
 
 /**

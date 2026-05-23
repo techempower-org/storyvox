@@ -249,38 +249,12 @@ sealed interface BrowseSource {
     data object NewReleases : BrowseSource
     data object BestRated : BrowseSource
     data class Search(val query: String) : BrowseSource
-    data class Filtered(val filter: BrowseFilter) : BrowseSource
-    /**
-     * GitHub-shaped filter routed through `/search/repositories`.
-     * `query` is the user's typed search term (may be blank); the
-     * filter contributes additional GitHub query qualifiers (stars,
-     * language, pushed-since, sort).
-     */
-    data class FilteredGitHub(
+    data class Filtered(
         val query: String,
-        val filter: GitHubSearchFilter,
+        val state: `in`.jphe.storyvox.data.source.filter.FilterState,
     ) : BrowseSource
 
-    /**
-     * MemPalace wing-scoped listing (#191). Routes through
-     * `FictionRepository.browseByGenre(genre)`, which on MemPalace's
-     * source resolves to `MemPalaceSource.byGenre(wing)` — top rooms
-     * inside the wing by drawer count.
-     */
     data class ByGenre(val genre: String) : BrowseSource
-
-    /**
-     * Generic filtered listing (#693). The sourceId carried alongside
-     * the paginator binding tells the adapter which source-specific
-     * `SearchQuery` translation to apply. `query` is the optional
-     * free-text term (Search tab); empty `query` + an active filter
-     * still produces a listing because most sources fall back to a
-     * filtered Popular / Recent surface when the term is blank.
-     */
-    data class GenericFiltered(
-        val query: String,
-        val filter: GenericBrowseFilter,
-    ) : BrowseSource
 
     /**
      * Auth-gated `/user/repos` listing for the signed-in GitHub user

@@ -288,20 +288,16 @@ fun BrowseScreen(
             // `BrowseSourceKey` enum. RR / GitHub / MemPalace are the
             // three filter-bearing surfaces today; everything else
             // hides the button.
-            val shape = BrowseSourceUi.filterShape(state.sourceId)
-            if (shape != FilterShape.None) {
+            val hasDynamicFilters = state.filterDimensions.isNotEmpty()
+            val hasPalaceWing = state.sourceId == SourceIds.MEMPALACE
+            if (hasDynamicFilters || hasPalaceWing) {
+                val activeCount = if (hasPalaceWing) {
+                    if (state.palaceFilter.wing != null) 1 else 0
+                } else {
+                    state.filterState.activeCount()
+                }
                 FilterButton(
-                    activeCount = when (shape) {
-                        FilterShape.RoyalRoad -> state.filter.activeCount()
-                        FilterShape.GitHub -> state.githubFilter.activeCount()
-                        // #191 — single dimension (wing) so badge counts
-                        // at most 1.
-                        FilterShape.MemPalace -> if (state.palaceFilter.wing != null) 1 else 0
-                        // #693 — generic filter badge counts non-default
-                        // sort + category + language + dateRange knobs.
-                        FilterShape.Generic -> state.genericFilter.activeCount()
-                        FilterShape.None -> 0
-                    },
+                    activeCount = activeCount,
                     onClick = { showFilterSheet = true },
                 )
             }
@@ -374,7 +370,7 @@ fun BrowseScreen(
                     onSearchAnonymously = { viewModel.selectTab(BrowseTab.Search) },
                 )
             state.isLoading && state.items.isEmpty() -> SkeletonGrid()
-            state.tab == BrowseTab.Search && state.query.isBlank() && !state.isFilterActive ->
+            state.tab == BrowseTab.Search && state.query.isBlank() && !state.filterState.isActive() ->
                 SearchHint(state.sourceId, state.visibleSources)
             // Issue #458 — RSS chip on a fresh install shows the Popular
             // tab with no subscribed feeds, which used to render as a
@@ -434,7 +430,7 @@ fun BrowseScreen(
                 // hands us a fresh items list anyway; we just nudge the
                 // viewport back to the start so the user doesn't land
                 // mid-scroll into a different listing.
-                LaunchedEffect(state.sourceId, state.tab, state.query, state.filter) {
+                LaunchedEffect(state.sourceId, state.tab, state.query, state.filterState) {
                     if (gridState.firstVisibleItemIndex != 0) {
                         gridState.scrollToItem(0)
                     }
@@ -592,33 +588,8 @@ fun BrowseScreen(
     }
 
     if (showFilterSheet) {
-        when (BrowseSourceUi.filterShape(state.sourceId)) {
-            FilterShape.RoyalRoad -> BrowseFilterSheet(
-                filter = state.filter,
-                onApply = { applied ->
-                    viewModel.setFilter(applied)
-                    showFilterSheet = false
-                },
-                onReset = {
-                    viewModel.resetFilter()
-                    showFilterSheet = false
-                },
-                onDismiss = { showFilterSheet = false },
-            )
-            FilterShape.GitHub -> GitHubFilterSheet(
-                filter = state.githubFilter,
-                onApply = { applied ->
-                    viewModel.setGitHubFilter(applied)
-                    showFilterSheet = false
-                },
-                onReset = {
-                    viewModel.resetGitHubFilter()
-                    showFilterSheet = false
-                },
-                onDismiss = { showFilterSheet = false },
-                showVisibilityChips = state.hasGitHubRepoScope,
-            )
-            FilterShape.MemPalace -> MemPalaceFilterSheet(
+        if (state.sourceId == SourceIds.MEMPALACE) {
+            MemPalaceFilterSheet(
                 filter = state.palaceFilter,
                 wings = state.palaceWings,
                 onApply = { applied ->
@@ -631,35 +602,25 @@ fun BrowseScreen(
                 },
                 onDismiss = { showFilterSheet = false },
             )
-            // #693 — generic sort/category/language/dateRange sheet.
-            // Used by RSS / Outline / Gutenberg / AO3 / Standard Ebooks /
-            // Wikipedia / Wikisource / Notion / Hacker News / arXiv /
-            // PLOS. The exact rows rendered are gated by
-            // [BrowseSourceUi.genericCapabilities].
-            FilterShape.Generic -> {
-                val descriptor = state.visibleSources.firstOrNull { it.id == state.sourceId }
-                val sourceLabel = descriptor?.displayName ?: state.sourceId
-                GenericBrowseFilterSheet(
-                    sourceLabel = sourceLabel,
-                    filter = state.genericFilter,
-                    capabilities = BrowseSourceUi.genericCapabilities(state.sourceId),
-                    onApply = { applied ->
-                        viewModel.setGenericFilter(applied)
-                        showFilterSheet = false
-                    },
-                    onReset = {
-                        viewModel.resetGenericFilter()
-                        showFilterSheet = false
-                    },
-                    onDismiss = { showFilterSheet = false },
-                )
-            }
-            // Truly filterless sources (EPUB / KVMR / Discord / Matrix /
-            // Telegram / Slack / Radio / Readability / Palace) collapse
-            // here. The toolbar filter button is hidden via
-            // [BrowseSourceUi.filterShape], so reaching this branch is
-            // defensive only.
-            FilterShape.None -> { showFilterSheet = false }
+        } else if (state.filterDimensions.isNotEmpty()) {
+            val descriptor = state.visibleSources.firstOrNull { it.id == state.sourceId }
+            val sourceLabel = descriptor?.displayName ?: state.sourceId
+            DynamicFilterSheet(
+                sourceLabel = sourceLabel,
+                dimensions = state.filterDimensions,
+                state = state.filterState,
+                onApply = { applied ->
+                    viewModel.setFilterState(applied)
+                    showFilterSheet = false
+                },
+                onReset = {
+                    viewModel.resetFilterState()
+                    showFilterSheet = false
+                },
+                onDismiss = { showFilterSheet = false },
+            )
+        } else {
+            showFilterSheet = false
         }
     }
 }
