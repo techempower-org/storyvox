@@ -930,15 +930,6 @@ fun AudiobookView(
             }
         }
 
-        // Issue #736 — chapter list bottom sheet. Lists every chapter
-        // of the currently-playing fiction so the listener can jump to
-        // an arbitrary chapter without leaving the player surface (the
-        // pre-#736 alternative was navigating back to FictionDetail in
-        // the Library tab). Tapping a row calls [onPlayChapter] —
-        // wired to ReaderViewModel.playChapter — and dismisses the
-        // sheet. The currently-playing chapter is highlighted; the
-        // LazyColumn auto-scrolls to it on open so the listener lands
-        // in context instead of at chapter 1.
         if (showChapterListSheet) {
             val chapterSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
             val chapterScope = rememberCoroutineScope()
@@ -963,25 +954,6 @@ fun AudiobookView(
     }
 }
 
-/**
- * Issue #736 — chapter list bottom sheet content. Renders inside the
- * ModalBottomSheet hoisted by [AudiobookView]; the sheet chrome
- * (scrim, container, dismiss) is the caller's responsibility so this
- * composable focuses purely on row layout + scroll behaviour.
- *
- * Rows are deliberately denser than [`in`.jphe.storyvox.ui.component.ChapterCard]
- * (the FictionDetail list affordance): the listener is picking, not
- * browsing, so chapter number + title + duration in a single row
- * keeps more chapters in view at a glance. The currently-playing
- * chapter is highlighted via primary-container background; the
- * LazyColumn auto-scrolls to it on open so the user lands in context
- * (an 80-chapter fiction opens scrolled to chapter 47 rather than at
- * the top of the list).
- *
- * Tap behaviour delegates to [onChapterSelected] — the caller
- * dismisses the sheet AND fires [`ReaderViewModel.playChapter`] in
- * the same callback.
- */
 @Composable
 private fun ChapterListSheet(
     chapters: List<`in`.jphe.storyvox.feature.api.UiChapter>,
@@ -994,10 +966,6 @@ private fun ChapterListSheet(
     }
     val listState = rememberLazyListState()
     LaunchedEffect(currentIndex) {
-        // Auto-scroll to the current chapter on open. coerceAtLeast(0)
-        // above means the worst-case fallback is scrolling to the top
-        // when the chapter list and the playback state haven't reconciled
-        // yet — still safe to invoke scrollToItem with 0.
         if (chapters.isNotEmpty()) listState.scrollToItem(currentIndex)
     }
     Column(
@@ -1013,9 +981,6 @@ private fun ChapterListSheet(
             modifier = Modifier.padding(vertical = spacing.sm),
         )
         if (chapters.isEmpty()) {
-            // Empty state — fiction is still loading its chapter list,
-            // or the source returned zero chapters (unlikely on the
-            // player surface, but cheap to handle).
             Text(
                 text = "No chapters available yet.",
                 style = MaterialTheme.typography.bodyMedium,
@@ -1040,15 +1005,6 @@ private fun ChapterListSheet(
     }
 }
 
-/**
- * Issue #736 — single chapter row inside [ChapterListSheet]. Denser
- * than [`in`.jphe.storyvox.ui.component.ChapterCard]: a single line
- * carrying "Ch N · Title" with a trailing duration label, primary-
- * container background when current. Uses semantics(mergeDescendants
- * = true) so TalkBack reads the row as one unit ("Chapter 6, The
- * Brass Sigil, 28 minutes, currently playing") rather than five
- * separate text nodes — matches the PR #748 a11y pattern.
- */
 @Composable
 private fun ChapterListRow(
     chapter: `in`.jphe.storyvox.feature.api.UiChapter,
@@ -1981,12 +1937,7 @@ internal fun PlayerQuickChips(
     onStartSleepTimer: (UiSleepTimerMode) -> Unit,
     onCancelSleepTimer: () -> Unit,
     onPickVoice: () -> Unit,
-    /** Issue #736 — total chapter count for the "Chapters · N" assist
-     *  chip label. Zero hides the chip entirely (no fiction loaded yet
-     *  / chapter list still resolving), so the row collapses cleanly
-     *  on initial cold-start. */
     chapterCount: Int = 0,
-    /** Issue #736 — opens the [ChapterListSheet] when tapped. */
     onOpenChapterList: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
@@ -2133,17 +2084,6 @@ internal fun PlayerQuickChips(
                     },
             )
         }
-        // Row 4 — chapter list quick chip (issue #736). The pre-#736
-        // player had skip-prev/next chapter on the transport row but no
-        // way to jump to an arbitrary chapter without bouncing back to
-        // FictionDetail in the Library tab. The single Chapters chip
-        // opens a [ChapterListSheet] modal — same brass-edged sheet
-        // aesthetic as the voice/overflow sheets, populated from the
-        // ReaderViewModel's chapters StateFlow.
-        //
-        // The chip hides itself when the list is empty (cold-start,
-        // fiction without resolved chapter list) so the row collapses
-        // cleanly rather than rendering a tap-to-do-nothing affordance.
         if (chapterCount > 0) {
             Row(
                 modifier = Modifier.fillMaxWidth(),

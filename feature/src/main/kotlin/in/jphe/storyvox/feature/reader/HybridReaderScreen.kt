@@ -304,14 +304,6 @@ fun HybridReaderScreen(
                 // the cover surfaces a typed reason whenever no audio
                 // is reaching the speakers.
                 waitReason = state.waitReason,
-                // Issue #736 — chapter list quick chip on the player
-                // surface. The chip opens a ModalBottomSheet listing
-                // every chapter of the currently-playing fiction so the
-                // listener can jump to an arbitrary chapter without
-                // navigating back to FictionDetail. The list is sourced
-                // from FictionRepositoryUi.chaptersFor() reactive over
-                // the playback state's fictionId, so a mid-session
-                // fiction swap re-resolves naturally.
                 chapters = chapters,
                 onPlayChapter = viewModel::playChapter,
             )
