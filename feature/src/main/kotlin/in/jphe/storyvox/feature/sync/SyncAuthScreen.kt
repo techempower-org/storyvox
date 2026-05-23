@@ -23,6 +23,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
@@ -33,6 +34,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import `in`.jphe.storyvox.feature.R
 import `in`.jphe.storyvox.ui.component.MagicCircularProgress
 
 /**
@@ -60,7 +62,7 @@ fun SyncAuthScreen(
     Scaffold(
         modifier = modifier,
         topBar = {
-            TopAppBar(title = { Text("Sync") })
+            TopAppBar(title = { Text(stringResource(R.string.sync_title)) })
         },
     ) { padding ->
         Column(
@@ -132,7 +134,7 @@ private fun SignedOutForm(
     OutlinedTextField(
         value = email,
         onValueChange = onEmailChange,
-        label = { Text("Email") },
+        label = { Text(stringResource(R.string.sync_email_label)) },
         singleLine = true,
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
         modifier = Modifier.fillMaxWidth(),
@@ -144,7 +146,7 @@ private fun SignedOutForm(
         onClick = onSubmit,
         modifier = Modifier.fillMaxWidth(),
         colors = ButtonDefaults.buttonColors(),
-    ) { Text("Send code") }
+    ) { Text(stringResource(R.string.sync_send_code)) }
 }
 
 @Composable
@@ -165,7 +167,7 @@ private fun CodePromptForm(
     OutlinedTextField(
         value = code,
         onValueChange = onCodeChange,
-        label = { Text("6-digit code") },
+        label = { Text(stringResource(R.string.sync_code_label)) },
         singleLine = true,
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
         modifier = Modifier.fillMaxWidth(),
@@ -176,12 +178,12 @@ private fun CodePromptForm(
     Button(
         onClick = onSubmit,
         modifier = Modifier.fillMaxWidth(),
-    ) { Text("Verify") }
+    ) { Text(stringResource(R.string.sync_verify)) }
     Spacer(Modifier.height(8.dp))
     OutlinedButton(
         onClick = onReset,
         modifier = Modifier.fillMaxWidth(),
-    ) { Text("Use a different email") }
+    ) { Text(stringResource(R.string.sync_different_email)) }
 }
 
 @Composable
@@ -236,10 +238,10 @@ private fun SignedInPanel(
     Button(
         onClick = onClose,
         modifier = Modifier.fillMaxWidth(),
-    ) { Text("Done") }
+    ) { Text(stringResource(R.string.sync_done)) }
     Spacer(Modifier.height(8.dp))
     OutlinedButton(
         onClick = onSignOut,
         modifier = Modifier.fillMaxWidth(),
-    ) { Text("Sign out") }
+    ) { Text(stringResource(R.string.sync_sign_out)) }
 }

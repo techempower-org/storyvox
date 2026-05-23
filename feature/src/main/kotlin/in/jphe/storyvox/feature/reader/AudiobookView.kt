@@ -87,7 +87,9 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import `in`.jphe.storyvox.feature.R
 import `in`.jphe.storyvox.feature.api.UiPlaybackState
 import `in`.jphe.storyvox.feature.api.UiSleepTimerMode
 import `in`.jphe.storyvox.ui.component.BrassButton
@@ -229,13 +231,12 @@ fun AudiobookView(
     // state flow takes over and we route back to the normal player UI.
     if (loadingPhase == LoadingPhase.TimedOut) {
         ErrorBlock(
-            title = "Couldn't load this chapter",
-            message = "The voice or chapter text is taking longer than expected. " +
-                "Try again, or pick a different voice — some take a moment to warm up.",
+            title = stringResource(R.string.reader_couldnt_load_chapter),
+            message = stringResource(R.string.reader_couldnt_load_message),
             onRetry = onRetryLoading,
-            retryLabel = "Try again",
+            retryLabel = stringResource(R.string.reader_try_again),
             onBack = onPickVoice,
-            backLabel = "Pick a different voice",
+            backLabel = stringResource(R.string.reader_pick_different_voice),
             placement = ErrorPlacement.FullScreen,
             modifier = modifier,
         )
@@ -372,8 +373,8 @@ fun AudiobookView(
                                 interactionSource = voiceInteraction,
                                 indication = ripple(bounded = false, radius = 24.dp),
                                 role = androidx.compose.ui.semantics.Role.Button,
-                                onClickLabel = "Voice settings",
-                                onLongClickLabel = "Open Voice Library",
+                                onClickLabel = stringResource(R.string.reader_voice_settings),
+                                onLongClickLabel = stringResource(R.string.reader_open_voice_library),
                                 onClick = { showVoiceSheet = true },
                                 onLongClick = onPickVoice,
                             ),
@@ -505,7 +506,7 @@ fun AudiobookView(
                             }
                             .clickable(
                                 role = androidx.compose.ui.semantics.Role.Button,
-                                onClickLabel = if (state.isPlaying) "Pause" else "Play",
+                                onClickLabel = if (state.isPlaying) stringResource(R.string.reader_pause) else stringResource(R.string.reader_play),
                                 onClick = {
                                     // Capture the icon BEFORE firing the
                                     // toggle: tapping a playing chapter
@@ -975,7 +976,7 @@ private fun ChapterListSheet(
             .padding(bottom = spacing.lg),
     ) {
         Text(
-            text = "Chapters",
+            text = stringResource(R.string.reader_chapters),
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.primary,
             modifier = Modifier.padding(vertical = spacing.sm),
@@ -1160,7 +1161,7 @@ private fun SleepTimerCountdownChip(remainingMs: Long, onCancel: () -> Unit) {
     AssistChip(
         onClick = onCancel,
         label = {
-            Text("Sleeping in ${"%d:%02d".format(mins, secs)}", style = MaterialTheme.typography.labelMedium)
+            Text(stringResource(R.string.reader_sleep_sleeping_in, mins, secs), style = MaterialTheme.typography.labelMedium)
         },
         leadingIcon = {
             Icon(Icons.Outlined.Bedtime, contentDescription = null)
@@ -1216,7 +1217,7 @@ private fun PlayerOverflowSheet(
         // these sit in the options sheet for users who want
         // sentence-precision rewind/fast-forward (re-listen the line
         // you just heard, or skip a sentence you didn't want).
-        SheetHeader("Step by sentence", null)
+        SheetHeader(stringResource(R.string.reader_sleep_step_by_sentence), null)
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -1225,20 +1226,20 @@ private fun PlayerOverflowSheet(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             BrassButton(
-                label = "← Previous",
+                label = stringResource(R.string.reader_step_previous),
                 onClick = onPreviousSentence,
                 variant = BrassButtonVariant.Secondary,
                 modifier = Modifier.weight(1f),
             )
             BrassButton(
-                label = "Next →",
+                label = stringResource(R.string.reader_step_next),
                 onClick = onNextSentence,
                 variant = BrassButtonVariant.Secondary,
                 modifier = Modifier.weight(1f),
             )
         }
 
-        SheetHeader("Sleep timer", null)
+        SheetHeader(stringResource(R.string.reader_sleep_timer), null)
         SleepTimerChips(
             activeRemainingMs = state.sleepTimerRemainingMs,
             onStart = onStartSleepTimer,
@@ -1249,14 +1250,14 @@ private fun PlayerOverflowSheet(
         // drops a marker at the current playback position; "Jump to
         // bookmark" seeks to it. Both fire-and-forget; the controller
         // no-ops gracefully when nothing is loaded / no bookmark exists.
-        SheetHeader("Bookmark", null)
+        SheetHeader(stringResource(R.string.reader_bookmark_header), null)
         // a11y (#481): Role.Button for the action rows in the
         // bookmark / smart-feature sheet — TalkBack reads the title
         // text via merge, plus the Button role + onClickLabel verb.
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable(role = Role.Button, onClickLabel = "Bookmark here", onClick = onBookmarkHere)
+                .clickable(role = Role.Button, onClickLabel = stringResource(R.string.reader_bookmark_here), onClick = onBookmarkHere)
                 .padding(vertical = spacing.xs),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(spacing.sm),
@@ -1267,9 +1268,9 @@ private fun PlayerOverflowSheet(
                 tint = MaterialTheme.colorScheme.primary,
             )
             Column(modifier = Modifier.weight(1f)) {
-                Text("Bookmark here", style = MaterialTheme.typography.bodyMedium)
+                Text(stringResource(R.string.reader_bookmark_here), style = MaterialTheme.typography.bodyMedium)
                 Text(
-                    "Drop a marker at the current position",
+                    stringResource(R.string.reader_bookmark_here_subtitle),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -1278,7 +1279,7 @@ private fun PlayerOverflowSheet(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable(role = Role.Button, onClickLabel = "Jump to bookmark", onClick = onJumpToBookmark)
+                .clickable(role = Role.Button, onClickLabel = stringResource(R.string.reader_jump_to_bookmark), onClick = onJumpToBookmark)
                 .padding(vertical = spacing.xs),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(spacing.sm),
@@ -1289,9 +1290,9 @@ private fun PlayerOverflowSheet(
                 tint = MaterialTheme.colorScheme.primary,
             )
             Column(modifier = Modifier.weight(1f)) {
-                Text("Jump to bookmark", style = MaterialTheme.typography.bodyMedium)
+                Text(stringResource(R.string.reader_jump_to_bookmark), style = MaterialTheme.typography.bodyMedium)
                 Text(
-                    "Resume from the marker you set",
+                    stringResource(R.string.reader_jump_to_bookmark_subtitle),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -1306,11 +1307,11 @@ private fun PlayerOverflowSheet(
         // than two-tap behind the ⋮.
 
         // ── Chapter Recap (issue #81) — opens the librarian modal ──
-        SheetHeader("Smart features", null)
+        SheetHeader(stringResource(R.string.reader_smart_features), null)
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable(role = Role.Button, onClickLabel = "Recap so far", onClick = onRequestRecap)
+                .clickable(role = Role.Button, onClickLabel = stringResource(R.string.reader_recap_so_far), onClick = onRequestRecap)
                 .padding(vertical = spacing.xs),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(spacing.sm),
@@ -1321,9 +1322,9 @@ private fun PlayerOverflowSheet(
                 tint = MaterialTheme.colorScheme.primary,
             )
             Column(modifier = Modifier.weight(1f)) {
-                Text("Recap so far", style = MaterialTheme.typography.bodyMedium)
+                Text(stringResource(R.string.reader_recap_so_far), style = MaterialTheme.typography.bodyMedium)
                 Text(
-                    "Ask the librarian to summarize the last few chapters",
+                    stringResource(R.string.reader_recap_subtitle),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -1339,7 +1340,7 @@ private fun PlayerOverflowSheet(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable(role = Role.Button, onClickLabel = "Open librarian chat", onClick = onOpenChat)
+                .clickable(role = Role.Button, onClickLabel = stringResource(R.string.reader_open_librarian_chat), onClick = onOpenChat)
                 .padding(vertical = spacing.xs),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(spacing.sm),
@@ -1350,9 +1351,9 @@ private fun PlayerOverflowSheet(
                 tint = MaterialTheme.colorScheme.primary,
             )
             Column(modifier = Modifier.weight(1f)) {
-                Text("Ask the AI", style = MaterialTheme.typography.bodyMedium)
+                Text(stringResource(R.string.reader_ask_the_ai), style = MaterialTheme.typography.bodyMedium)
                 Text(
-                    "Chat about plot, characters, pacing, and craft",
+                    stringResource(R.string.reader_ask_ai_subtitle),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -1400,21 +1401,21 @@ private fun SleepTimerChips(
         FilterChip(
             selected = !isActive,
             onClick = { onCancel() },
-            label = { Text("Off") },
+            label = { Text(stringResource(R.string.reader_sleep_off)) },
             colors = brassFilterChipColors(),
         )
         listOf(15, 30, 45, 60).forEach { minutes ->
             FilterChip(
                 selected = false,
                 onClick = { onStart(UiSleepTimerMode.Duration(minutes)) },
-                label = { Text("${minutes}m") },
+                label = { Text(stringResource(R.string.reader_sleep_minutes, minutes)) },
                 colors = brassFilterChipColors(),
             )
         }
         FilterChip(
             selected = false,
             onClick = { onStart(UiSleepTimerMode.EndOfChapter) },
-            label = { Text("End") },
+            label = { Text(stringResource(R.string.reader_sleep_end)) },
             colors = brassFilterChipColors(),
         )
     }
@@ -2011,21 +2012,21 @@ internal fun PlayerQuickChips(
                 FilterChip(
                     selected = !sleepActive,
                     onClick = { onCancelSleepTimer() },
-                    label = { Text("Off") },
+                    label = { Text(stringResource(R.string.reader_sleep_off)) },
                     colors = brassFilterChipColors(),
                 )
                 SLEEP_TIMER_PRESETS_MIN.forEach { minutes ->
                     FilterChip(
                         selected = false,
                         onClick = { onStartSleepTimer(UiSleepTimerMode.Duration(minutes)) },
-                        label = { Text("${minutes}m") },
+                        label = { Text(stringResource(R.string.reader_sleep_minutes, minutes)) },
                         colors = brassFilterChipColors(),
                     )
                 }
                 FilterChip(
                     selected = false,
                     onClick = { onStartSleepTimer(UiSleepTimerMode.EndOfChapter) },
-                    label = { Text("End") },
+                    label = { Text(stringResource(R.string.reader_sleep_end)) },
                     colors = brassFilterChipColors(),
                 )
             }

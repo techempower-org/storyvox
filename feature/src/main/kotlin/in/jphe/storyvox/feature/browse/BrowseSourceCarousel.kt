@@ -73,6 +73,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
@@ -81,6 +82,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import `in`.jphe.storyvox.data.source.SourceIds
 import `in`.jphe.storyvox.data.source.plugin.SourcePluginDescriptor
+import `in`.jphe.storyvox.feature.R
 import `in`.jphe.storyvox.ui.theme.LocalSpacing
 import kotlinx.coroutines.launch
 
@@ -266,7 +268,7 @@ private fun BrowseSourceCard(
             .combinedClickable(
                 role = Role.Button,
                 onClickLabel = label,
-                onLongClickLabel = "Source options",
+                onLongClickLabel = stringResource(R.string.source_options),
                 onClick = onClick,
                 onLongClick = onLongClick,
             ),
@@ -429,11 +431,11 @@ private fun SourceContextSheet(
                 icon = if (isFavorite) Icons.Filled.Star else Icons.Filled.StarBorder,
                 iconTint = if (isFavorite) MaterialTheme.colorScheme.primary
                 else MaterialTheme.colorScheme.onSurface,
-                title = if (isFavorite) "Remove from favorites" else "Add to favorites",
+                title = if (isFavorite) stringResource(R.string.source_remove_from_favorites) else stringResource(R.string.source_add_to_favorites),
                 subtitle = if (isFavorite) {
-                    "Will keep its place in the list"
+                    stringResource(R.string.source_favorite_subtitle_remove)
                 } else {
-                    "Pins to the front of the carousel"
+                    stringResource(R.string.source_favorite_subtitle_add)
                 },
                 titleColor = MaterialTheme.colorScheme.onSurface,
                 testTag = "source-context-sheet-favorite",
@@ -444,8 +446,8 @@ private fun SourceContextSheet(
             SheetActionRow(
                 icon = Icons.Filled.VisibilityOff,
                 iconTint = MaterialTheme.colorScheme.error,
-                title = "Hide from Browse",
-                subtitle = "Re-enable from Settings -> Plugins",
+                title = stringResource(R.string.source_hide_title),
+                subtitle = stringResource(R.string.source_hide_subtitle),
                 titleColor = MaterialTheme.colorScheme.error,
                 testTag = "source-context-sheet-hide",
                 onClick = { dismissThen(onHide) },
@@ -523,30 +525,34 @@ private fun Modifier.androidxClickable(onClickLabel: String, onClick: () -> Unit
  * descriptor's category text or stay blank — the carousel doesn't crash
  * if a source has no row here, it just hides the tagline line.
  */
-private fun sourceTagline(id: String): String = when (id) {
-    SourceIds.ROYAL_ROAD -> "Web serials"
-    SourceIds.AO3 -> "Fanfiction archive"
-    SourceIds.GUTENBERG -> "Classic books"
-    SourceIds.STANDARD_EBOOKS -> "Polished classics"
-    SourceIds.WIKIPEDIA -> "Encyclopedia"
-    SourceIds.WIKISOURCE -> "Historic texts"
-    SourceIds.GITHUB -> "Repo READMEs"
-    SourceIds.RSS -> "Your feeds"
-    SourceIds.EPUB -> "Your EPUBs"
-    SourceIds.OUTLINE -> "Your wiki"
-    SourceIds.MEMPALACE -> "Your palace"
-    SourceIds.RADIO, SourceIds.KVMR -> "Live radio"
-    SourceIds.NOTION -> "Your Notion"
-    SourceIds.HACKERNEWS -> "Tech news"
-    SourceIds.ARXIV -> "Research papers"
-    SourceIds.PLOS -> "Open science"
-    SourceIds.DISCORD -> "Server channels"
-    SourceIds.MATRIX -> "Matrix rooms"
-    SourceIds.TELEGRAM -> "Channel posts"
-    SourceIds.SLACK -> "Workspace threads"
-    SourceIds.PALACE -> "Library borrows"
-    SourceIds.READABILITY -> "Paste any link"
-    else -> ""
+@Composable
+private fun sourceTagline(id: String): String {
+    val res = when (id) {
+        SourceIds.ROYAL_ROAD -> R.string.source_tagline_royal_road
+        SourceIds.AO3 -> R.string.source_tagline_ao3
+        SourceIds.GUTENBERG -> R.string.source_tagline_gutenberg
+        SourceIds.STANDARD_EBOOKS -> R.string.source_tagline_standard_ebooks
+        SourceIds.WIKIPEDIA -> R.string.source_tagline_wikipedia
+        SourceIds.WIKISOURCE -> R.string.source_tagline_wikisource
+        SourceIds.GITHUB -> R.string.source_tagline_github
+        SourceIds.RSS -> R.string.source_tagline_rss
+        SourceIds.EPUB -> R.string.source_tagline_epub
+        SourceIds.OUTLINE -> R.string.source_tagline_outline
+        SourceIds.MEMPALACE -> R.string.source_tagline_mempalace
+        SourceIds.RADIO, SourceIds.KVMR -> R.string.source_tagline_radio
+        SourceIds.NOTION -> R.string.source_tagline_notion
+        SourceIds.HACKERNEWS -> R.string.source_tagline_hackernews
+        SourceIds.ARXIV -> R.string.source_tagline_arxiv
+        SourceIds.PLOS -> R.string.source_tagline_plos
+        SourceIds.DISCORD -> R.string.source_tagline_discord
+        SourceIds.MATRIX -> R.string.source_tagline_matrix
+        SourceIds.TELEGRAM -> R.string.source_tagline_telegram
+        SourceIds.SLACK -> R.string.source_tagline_slack
+        SourceIds.PALACE -> R.string.source_tagline_palace
+        SourceIds.READABILITY -> R.string.source_tagline_readability
+        else -> return ""
+    }
+    return stringResource(res)
 }
 
 /**

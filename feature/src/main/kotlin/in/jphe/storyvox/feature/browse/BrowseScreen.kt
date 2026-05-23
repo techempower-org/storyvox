@@ -57,11 +57,13 @@ import kotlinx.coroutines.flow.filter
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import `in`.jphe.storyvox.data.source.SourceIds
+import `in`.jphe.storyvox.feature.R
 import `in`.jphe.storyvox.data.source.plugin.SourcePluginDescriptor
 import `in`.jphe.storyvox.feature.api.BrowseFilter
 import `in`.jphe.storyvox.ui.component.BrassButton
@@ -99,7 +101,7 @@ private fun BrowseScaffoldOrFrame(
         Scaffold(
             topBar = {
                 CenterAlignedTopAppBar(
-                    title = { Text("Browse", style = MaterialTheme.typography.titleMedium) },
+                    title = { Text(stringResource(R.string.browse_title), style = MaterialTheme.typography.titleMedium) },
                     actions = {
                         IconButton(onClick = onOpenSettings) {
                             Icon(Icons.Outlined.Settings, contentDescription = "Settings")
@@ -327,7 +329,7 @@ fun BrowseScreen(
             OutlinedTextField(
                 value = state.query,
                 onValueChange = viewModel::setQuery,
-                label = { Text("Search $sourceLabel") },
+                label = { Text(stringResource(R.string.browse_search_hint, sourceLabel)) },
                 modifier = Modifier.fillMaxWidth().padding(spacing.md),
                 singleLine = true,
             )
@@ -752,7 +754,7 @@ private fun NotionDemoBanner(onOpenSettings: () -> Unit) {
             androidx.compose.material3.TextButton(
                 onClick = onOpenSettings,
                 modifier = Modifier.padding(top = spacing.xs),
-            ) { Text("Have a Notion workspace? Connect it →") }
+            ) { Text(stringResource(R.string.browse_notion_connect_cta)) }
         }
     }
 }
@@ -792,7 +794,7 @@ private fun Ao3SignInBanner(onOpenSignIn: () -> Unit) {
             androidx.compose.material3.TextButton(
                 onClick = onOpenSignIn,
                 modifier = Modifier.padding(top = spacing.xs),
-            ) { Text("Sign in to AO3") }
+            ) { Text(stringResource(R.string.browse_ao3_signin_cta)) }
         }
     }
 }
@@ -1017,7 +1019,7 @@ private fun ActiveWingChip(
 ) {
     AssistChip(
         onClick = onClear,
-        label = { Text("Wing: ${prettifyWing(wing)}") },
+        label = { Text(stringResource(R.string.browse_mempalace_wing_chip, prettifyWing(wing))) },
         trailingIcon = {
             Icon(
                 Icons.Filled.Close,

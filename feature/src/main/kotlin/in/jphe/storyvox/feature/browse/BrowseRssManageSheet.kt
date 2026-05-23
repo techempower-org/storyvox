@@ -29,6 +29,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -36,6 +37,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import `in`.jphe.storyvox.feature.R
 import `in`.jphe.storyvox.feature.api.SuggestedFeed
 import `in`.jphe.storyvox.feature.api.SuggestedFeedKind
 import `in`.jphe.storyvox.ui.component.BrassButton
@@ -116,12 +118,12 @@ internal fun BrowseRssManageSheet(
             verticalArrangement = Arrangement.spacedBy(spacing.sm),
         ) {
             Text(
-                "Manage RSS feeds",
+                stringResource(R.string.rss_manage_title),
                 style = MaterialTheme.typography.titleLarge,
                 modifier = Modifier.padding(top = spacing.sm),
             )
             Text(
-                "Subscribe to any feed that publishes RSS or Atom. Storyvox treats each feed as one fiction; each item is a chapter.",
+                stringResource(R.string.rss_manage_description),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -133,8 +135,8 @@ internal fun BrowseRssManageSheet(
             OutlinedTextField(
                 value = draftUrl,
                 onValueChange = { draftUrl = it },
-                label = { Text("Feed URL") },
-                placeholder = { Text("https://example.com/feed.xml") },
+                label = { Text(stringResource(R.string.rss_feed_url_label)) },
+                placeholder = { Text(stringResource(R.string.rss_feed_url_placeholder)) },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(
                     keyboardType = KeyboardType.Uri,
@@ -150,7 +152,7 @@ internal fun BrowseRssManageSheet(
                 horizontalArrangement = Arrangement.End,
             ) {
                 BrassButton(
-                    label = "Add",
+                    label = stringResource(R.string.rss_add),
                     onClick = { submitDraft() },
                     variant = BrassButtonVariant.Primary,
                     enabled = draftUrl.isNotBlank(),
@@ -161,13 +163,13 @@ internal fun BrowseRssManageSheet(
 
             // ── Subscribed feeds ─────────────────────────────────────
             Text(
-                text = if (subs.isEmpty()) "No subscriptions yet" else "Your feeds (${subs.size})",
+                text = if (subs.isEmpty()) stringResource(R.string.rss_no_subscriptions) else stringResource(R.string.rss_your_feeds_count, subs.size),
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             if (subs.isEmpty()) {
                 Text(
-                    "Paste a feed URL above to subscribe, or pick from the suggested list below.",
+                    stringResource(R.string.rss_empty_hint),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -185,7 +187,7 @@ internal fun BrowseRssManageSheet(
                             overflow = TextOverflow.Ellipsis,
                         )
                         TextButton(onClick = { viewModel.removeRssFeedByUrl(url) }) {
-                            Text("Remove")
+                            Text(stringResource(R.string.rss_remove))
                         }
                     }
                 }
@@ -217,13 +219,13 @@ internal fun BrowseRssManageSheet(
                     .fillMaxWidth()
                     .clickable(
                         role = Role.Button,
-                        onClickLabel = if (suggestionsExpanded) "Collapse suggested feeds" else "Expand suggested feeds",
+                        onClickLabel = if (suggestionsExpanded) stringResource(R.string.rss_suggested_collapse) else stringResource(R.string.rss_suggested_expand),
                     ) { suggestionsExpanded = !suggestionsExpanded }
                     .padding(vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    text = if (suggestionsExpanded) "▾  Suggested feeds" else "▸  Suggested feeds",
+                    text = if (suggestionsExpanded) stringResource(R.string.rss_suggested_expanded_header) else stringResource(R.string.rss_suggested_collapsed_header),
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.weight(1f),
@@ -231,7 +233,7 @@ internal fun BrowseRssManageSheet(
             }
             if (!suggestionsExpanded) {
                 Text(
-                    text = "Tap to browse curated feeds (Buddhist & dharma, more coming).",
+                    text = stringResource(R.string.rss_suggested_collapsed_hint),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -276,26 +278,24 @@ private fun SuggestedFeedsList(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                         Text(
-                            text = when (feed.kind) {
-                                SuggestedFeedKind.Text ->
-                                    "Text articles — narrate well"
-                                SuggestedFeedKind.AudioPodcast ->
-                                    "Audio podcast — storyvox narrates show notes only"
-                            },
+                            text = stringResource(when (feed.kind) {
+                                SuggestedFeedKind.Text -> R.string.rss_kind_text
+                                SuggestedFeedKind.AudioPodcast -> R.string.rss_kind_audio_podcast
+                            }),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                         )
                     }
                     if (alreadyAdded) {
                         Text(
-                            text = "Added",
+                            text = stringResource(R.string.rss_already_added),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.padding(start = spacing.sm, end = spacing.sm),
                         )
                     } else {
                         BrassButton(
-                            label = "Add",
+                            label = stringResource(R.string.rss_add),
                             onClick = { onAdd(feed.url) },
                             variant = BrassButtonVariant.Text,
                             modifier = Modifier.padding(start = spacing.sm),

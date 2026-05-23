@@ -13,7 +13,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import `in`.jphe.storyvox.data.db.entity.Shelf
+import `in`.jphe.storyvox.feature.R
 import `in`.jphe.storyvox.ui.theme.LocalSpacing
 
 /**
@@ -45,7 +47,7 @@ fun ShelfChipRow(
         FilterChip(
             selected = selected is ShelfFilter.All,
             onClick = { onSelect(ShelfFilter.All) },
-            label = { Text("All") },
+            label = { Text(stringResource(R.string.library_shelf_all)) },
             colors = brassFilterChipColors(),
         )
         Shelf.ALL.forEach { shelf ->

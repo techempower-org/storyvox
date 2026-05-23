@@ -37,10 +37,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
+import `in`.jphe.storyvox.feature.R
 import `in`.jphe.storyvox.feature.api.UiPlaybackState
 import `in`.jphe.storyvox.ui.component.humanizeVoiceLabel
 import `in`.jphe.storyvox.ui.theme.LocalReducedMotion
@@ -113,7 +115,7 @@ internal fun VoiceQuickSheetContent(
         // below. The chip presets are the *fast path* — one tap and
         // the value is committed immediately. The slider stays
         // available for fine-tuning between presets.
-        QuickSheetHeader("Speed", "${"%.2f".format(state.speed)}×")
+        QuickSheetHeader(stringResource(R.string.reader_voice_speed_header), "${"%.2f".format(state.speed)}×")
         QuickSheetPresetChipRow(
             presets = SPEED_PRESETS,
             isSelected = { preset -> isSpeedPresetSelected(state.speed, preset) },
@@ -149,7 +151,7 @@ internal fun VoiceQuickSheetContent(
         // has no equivalent on a live stream the player can't re-encode.
         // Hiding rather than disabling keeps the sheet visually clean.
         if (!state.isLiveAudioChapter) {
-            QuickSheetHeader("Pitch", "${"%.2f".format(state.pitch)}×")
+            QuickSheetHeader(stringResource(R.string.reader_voice_pitch_header), "${"%.2f".format(state.pitch)}×")
             QuickSheetPresetChipRow(
                 presets = PITCH_PRESETS,
                 isSelected = { preset -> isPitchPresetSelected(state.pitch, preset) },
@@ -182,12 +184,13 @@ internal fun VoiceQuickSheetContent(
         // Tap-to-open-full-picker. The whole row is the touch target
         // (matches the established Player Options sheet pattern; the
         // previous IconButton-only target was undersized at 36 dp).
-        QuickSheetHeader("Voice", null)
+        QuickSheetHeader(stringResource(R.string.reader_voice_header), null)
         // a11y (#481): Role.Button + label for the voice-picker row.
+        val pickVoiceLabel = stringResource(R.string.reader_pick_voice)
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable(role = Role.Button, onClickLabel = "Pick voice", onClick = onPickVoice)
+                .clickable(role = Role.Button, onClickLabel = pickVoiceLabel, onClick = onPickVoice)
                 .padding(vertical = spacing.xs),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(spacing.sm),
@@ -203,11 +206,11 @@ internal fun VoiceQuickSheetContent(
                 // the raw `azure:en-US-BrianNeural` token. Falls back
                 // to "Pick a voice" via `ifBlank` when no voice is set.
                 Text(
-                    humanizeVoiceLabel(state.voiceLabel).ifBlank { "Pick a voice" },
+                    humanizeVoiceLabel(state.voiceLabel).ifBlank { stringResource(R.string.reader_pick_a_voice) },
                     style = MaterialTheme.typography.bodyMedium,
                 )
                 Text(
-                    "Tap to change",
+                    stringResource(R.string.reader_voice_tap_to_change),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -225,7 +228,7 @@ internal fun VoiceQuickSheetContent(
         // "Custom…" for users who want extra-slow narrator cadence.
         // 0× = rapid listening; 1× = audiobook-tuned default;
         // 2-3× = slow, a11y / language-learning cadence.
-        QuickSheetHeader("Sentence silence", "${"%.2f".format(punctuationPauseMultiplier)}×")
+        QuickSheetHeader(stringResource(R.string.reader_voice_sentence_silence_header), "${"%.2f".format(punctuationPauseMultiplier)}×")
         QuickSheetPresetChipRow(
             presets = PUNCTUATION_PAUSE_PRESETS,
             isSelected = { preset ->
@@ -263,11 +266,11 @@ internal fun VoiceQuickSheetContent(
         // so the listener isn't surprised the current chapter doesn't
         // change tone mid-stream.
         QuickSheetSwitchRow(
-            title = "High-quality pitch",
+            title = stringResource(R.string.reader_voice_high_quality_title),
             subtitle = if (pitchInterpolationHighQuality) {
-                "Smoother pitch-shifted audio. Applies on next chapter."
+                stringResource(R.string.reader_voice_high_quality_on)
             } else {
-                "Faster pitch shifting. Grittier at non-neutral pitch."
+                stringResource(R.string.reader_voice_high_quality_off)
             },
             checked = pitchInterpolationHighQuality,
             onCheckedChange = onSetPitchHighQuality,
@@ -285,7 +288,7 @@ internal fun VoiceQuickSheetContent(
                 .fillMaxWidth()
                 .clickable(
                     role = Role.Button,
-                    onClickLabel = if (advancedOpen) "Collapse advanced" else "Expand advanced",
+                    onClickLabel = if (advancedOpen) stringResource(R.string.reader_voice_collapse_advanced) else stringResource(R.string.reader_voice_expand_advanced),
                 ) { advancedOpen = !advancedOpen }
                 .padding(vertical = spacing.xs),
             verticalAlignment = Alignment.CenterVertically,
@@ -297,14 +300,14 @@ internal fun VoiceQuickSheetContent(
                 tint = MaterialTheme.colorScheme.primary,
             )
             Text(
-                "Advanced",
+                stringResource(R.string.reader_voice_advanced),
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.weight(1f),
             )
             Icon(
                 imageVector = if (advancedOpen) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
-                contentDescription = if (advancedOpen) "Collapse advanced" else "Expand advanced",
+                contentDescription = if (advancedOpen) stringResource(R.string.reader_voice_collapse_advanced) else stringResource(R.string.reader_voice_expand_advanced),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
@@ -323,7 +326,7 @@ internal fun VoiceQuickSheetContent(
                         .fillMaxWidth()
                         .clickable(
                             role = Role.Button,
-                            onClickLabel = "Open per-voice lexicon and Kokoro language",
+                            onClickLabel = stringResource(R.string.reader_voice_advanced_open_label),
                             onClick = onOpenAdvancedVoice,
                         )
                         .padding(vertical = spacing.xs),
@@ -332,11 +335,11 @@ internal fun VoiceQuickSheetContent(
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            "Per-voice lexicon + Kokoro language",
+                            stringResource(R.string.reader_voice_per_voice_lexicon),
                             style = MaterialTheme.typography.bodyMedium,
                         )
                         Text(
-                            "Open Voice Library for per-voice pronunciation rules and phonemizer overrides.",
+                            stringResource(R.string.reader_voice_per_voice_lexicon_subtitle),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -423,7 +426,7 @@ private fun QuickSheetPresetChipRow(
         FilterChip(
             selected = customExpanded,
             onClick = onToggleCustom,
-            label = { Text(if (customExpanded) "Custom" else "Custom…") },
+            label = { Text(if (customExpanded) stringResource(R.string.reader_voice_custom) else stringResource(R.string.reader_voice_custom_more)) },
             colors = brassFilterChipColors(),
             modifier = Modifier.semantics {
                 contentDescription = if (customExpanded) {

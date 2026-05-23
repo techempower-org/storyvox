@@ -32,10 +32,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import `in`.jphe.storyvox.feature.R
 import `in`.jphe.storyvox.ui.theme.LocalSpacing
 import java.text.DateFormat
 import java.util.Date
@@ -64,7 +66,7 @@ fun SessionsScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    Text("Sessions", style = MaterialTheme.typography.titleMedium)
+                    Text(stringResource(R.string.sessions_title), style = MaterialTheme.typography.titleMedium)
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
@@ -111,7 +113,7 @@ fun SessionsScreen(
     pendingDelete?.let { row ->
         AlertDialog(
             onDismissRequest = { pendingDelete = null },
-            title = { Text("Delete this session?") },
+            title = { Text(stringResource(R.string.sessions_delete_dialog_title)) },
             text = {
                 Text(
                     "Removes the chat history and all messages. Cannot be undone.",
@@ -122,10 +124,10 @@ fun SessionsScreen(
                 TextButton(onClick = {
                     viewModel.deleteSession(row.session.id)
                     pendingDelete = null
-                }) { Text("Delete") }
+                }) { Text(stringResource(R.string.sessions_delete)) }
             },
             dismissButton = {
-                TextButton(onClick = { pendingDelete = null }) { Text("Cancel") }
+                TextButton(onClick = { pendingDelete = null }) { Text(stringResource(R.string.sessions_cancel)) }
             },
         )
     }
@@ -185,7 +187,7 @@ private fun SessionCard(
                 horizontalArrangement = Arrangement.End,
             ) {
                 if (onOpen != null) {
-                    TextButton(onClick = onOpen) { Text("Open") }
+                    TextButton(onClick = onOpen) { Text(stringResource(R.string.sessions_open)) }
                 }
                 TextButton(onClick = onDelete) {
                     Icon(
@@ -193,7 +195,7 @@ private fun SessionCard(
                         contentDescription = null,
                         modifier = Modifier.padding(end = 4.dp),
                     )
-                    Text("Delete")
+                    Text(stringResource(R.string.sessions_delete))
                 }
             }
         }

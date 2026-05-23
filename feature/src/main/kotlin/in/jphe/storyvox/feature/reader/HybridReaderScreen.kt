@@ -19,10 +19,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import `in`.jphe.storyvox.feature.R
 import `in`.jphe.storyvox.feature.debug.DebugOverlay
 import `in`.jphe.storyvox.feature.debug.DebugViewModel
 import `in`.jphe.storyvox.ui.component.BrassButton
@@ -428,8 +430,7 @@ private fun ExplicitArgsLoadingPrompt(
                 )
                 Spacer(Modifier.height(spacing.xs))
                 Text(
-                    text = "The voice engine is taking longer than expected. " +
-                        "Try again, or back out to the chapter list.",
+                    text = stringResource(R.string.reader_voice_engine_slow_body),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
@@ -437,12 +438,12 @@ private fun ExplicitArgsLoadingPrompt(
                 Spacer(Modifier.height(spacing.lg))
                 Row(horizontalArrangement = Arrangement.spacedBy(spacing.sm)) {
                     BrassButton(
-                        label = "Back",
+                        label = stringResource(R.string.reader_back),
                         onClick = onBack,
                         variant = BrassButtonVariant.Secondary,
                     )
                     BrassButton(
-                        label = "Retry",
+                        label = stringResource(R.string.reader_retry),
                         onClick = onRetry,
                         variant = BrassButtonVariant.Primary,
                     )
@@ -462,14 +463,13 @@ private fun ExplicitArgsLoadingPrompt(
                 )
                 Spacer(Modifier.height(spacing.md))
                 Text(
-                    text = "Still loading…",
+                    text = stringResource(R.string.reader_still_loading),
                     style = MaterialTheme.typography.titleSmall,
                     color = MaterialTheme.colorScheme.primary,
                 )
                 Spacer(Modifier.height(spacing.xs))
                 Text(
-                    text = "Cold-start of a slow voice or large chapter " +
-                        "can take a moment.",
+                    text = stringResource(R.string.reader_still_loading_subtitle),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
@@ -488,7 +488,7 @@ private fun ExplicitArgsLoadingPrompt(
                 )
                 Spacer(Modifier.height(spacing.md))
                 Text(
-                    text = "Loading chapter…",
+                    text = stringResource(R.string.reader_loading_chapter),
                     style = MaterialTheme.typography.titleSmall,
                     color = MaterialTheme.colorScheme.primary,
                 )
@@ -515,28 +515,27 @@ private fun BookFinishedOverlay(
         title = {
             Text(
                 text = if (fictionTitle.isNullOrBlank()) {
-                    "You finished this book."
+                    stringResource(R.string.reader_book_finished_no_title)
                 } else {
-                    "You finished “$fictionTitle”"
+                    stringResource(R.string.reader_book_finished_with_title, fictionTitle)
                 },
                 style = MaterialTheme.typography.titleLarge,
             )
         },
         text = {
             Text(
-                text = "Beautiful work. The story is over — for now. " +
-                    "Where would you like to go next?",
+                text = stringResource(R.string.reader_book_finished_body),
                 style = MaterialTheme.typography.bodyMedium,
             )
         },
         confirmButton = {
             androidx.compose.material3.TextButton(onClick = onBrowseMore) {
-                Text("Browse the realms")
+                Text(stringResource(R.string.reader_browse_realms))
             }
         },
         dismissButton = {
             androidx.compose.material3.TextButton(onClick = onBackToLibrary) {
-                Text("Back to Library")
+                Text(stringResource(R.string.reader_back_to_library))
             }
         },
     )

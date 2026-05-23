@@ -22,6 +22,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import `in`.jphe.storyvox.feature.R
 import `in`.jphe.storyvox.feature.api.MemPalaceFilter
 import `in`.jphe.storyvox.ui.component.BrassButton
 import `in`.jphe.storyvox.ui.component.BrassButtonVariant
@@ -63,14 +65,14 @@ fun MemPalaceFilterSheet(
             verticalArrangement = Arrangement.spacedBy(spacing.md),
         ) {
             Text(
-                "Filter by wing",
+                stringResource(R.string.mempalace_filter_title),
                 style = MaterialTheme.typography.titleLarge,
                 modifier = Modifier.padding(top = spacing.sm),
             )
 
             if (wings.isEmpty()) {
                 Text(
-                    "No wings reachable. Confirm your palace daemon is configured under Settings → Memory Palace.",
+                    stringResource(R.string.mempalace_no_wings),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -82,7 +84,7 @@ fun MemPalaceFilterSheet(
                 verticalArrangement = Arrangement.spacedBy(spacing.xs),
             ) {
                 WingChip(
-                    label = "All",
+                    label = stringResource(R.string.mempalace_chip_all),
                     selected = local.wing == null,
                     onClick = { local = local.copy(wing = null) },
                 )
@@ -102,11 +104,11 @@ fun MemPalaceFilterSheet(
                 OutlinedButton(
                     onClick = onReset,
                     modifier = Modifier.weight(1f),
-                ) { Text("Reset") }
+                ) { Text(stringResource(R.string.filter_reset)) }
                 Button(
                     onClick = { onApply(local) },
                     modifier = Modifier.weight(2f),
-                ) { Text("Apply") }
+                ) { Text(stringResource(R.string.filter_apply)) }
             }
         }
     }

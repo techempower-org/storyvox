@@ -26,10 +26,12 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import `in`.jphe.storyvox.data.TechEmpowerLinks
+import `in`.jphe.storyvox.feature.R
 import `in`.jphe.storyvox.ui.theme.LocalSpacing
 
 /**
@@ -257,7 +259,7 @@ internal fun NoTelephonyFallbackDialog(
                             modifier = Modifier.size(18.dp),
                         )
                         Spacer(Modifier.width(spacing.xs))
-                        Text("Copy")
+                        Text(stringResource(R.string.techempower_copy))
                     }
                     TextButton(
                         modifier = Modifier.weight(1f),
@@ -278,13 +280,13 @@ internal fun NoTelephonyFallbackDialog(
                             modifier = Modifier.size(18.dp),
                         )
                         Spacer(Modifier.width(spacing.xs))
-                        Text("Open web")
+                        Text(stringResource(R.string.techempower_open_web))
                     }
                 }
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) { Text("Close") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.techempower_close)) }
         },
     )
 }

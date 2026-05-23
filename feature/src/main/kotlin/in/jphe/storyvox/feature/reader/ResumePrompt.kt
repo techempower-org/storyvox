@@ -31,9 +31,11 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import `in`.jphe.storyvox.data.repository.ContinueListeningEntry
+import `in`.jphe.storyvox.feature.R
 import `in`.jphe.storyvox.ui.component.BrassButton
 import `in`.jphe.storyvox.ui.component.BrassButtonVariant
 import `in`.jphe.storyvox.ui.component.FictionCoverThumb
@@ -201,7 +203,7 @@ fun ResumePrompt(
                 // sweep is preserved (it's the moment of magic
                 // storyvox is named for).
                 BrassButton(
-                    label = "▶  Start listening",
+                    label = stringResource(R.string.reader_start_listening),
                     onClick = onResume,
                     variant = BrassButtonVariant.Primary,
                     modifier = Modifier.fillMaxWidth(),
@@ -211,7 +213,7 @@ fun ResumePrompt(
             Spacer(Modifier.height(spacing.sm))
 
             BrassButton(
-                label = "From the start",
+                label = stringResource(R.string.reader_from_the_start),
                 onClick = onFromStart,
                 variant = BrassButtonVariant.Text,
             )
@@ -479,21 +481,21 @@ fun ResumeEmptyPrompt(
         )
         Spacer(Modifier.height(spacing.lg))
         Text(
-            text = "Your library awaits",
+            text = stringResource(R.string.reader_empty_library_title),
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.primary,
             textAlign = TextAlign.Center,
         )
         Spacer(Modifier.height(spacing.xs))
         Text(
-            text = "Pick up an audiobook to listen and storyvox remembers your place.",
+            text = stringResource(R.string.reader_empty_library_body),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
         )
         Spacer(Modifier.height(spacing.lg))
         BrassButton(
-            label = "Browse the realms →",
+            label = stringResource(R.string.reader_browse_realms_arrow),
             onClick = onBrowse,
             variant = BrassButtonVariant.Primary,
         )

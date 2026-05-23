@@ -53,6 +53,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
@@ -62,6 +63,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import `in`.jphe.storyvox.feature.R
 import `in`.jphe.storyvox.feature.api.UiChapter
 import `in`.jphe.storyvox.feature.api.UiFiction
 import `in`.jphe.storyvox.source.epub.writer.EpubExportResult
@@ -162,21 +164,16 @@ fun FictionDetailScreen(
     // configuration change without surviving as a half-rendered modal.
     var showClearCacheConfirm by remember { mutableStateOf(false) }
     if (showClearCacheConfirm) {
-        val titleForDialog = state.fiction?.title ?: "this fiction"
+        val titleForDialog = state.fiction?.title ?: stringResource(R.string.fiction_default_title)
         AlertDialog(
             onDismissRequest = { showClearCacheConfirm = false },
-            title = { Text("Clear cached audio for $titleForDialog?") },
+            title = { Text(stringResource(R.string.fiction_clear_cache_title, titleForDialog)) },
             text = {
-                Text(
-                    "Removes the PCM cache for every chapter of this fiction " +
-                        "across every voice variant. Replays will re-render " +
-                        "once. The fiction stays in your library; your read " +
-                        "progress and library state are not affected.",
-                )
+                Text(stringResource(R.string.fiction_clear_cache_body))
             },
             confirmButton = {
                 BrassButton(
-                    label = "Clear",
+                    label = stringResource(R.string.fiction_clear),
                     onClick = {
                         showClearCacheConfirm = false
                         viewModel.clearFictionCache()
@@ -190,7 +187,7 @@ fun FictionDetailScreen(
             },
             dismissButton = {
                 BrassButton(
-                    label = "Cancel",
+                    label = stringResource(R.string.fiction_cancel),
                     onClick = { showClearCacheConfirm = false },
                     variant = BrassButtonVariant.Secondary,
                 )
@@ -198,19 +195,16 @@ fun FictionDetailScreen(
         )
     }
     if (showRemoveConfirm) {
-        val titleForDialog = state.fiction?.title ?: "this fiction"
+        val titleForDialog = state.fiction?.title ?: stringResource(R.string.fiction_default_title)
         AlertDialog(
             onDismissRequest = { showRemoveConfirm = false },
-            title = { Text("Remove $titleForDialog from your library?") },
+            title = { Text(stringResource(R.string.fiction_remove_title, titleForDialog)) },
             text = {
-                Text(
-                    "Your read progress will be lost. You can re-add it from " +
-                        "Browse anytime, but the position you've reached won't be restored.",
-                )
+                Text(stringResource(R.string.fiction_remove_body))
             },
             confirmButton = {
                 BrassButton(
-                    label = "Remove",
+                    label = stringResource(R.string.fiction_remove),
                     onClick = {
                         showRemoveConfirm = false
                         viewModel.toggleFollow(false)
@@ -220,7 +214,7 @@ fun FictionDetailScreen(
             },
             dismissButton = {
                 BrassButton(
-                    label = "Cancel",
+                    label = stringResource(R.string.fiction_cancel),
                     onClick = { showRemoveConfirm = false },
                     variant = BrassButtonVariant.Secondary,
                 )
@@ -303,7 +297,7 @@ fun FictionDetailScreen(
                                 MagicCircularProgress(
                                     modifier = Modifier.size(16.dp),
                                 )
-                                Text("Building .epub…", style = MaterialTheme.typography.labelSmall)
+                                Text(stringResource(R.string.fiction_building_epub), style = MaterialTheme.typography.labelSmall)
                             }
                         } else {
                             IconButton(onClick = { menuOpen = true }) {
@@ -314,7 +308,7 @@ fun FictionDetailScreen(
                                 onDismissRequest = { menuOpen = false },
                             ) {
                                 DropdownMenuItem(
-                                    text = { Text("Export as EPUB…") },
+                                    text = { Text(stringResource(R.string.fiction_export_epub)) },
                                     onClick = {
                                         menuOpen = false
                                         viewModel.exportToEpub(context)
@@ -335,7 +329,7 @@ fun FictionDetailScreen(
                                 // user opens the menu on a cold launch,
                                 // so the gate would flicker.
                                 DropdownMenuItem(
-                                    text = { Text("Clear fiction cache…") },
+                                    text = { Text(stringResource(R.string.fiction_clear_cache)) },
                                     onClick = {
                                         menuOpen = false
                                         showClearCacheConfirm = true
@@ -718,9 +712,9 @@ private fun Hero(fiction: UiFiction) {
                     Icon(Icons.Filled.Star, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
                     Text("%.1f".format(fiction.rating), style = MaterialTheme.typography.labelMedium)
                 }
-                Text("·", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text("${fiction.chapterCount} ch", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text("·", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(stringResource(R.string.fiction_separator), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(stringResource(R.string.fiction_chapter_count, fiction.chapterCount), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(stringResource(R.string.fiction_separator), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text(if (fiction.isOngoing) "Ongoing" else "Completed", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
             }
         }
@@ -879,7 +873,7 @@ private fun NotebookSection(
                 androidx.compose.material3.OutlinedTextField(
                     value = draftName,
                     onValueChange = { draftName = it },
-                    label = { Text("Name") },
+                    label = { Text(stringResource(R.string.fiction_name_label)) },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
                     keyboardActions = KeyboardActions(
@@ -892,7 +886,7 @@ private fun NotebookSection(
                 androidx.compose.material3.OutlinedTextField(
                     value = draftSummary,
                     onValueChange = { draftSummary = it },
-                    label = { Text("One-line description") },
+                    label = { Text(stringResource(R.string.fiction_one_line_description)) },
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                     keyboardActions = KeyboardActions(
                         onDone = { focusManager.clearFocus() },

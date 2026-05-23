@@ -33,11 +33,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.foundation.text.KeyboardOptions
+import `in`.jphe.storyvox.feature.R
 import `in`.jphe.storyvox.feature.api.BrowseFilter
 import `in`.jphe.storyvox.feature.api.UiContentWarning
 import `in`.jphe.storyvox.feature.api.UiFictionStatus
@@ -85,7 +87,7 @@ fun BrowseFilterSheet(
                 verticalArrangement = Arrangement.spacedBy(spacing.md),
             ) {
             Text(
-                "Filter Royal Road",
+                stringResource(R.string.royalroad_filter_title),
                 style = MaterialTheme.typography.titleLarge,
                 modifier = Modifier.padding(top = spacing.sm),
             )
@@ -101,7 +103,7 @@ fun BrowseFilterSheet(
             HorizontalDivider()
 
             // Status
-            SectionLabel("Status")
+            SectionLabel(stringResource(R.string.filter_status_section))
             FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(spacing.xs),
                 verticalArrangement = Arrangement.spacedBy(spacing.xs),
@@ -115,20 +117,20 @@ fun BrowseFilterSheet(
                                 statuses = if (selected) local.statuses - status else local.statuses + status,
                             )
                         },
-                        label = { Text(status.label) },
+                        label = { Text(stringResource(status.labelRes)) },
                         colors = brassFilterChipColors(),
                     )
                 }
             }
 
             // Type
-            SectionLabel("Type")
+            SectionLabel(stringResource(R.string.filter_type_section))
             FlowRow(horizontalArrangement = Arrangement.spacedBy(spacing.xs)) {
                 UiFictionType.entries.forEach { type ->
                     FilterChip(
                         selected = local.type == type,
                         onClick = { local = local.copy(type = type) },
-                        label = { Text(type.label) },
+                        label = { Text(stringResource(type.labelRes)) },
                         colors = brassFilterChipColors(),
                     )
                 }
@@ -137,14 +139,14 @@ fun BrowseFilterSheet(
             HorizontalDivider()
 
             // Tags include
-            SectionLabel("Include tags")
+            SectionLabel(stringResource(R.string.filter_include_tags_section))
             TagSelector(
                 selected = local.tagsInclude,
                 onChanged = { local = local.copy(tagsInclude = it) },
             )
 
             // Tags exclude
-            SectionLabel("Exclude tags")
+            SectionLabel(stringResource(R.string.filter_exclude_tags_section))
             TagSelector(
                 selected = local.tagsExclude,
                 onChanged = { local = local.copy(tagsExclude = it) },
@@ -153,7 +155,7 @@ fun BrowseFilterSheet(
             HorizontalDivider()
 
             // Length (pages)
-            SectionLabel("Length (pages): ${local.pagesLabel()}")
+            SectionLabel(stringResource(R.string.filter_length_pages_section, local.pagesLabel()))
             val pagesRange = (local.minPages?.toFloat() ?: 0f)..(local.maxPages?.toFloat() ?: PAGES_MAX)
             RangeSlider(
                 value = pagesRange,
@@ -175,7 +177,7 @@ fun BrowseFilterSheet(
             )
 
             // Rating
-            SectionLabel("Rating: ${local.ratingLabel()}")
+            SectionLabel(stringResource(R.string.filter_rating_section, local.ratingLabel()))
             val ratingRange = (local.minRating ?: 0f)..(local.maxRating ?: 5f)
             RangeSlider(
                 value = ratingRange,
@@ -197,7 +199,7 @@ fun BrowseFilterSheet(
             HorizontalDivider()
 
             // Content warnings
-            SectionLabel("Content warnings — exclude")
+            SectionLabel(stringResource(R.string.filter_content_warnings_exclude_section))
             FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(spacing.xs),
                 verticalArrangement = Arrangement.spacedBy(spacing.xs),
@@ -213,7 +215,7 @@ fun BrowseFilterSheet(
                                 warningsRequire = local.warningsRequire - warning,
                             )
                         },
-                        label = { Text(warning.label) },
+                        label = { Text(stringResource(warning.labelRes)) },
                         colors = brassFilterChipColors(),
                     )
                 }
@@ -241,11 +243,11 @@ fun BrowseFilterSheet(
                     OutlinedButton(
                         onClick = onReset,
                         modifier = Modifier.weight(1f),
-                    ) { Text("Reset") }
+                    ) { Text(stringResource(R.string.filter_reset)) }
                     Button(
                         onClick = { onApply(local) },
                         modifier = Modifier.weight(2f),
-                    ) { Text("Apply") }
+                    ) { Text(stringResource(R.string.filter_apply)) }
                 }
             }
         }
@@ -270,7 +272,7 @@ private fun SortRow(
     onDirection: (UiSortDirection) -> Unit,
 ) {
     val spacing = LocalSpacing.current
-    SectionLabel("Sort by")
+    SectionLabel(stringResource(R.string.filter_sort_by_section))
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(spacing.sm),
@@ -283,7 +285,7 @@ private fun SortRow(
             modifier = Modifier.weight(2f),
         ) {
             OutlinedTextField(
-                value = orderBy.label,
+                value = stringResource(orderBy.labelRes),
                 onValueChange = {},
                 readOnly = true,
                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
@@ -297,7 +299,7 @@ private fun SortRow(
             ) {
                 UiSearchOrder.entries.forEach { order ->
                     DropdownMenuItem(
-                        text = { Text(order.label) },
+                        text = { Text(stringResource(order.labelRes)) },
                         onClick = {
                             onOrderBy(order)
                             expanded = false
@@ -311,7 +313,7 @@ private fun SortRow(
             onClick = {
                 onDirection(if (direction == UiSortDirection.Desc) UiSortDirection.Asc else UiSortDirection.Desc)
             },
-            label = { Text(if (direction == UiSortDirection.Desc) "Desc" else "Asc") },
+            label = { Text(stringResource(if (direction == UiSortDirection.Desc) R.string.filter_sort_direction_desc else R.string.filter_sort_direction_asc)) },
             colors = brassFilterChipColors(),
         )
     }
@@ -332,7 +334,7 @@ private fun TagSelector(
     OutlinedTextField(
         value = query,
         onValueChange = { query = it },
-        label = { Text("Filter tags") },
+        label = { Text(stringResource(R.string.filter_tags_label)) },
         modifier = Modifier.fillMaxWidth(),
         singleLine = true,
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
@@ -393,41 +395,41 @@ private fun BrowseFilter.ratingLabel(): String {
     return "$lo – $hi"
 }
 
-private val UiFictionStatus.label: String
+internal val UiFictionStatus.labelRes: Int
     get() = when (this) {
-        UiFictionStatus.Ongoing -> "Ongoing"
-        UiFictionStatus.Completed -> "Completed"
-        UiFictionStatus.Hiatus -> "Hiatus"
-        UiFictionStatus.Stub -> "Stub"
-        UiFictionStatus.Dropped -> "Dropped"
+        UiFictionStatus.Ongoing -> R.string.fiction_status_ongoing
+        UiFictionStatus.Completed -> R.string.fiction_status_completed
+        UiFictionStatus.Hiatus -> R.string.fiction_status_hiatus
+        UiFictionStatus.Stub -> R.string.fiction_status_stub
+        UiFictionStatus.Dropped -> R.string.fiction_status_dropped
     }
 
-private val UiFictionType.label: String
+internal val UiFictionType.labelRes: Int
     get() = when (this) {
-        UiFictionType.All -> "All"
-        UiFictionType.Original -> "Original"
-        UiFictionType.FanFiction -> "Fan Fiction"
+        UiFictionType.All -> R.string.fiction_type_all
+        UiFictionType.Original -> R.string.fiction_type_original
+        UiFictionType.FanFiction -> R.string.fiction_type_fanfiction
     }
 
-private val UiContentWarning.label: String
+internal val UiContentWarning.labelRes: Int
     get() = when (this) {
-        UiContentWarning.Profanity -> "Profanity"
-        UiContentWarning.SexualContent -> "Sexual"
-        UiContentWarning.GraphicViolence -> "Violence"
-        UiContentWarning.SensitiveContent -> "Sensitive"
-        UiContentWarning.AiAssisted -> "AI-assisted"
-        UiContentWarning.AiGenerated -> "AI-generated"
+        UiContentWarning.Profanity -> R.string.content_warning_profanity
+        UiContentWarning.SexualContent -> R.string.content_warning_sexual
+        UiContentWarning.GraphicViolence -> R.string.content_warning_violence
+        UiContentWarning.SensitiveContent -> R.string.content_warning_sensitive
+        UiContentWarning.AiAssisted -> R.string.content_warning_ai_assisted
+        UiContentWarning.AiGenerated -> R.string.content_warning_ai_generated
     }
 
-private val UiSearchOrder.label: String
+internal val UiSearchOrder.labelRes: Int
     get() = when (this) {
-        UiSearchOrder.Relevance -> "Relevance"
-        UiSearchOrder.Popularity -> "Popularity"
-        UiSearchOrder.Rating -> "Average rating"
-        UiSearchOrder.LastUpdate -> "Last update"
-        UiSearchOrder.ReleaseDate -> "Release date"
-        UiSearchOrder.Followers -> "Followers"
-        UiSearchOrder.Length -> "Length"
-        UiSearchOrder.Views -> "Views"
-        UiSearchOrder.Title -> "Title"
+        UiSearchOrder.Relevance -> R.string.search_order_relevance
+        UiSearchOrder.Popularity -> R.string.search_order_popularity
+        UiSearchOrder.Rating -> R.string.search_order_rating
+        UiSearchOrder.LastUpdate -> R.string.search_order_last_update
+        UiSearchOrder.ReleaseDate -> R.string.search_order_release_date
+        UiSearchOrder.Followers -> R.string.search_order_followers
+        UiSearchOrder.Length -> R.string.search_order_length
+        UiSearchOrder.Views -> R.string.search_order_views
+        UiSearchOrder.Title -> R.string.search_order_title
     }

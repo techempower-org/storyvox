@@ -29,11 +29,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import `in`.jphe.storyvox.feature.R
 import `in`.jphe.storyvox.feature.api.UiFollow
 import `in`.jphe.storyvox.ui.component.BrassButton
 import `in`.jphe.storyvox.ui.component.BrassButtonVariant
@@ -101,7 +103,7 @@ fun FollowsScreen(
             // Row so it remains reachable.
             if (!embedded) {
                 TopAppBar(
-                    title = { Text("Follows", style = MaterialTheme.typography.titleLarge) },
+                    title = { Text(stringResource(R.string.follows_title), style = MaterialTheme.typography.titleLarge) },
                     actions = {
                         if (state.isSignedIn && state.follows.isNotEmpty()) {
                             BrassButton(

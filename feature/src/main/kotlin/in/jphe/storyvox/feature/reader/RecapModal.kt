@@ -33,11 +33,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import `in`.jphe.storyvox.feature.R
 import `in`.jphe.storyvox.feature.api.UiRecapPlaybackState
 import `in`.jphe.storyvox.ui.component.BrassButton
 import `in`.jphe.storyvox.ui.component.BrassButtonVariant
@@ -101,12 +103,12 @@ fun RecapModal(
             // feature itself.
             Column {
                 Text(
-                    text = "Recap so far",
+                    text = stringResource(R.string.reader_recap_so_far),
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.primary,
                 )
                 Text(
-                    text = subtitleFor(state),
+                    text = stringResource(subtitleResFor(state)),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -141,14 +143,14 @@ fun RecapModal(
                     is RecapUiState.Loading,
                     is RecapUiState.Streaming -> {
                         BrassButton(
-                            label = "Cancel",
+                            label = stringResource(R.string.reader_cancel),
                             onClick = onCancel,
                             variant = BrassButtonVariant.Secondary,
                         )
                     }
                     is RecapUiState.Done -> {
                         BrassButton(
-                            label = "Close",
+                            label = stringResource(R.string.reader_close),
                             onClick = onCancel,
                             variant = BrassButtonVariant.Secondary,
                         )
@@ -162,12 +164,12 @@ fun RecapModal(
                             RecapUiState.ErrorKind.NotConfigured,
                             RecapUiState.ErrorKind.AuthFailed -> {
                                 BrassButton(
-                                    label = "Open Settings",
+                                    label = stringResource(R.string.reader_open_settings),
                                     onClick = onOpenSettings,
                                     variant = BrassButtonVariant.Primary,
                                 )
                                 BrassButton(
-                                    label = "Close",
+                                    label = stringResource(R.string.reader_close),
                                     onClick = onCancel,
                                     variant = BrassButtonVariant.Secondary,
                                 )
@@ -175,12 +177,12 @@ fun RecapModal(
                             RecapUiState.ErrorKind.Transport,
                             RecapUiState.ErrorKind.ProviderError -> {
                                 BrassButton(
-                                    label = "Try again",
+                                    label = stringResource(R.string.reader_try_again),
                                     onClick = onRetry,
                                     variant = BrassButtonVariant.Primary,
                                 )
                                 BrassButton(
-                                    label = "Close",
+                                    label = stringResource(R.string.reader_close),
                                     onClick = onCancel,
                                     variant = BrassButtonVariant.Secondary,
                                 )
@@ -208,9 +210,9 @@ private fun ReadAloudIconButton(
     val isSpeaking = playbackState == UiRecapPlaybackState.Speaking
     val brass = MaterialTheme.colorScheme.primary
     val (icon, label) = if (isSpeaking) {
-        Icons.Filled.Pause to "Pause read aloud"
+        Icons.Filled.Pause to stringResource(R.string.reader_pause_read_aloud)
     } else {
-        Icons.Filled.PlayArrow to "Read aloud"
+        Icons.Filled.PlayArrow to stringResource(R.string.reader_read_aloud)
     }
     IconButton(
         onClick = onClick,
@@ -239,7 +241,7 @@ private fun LoadingBody() {
     ) {
         MagicSpinner()
         Text(
-            text = "  Asking the librarian…",
+            text = stringResource(R.string.reader_recap_asking_librarian),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -301,12 +303,12 @@ private fun StreamingBody(text: String) {
  * Internal so [`PunctuationPauseTickPlacementTest`-style] unit testing
  * could cover the mapping if it grows beyond five branches.
  */
-internal fun subtitleFor(state: RecapUiState): String = when (state) {
+internal fun subtitleResFor(state: RecapUiState): Int = when (state) {
     is RecapUiState.Loading,
-    is RecapUiState.Streaming -> "Asking the librarian about the last few chapters."
-    is RecapUiState.Done -> "Here's what happened in the last few chapters."
-    is RecapUiState.Error -> "Quick chapter summaries from your AI provider."
-    RecapUiState.Hidden -> ""  // unreachable — modal returns early when Hidden
+    is RecapUiState.Streaming -> R.string.reader_recap_subtitle_in_flight
+    is RecapUiState.Done -> R.string.reader_recap_subtitle_done
+    is RecapUiState.Error -> R.string.reader_recap_subtitle_error
+    RecapUiState.Hidden -> R.string.empty_string  // unreachable — modal returns early when Hidden
 }
 
 @Composable

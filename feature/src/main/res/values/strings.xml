@@ -1,0 +1,369 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Shared utility -->
+    <string name="empty_string"></string>
+    <!-- Browse -->
+    <string name="browse_title">Browse</string>
+    <string name="browse_search_hint">Search %1$s</string>
+    <string name="browse_notion_connect_cta">Have a Notion workspace? Connect it →</string>
+    <string name="browse_ao3_signin_cta">Sign in to AO3</string>
+    <string name="browse_mempalace_wing_chip">Wing: %1$s</string>
+
+    <!-- Source carousel actions -->
+    <string name="source_options">Source options</string>
+    <string name="source_remove_from_favorites">Remove from favorites</string>
+    <string name="source_add_to_favorites">Add to favorites</string>
+    <string name="source_favorite_subtitle_remove">Will keep its place in the list</string>
+    <string name="source_favorite_subtitle_add">Pins to the front of the carousel</string>
+    <string name="source_hide_title">Hide from Browse</string>
+    <string name="source_hide_subtitle">Re-enable from Settings -&gt; Plugins</string>
+
+    <!-- Source taglines -->
+    <string name="source_tagline_royal_road">Web serials</string>
+    <string name="source_tagline_ao3">Fanfiction archive</string>
+    <string name="source_tagline_gutenberg">Classic books</string>
+    <string name="source_tagline_standard_ebooks">Polished classics</string>
+    <string name="source_tagline_wikipedia">Encyclopedia</string>
+    <string name="source_tagline_wikisource">Historic texts</string>
+    <string name="source_tagline_github">Repo READMEs</string>
+    <string name="source_tagline_rss">Your feeds</string>
+    <string name="source_tagline_epub">Your EPUBs</string>
+    <string name="source_tagline_outline">Your wiki</string>
+    <string name="source_tagline_mempalace">Your palace</string>
+    <string name="source_tagline_radio">Live radio</string>
+    <string name="source_tagline_notion">Your Notion</string>
+    <string name="source_tagline_hackernews">Tech news</string>
+    <string name="source_tagline_arxiv">Research papers</string>
+    <string name="source_tagline_plos">Open science</string>
+    <string name="source_tagline_discord">Server channels</string>
+    <string name="source_tagline_matrix">Matrix rooms</string>
+    <string name="source_tagline_telegram">Channel posts</string>
+    <string name="source_tagline_slack">Workspace threads</string>
+    <string name="source_tagline_palace">Library borrows</string>
+    <string name="source_tagline_readability">Paste any link</string>
+
+    <!-- Per-source search hints (#271) -->
+    <string name="search_hint_royal_road">Find fictions across Royal Road</string>
+    <string name="search_hint_github">Search indexed GitHub repositories</string>
+    <string name="search_hint_mempalace">Search your MemPalace knowledge base</string>
+    <string name="search_hint_rss">Search your subscribed feeds</string>
+    <string name="search_hint_epub">Search your local EPUB library</string>
+    <string name="search_hint_outline">Search your Outline notes</string>
+    <string name="search_hint_gutenberg">Search Project Gutenberg\'s 70,000+ public-domain books</string>
+    <string name="search_hint_ao3">Search AO3 by tag, fandom, or character</string>
+    <string name="search_hint_standard_ebooks">Search Standard Ebooks\' hand-curated public-domain classics</string>
+    <string name="search_hint_wikipedia">Search Wikipedia — narrate any article</string>
+    <string name="search_hint_wikisource">Search Wikisource — transcribed public-domain texts</string>
+    <string name="search_hint_radio">Search Radio Browser — community, public, and college stations worldwide</string>
+    <string name="search_hint_kvmr">Tune in to KVMR — live community radio from Nevada City</string>
+    <string name="search_hint_notion">Search your configured Notion database</string>
+    <string name="search_hint_hackernews">Search Hacker News stories (Algolia-backed full-text)</string>
+    <string name="search_hint_arxiv">Search arXiv — open-access academic papers</string>
+    <string name="search_hint_plos">Search PLOS — open-access peer-reviewed science</string>
+    <string name="search_hint_discord">Search messages in your selected Discord server</string>
+    <string name="search_hint_generic">Search %1$s</string>
+
+    <!-- Filter sheets (shared) -->
+    <string name="filter_reset">Reset</string>
+    <string name="filter_apply">Apply</string>
+    <string name="filter_tags_label">Filter tags</string>
+    <string name="filter_sort_by_section">Sort by</string>
+    <string name="filter_category_section">Category</string>
+    <string name="filter_language_section">Language</string>
+    <string name="filter_recent_section">Recent</string>
+    <string name="filter_status_section">Status</string>
+    <string name="filter_include_tags_section">Include tags</string>
+    <string name="filter_exclude_tags_section">Exclude tags</string>
+    <string name="filter_tags_placeholder">e.g. fantasy, biology</string>
+    <string name="filter_language_iso_placeholder">ISO code (e.g. en, fr, ja)</string>
+    <string name="filter_language_short_placeholder">e.g. en</string>
+    <string name="filter_tags_short_placeholder">e.g. litrpg, fantasy</string>
+
+    <!-- BrowseFilterSheet (Royal Road) -->
+    <string name="royalroad_filter_title">Filter Royal Road</string>
+    <string name="filter_type_section">Type</string>
+    <string name="filter_length_pages_section">Length (pages): %1$s</string>
+    <string name="filter_rating_section">Rating: %1$s</string>
+    <string name="filter_content_warnings_exclude_section">Content warnings — exclude</string>
+    <string name="filter_sort_direction_desc">Desc</string>
+    <string name="filter_sort_direction_asc">Asc</string>
+
+    <!-- Fiction status labels -->
+    <string name="fiction_status_ongoing">Ongoing</string>
+    <string name="fiction_status_completed">Completed</string>
+    <string name="fiction_status_hiatus">Hiatus</string>
+    <string name="fiction_status_stub">Stub</string>
+    <string name="fiction_status_dropped">Dropped</string>
+
+    <!-- Fiction type labels -->
+    <string name="fiction_type_all">All</string>
+    <string name="fiction_type_original">Original</string>
+    <string name="fiction_type_fanfiction">Fan Fiction</string>
+
+    <!-- Content warning labels -->
+    <string name="content_warning_profanity">Profanity</string>
+    <string name="content_warning_sexual">Sexual</string>
+    <string name="content_warning_violence">Violence</string>
+    <string name="content_warning_sensitive">Sensitive</string>
+    <string name="content_warning_ai_assisted">AI-assisted</string>
+    <string name="content_warning_ai_generated">AI-generated</string>
+
+    <!-- Search order labels -->
+    <string name="search_order_relevance">Relevance</string>
+    <string name="search_order_popularity">Popularity</string>
+    <string name="search_order_rating">Average rating</string>
+    <string name="search_order_last_update">Last update</string>
+    <string name="search_order_release_date">Release date</string>
+    <string name="search_order_followers">Followers</string>
+    <string name="search_order_length">Length</string>
+    <string name="search_order_views">Views</string>
+    <string name="search_order_title">Title</string>
+
+    <!-- Generic sort/range labels -->
+    <string name="generic_sort_default">Default</string>
+    <string name="generic_sort_newest">Newest</string>
+    <string name="generic_sort_popular">Popular</string>
+    <string name="generic_sort_title">Title (A-Z)</string>
+    <string name="generic_range_any">Any time</string>
+    <string name="generic_range_last_7_days">Last 7 days</string>
+    <string name="generic_range_last_30_days">Last 30 days</string>
+    <string name="generic_range_last_90_days">Last 90 days</string>
+    <string name="generic_range_last_year">Last year</string>
+
+    <!-- Generic filter sheet -->
+    <string name="generic_filter_title">Filter %1$s</string>
+    <string name="generic_filter_chip_any">Any</string>
+
+    <!-- Reader / ReaderView -->
+    <string name="reader_ask_ai_title">Ask AI: who is \"%1$s\"?</string>
+    <string name="reader_ask_ai_body">The librarian-companion will answer based on what you\'ve read so far — no spoilers from later chapters.</string>
+    <string name="reader_ask_ai">Ask AI</string>
+    <string name="reader_cancel">Cancel</string>
+
+    <!-- Reader / HybridReaderScreen -->
+    <string name="reader_empty_library_title">Your library awaits</string>
+    <string name="reader_browse_realms">Browse the realms</string>
+    <string name="reader_back_to_library">Back to Library</string>
+    <string name="reader_back">Back</string>
+    <string name="reader_retry">Retry</string>
+    <string name="reader_voice_engine_slow_body">The voice engine is taking longer than expected. Try again, or back out to the chapter list.</string>
+    <string name="reader_still_loading">Still loading…</string>
+    <string name="reader_still_loading_subtitle">Cold-start of a slow voice or large chapter can take a moment.</string>
+    <string name="reader_loading_chapter">Loading chapter…</string>
+    <string name="reader_book_finished_no_title">You finished this book.</string>
+    <string name="reader_book_finished_with_title">You finished “%1$s”</string>
+    <string name="reader_book_finished_body">Beautiful work. The story is over — for now. Where would you like to go next?</string>
+
+    <!-- Reader / NowPlayingDock -->
+    <string name="reader_now_playing">Now playing</string>
+    <string name="reader_pause">Pause</string>
+    <string name="reader_play">Play</string>
+    <string name="reader_open_reader">Open reader</string>
+    <string name="reader_dock_card_description">Now playing: %1$s. %2$s. Tap to open reader.</string>
+
+    <!-- Reader / ResumePrompt -->
+    <string name="reader_from_the_start">From the start</string>
+    <string name="reader_start_listening">▶  Start listening</string>
+    <string name="reader_empty_library_body">Pick up an audiobook to listen and storyvox remembers your place.</string>
+    <string name="reader_browse_realms_arrow">Browse the realms →</string>
+
+    <!-- Reader / RecapModal -->
+    <string name="reader_recap_so_far">Recap so far</string>
+    <string name="reader_close">Close</string>
+    <string name="reader_open_settings">Open Settings</string>
+    <string name="reader_try_again">Try again</string>
+    <string name="reader_pause_read_aloud">Pause read aloud</string>
+    <string name="reader_read_aloud">Read aloud</string>
+    <string name="reader_recap_asking_librarian">  Asking the librarian…</string>
+    <string name="reader_recap_subtitle_in_flight">Asking the librarian about the last few chapters.</string>
+    <string name="reader_recap_subtitle_done">Here\'s what happened in the last few chapters.</string>
+    <string name="reader_recap_subtitle_error">Quick chapter summaries from your AI provider.</string>
+
+    <!-- Reader / VoiceQuickSheet -->
+    <string name="reader_voice_header">Voice</string>
+    <string name="reader_pick_voice">Pick voice</string>
+    <string name="reader_pick_a_voice">Pick a voice</string>
+    <string name="reader_voice_tap_to_change">Tap to change</string>
+    <string name="reader_voice_collapse_advanced">Collapse advanced</string>
+    <string name="reader_voice_expand_advanced">Expand advanced</string>
+    <string name="reader_voice_advanced">Advanced</string>
+    <string name="reader_voice_custom">Custom</string>
+    <string name="reader_voice_custom_more">Custom…</string>
+    <string name="reader_voice_hide_custom_slider">Hide custom slider</string>
+    <string name="reader_voice_show_custom_slider">Show custom slider</string>
+    <string name="reader_voice_speed_header">Speed</string>
+    <string name="reader_voice_pitch_header">Pitch</string>
+    <string name="reader_voice_sentence_silence_header">Sentence silence</string>
+    <string name="reader_voice_speech_speed_cd">Speech speed</string>
+    <string name="reader_voice_pitch_cd">Pitch</string>
+    <string name="reader_voice_inter_sentence_pause_cd">Inter-sentence pause</string>
+    <string name="reader_voice_playback_speed_cd">Playback speed %1$s</string>
+    <string name="reader_voice_pitch_value_cd">Pitch %1$s</string>
+    <string name="reader_voice_sentence_silence_value_cd">Sentence silence %1$s</string>
+    <string name="reader_voice_high_quality_title">High-quality pitch</string>
+    <string name="reader_voice_high_quality_on">Smoother pitch-shifted audio. Applies on next chapter.</string>
+    <string name="reader_voice_high_quality_off">Faster pitch shifting. Grittier at non-neutral pitch.</string>
+    <string name="reader_voice_advanced_open_label">Open per-voice lexicon and Kokoro language</string>
+    <string name="reader_voice_per_voice_lexicon">Per-voice lexicon + Kokoro language</string>
+    <string name="reader_voice_per_voice_lexicon_subtitle">Open Voice Library for per-voice pronunciation rules and phonemizer overrides.</string>
+
+    <!-- Reader / WhyAreWeWaitingPanel -->
+    <string name="reader_wait_open_settings">Open settings</string>
+    <string name="reader_wait_resume">Resume</string>
+
+    <!-- Reader / AudiobookView -->
+    <string name="reader_voice_settings">Voice settings</string>
+    <string name="reader_open_voice_library">Open Voice Library</string>
+    <string name="reader_pick_different_voice">Pick a different voice</string>
+    <string name="reader_chapters">Chapters</string>
+    <string name="reader_couldnt_load_chapter">Couldn\'t load this chapter</string>
+    <string name="reader_couldnt_load_message">The voice or chapter text is taking longer than expected. Try again, or pick a different voice — some take a moment to warm up.</string>
+    <string name="reader_sleep_step_by_sentence">Step by sentence</string>
+    <string name="reader_sleep_timer">Sleep timer</string>
+    <string name="reader_sleep_off">Off</string>
+    <string name="reader_sleep_minutes">%1$dm</string>
+    <string name="reader_sleep_end">End</string>
+    <string name="reader_sleep_sleeping_in">Sleeping in %1$d:%2$02d</string>
+    <string name="reader_bookmark_header">Bookmark</string>
+    <string name="reader_bookmark_here">Bookmark here</string>
+    <string name="reader_bookmark_here_subtitle">Drop a marker at the current position</string>
+    <string name="reader_jump_to_bookmark">Jump to bookmark</string>
+    <string name="reader_jump_to_bookmark_subtitle">Resume from the marker you set</string>
+    <string name="reader_smart_features">Smart features</string>
+    <string name="reader_recap_subtitle">Ask the librarian to summarize the last few chapters</string>
+    <string name="reader_ask_the_ai">Ask the AI</string>
+    <string name="reader_open_librarian_chat">Open librarian chat</string>
+    <string name="reader_step_previous">← Previous</string>
+    <string name="reader_step_next">Next →</string>
+    <string name="reader_ask_ai_subtitle">Chat about plot, characters, pacing, and craft</string>
+
+    <!-- Library -->
+    <string name="library_title">Library</string>
+    <string name="library_resume">Resume</string>
+    <string name="library_mark_all_read">Mark all read</string>
+    <string name="library_shelf_all">All</string>
+    <string name="library_add_by_url_label">URL</string>
+    <string name="library_add_by_url_placeholder">https://…</string>
+
+    <!-- Sessions -->
+    <string name="sessions_title">Sessions</string>
+    <string name="sessions_delete_dialog_title">Delete this session?</string>
+    <string name="sessions_delete">Delete</string>
+    <string name="sessions_cancel">Cancel</string>
+    <string name="sessions_open">Open</string>
+
+    <!-- Sync -->
+    <string name="sync_title">Sync</string>
+    <string name="sync_email_label">Email</string>
+    <string name="sync_send_code">Send code</string>
+    <string name="sync_code_label">6-digit code</string>
+    <string name="sync_verify">Verify</string>
+    <string name="sync_different_email">Use a different email</string>
+    <string name="sync_done">Done</string>
+    <string name="sync_sign_out">Sign out</string>
+
+    <!-- Fiction detail -->
+    <string name="fiction_clear_cache_title">Clear cached audio for %1$s?</string>
+    <string name="fiction_clear_cache_body">Removes the PCM cache for every chapter of this fiction across every voice variant. Replays will re-render once. The fiction stays in your library; your read progress and library state are not affected.</string>
+    <string name="fiction_clear">Clear</string>
+    <string name="fiction_cancel">Cancel</string>
+    <string name="fiction_remove">Remove</string>
+    <string name="fiction_default_title">this fiction</string>
+    <string name="fiction_remove_title">Remove %1$s from your library?</string>
+    <string name="fiction_remove_body">Your read progress will be lost. You can re-add it from Browse anytime, but the position you\'ve reached won\'t be restored.</string>
+    <string name="fiction_building_epub">Building .epub…</string>
+    <string name="fiction_export_epub">Export as EPUB…</string>
+    <string name="fiction_clear_cache">Clear fiction cache…</string>
+    <string name="fiction_chapter_count">%1$d ch</string>
+    <string name="fiction_separator">·</string>
+    <string name="fiction_name_label">Name</string>
+    <string name="fiction_one_line_description">One-line description</string>
+
+    <!-- Voice library -->
+    <string name="voicelibrary_title">Voice library</string>
+    <string name="voicelibrary_search_placeholder">Search voices</string>
+    <string name="voicelibrary_female">♀ Female</string>
+    <string name="voicelibrary_male">♂ Male</string>
+    <string name="voicelibrary_neutral">Neutral</string>
+    <string name="voicelibrary_multilingual">Multilingual</string>
+    <string name="voicelibrary_delete_title">Delete %1$s?</string>
+    <string name="voicelibrary_default">Default</string>
+
+    <!-- Engine / Voice picker gate -->
+    <string name="engine_voice_resolving">Resolving…</string>
+
+    <!-- Debug -->
+    <string name="debug_title">Debug</string>
+
+    <!-- Follows -->
+    <string name="follows_title">Follows</string>
+
+    <!-- Chat -->
+    <string name="chat_ask_question_placeholder">Ask a question…</string>
+
+    <!-- TechEmpower intents -->
+    <string name="techempower_copy">Copy</string>
+    <string name="techempower_open_web">Open web</string>
+    <string name="techempower_close">Close</string>
+
+    <!-- MemPalace filter sheet -->
+    <string name="mempalace_filter_title">Filter by wing</string>
+    <string name="mempalace_no_wings">No wings reachable. Confirm your palace daemon is configured under Settings → Memory Palace.</string>
+    <string name="mempalace_chip_all">All</string>
+
+    <!-- GitHub filter sheet -->
+    <string name="github_filter_title">Filter GitHub</string>
+    <string name="github_min_stars_section">Minimum stars: %1$d</string>
+    <string name="github_language_section">Language (ISO code, e.g. en, ja)</string>
+    <string name="github_pushed_section">Last pushed</string>
+    <string name="github_topics_section">Topic tags (comma-separated, e.g. litrpg, fantasy)</string>
+    <string name="github_repo_state_section">Repository state</string>
+    <string name="github_repo_state_any">Any</string>
+    <string name="github_repo_state_active">Active only</string>
+    <string name="github_repo_state_archived">Archived only</string>
+    <string name="github_visibility_section">Visibility</string>
+    <string name="github_visibility_both">Both</string>
+    <string name="github_visibility_public">Public</string>
+    <string name="github_visibility_private">Private</string>
+    <string name="github_sort_best_match">Best match</string>
+    <string name="github_sort_stars">Stars</string>
+    <string name="github_sort_updated">Recently updated</string>
+    <string name="github_pushed_any">Any time</string>
+    <string name="github_pushed_last_7_days">Last 7 days</string>
+    <string name="github_pushed_last_30_days">Last 30 days</string>
+    <string name="github_pushed_last_90_days">Last 90 days</string>
+    <string name="github_pushed_last_year">Last year</string>
+
+    <!-- RSS manage sheet -->
+    <string name="rss_manage_title">Manage RSS feeds</string>
+    <string name="rss_manage_description">Subscribe to any feed that publishes RSS or Atom. Storyvox treats each feed as one fiction; each item is a chapter.</string>
+    <string name="rss_feed_url_label">Feed URL</string>
+    <string name="rss_feed_url_placeholder">https://example.com/feed.xml</string>
+    <string name="rss_add">Add</string>
+    <string name="rss_remove">Remove</string>
+    <string name="rss_no_subscriptions">No subscriptions yet</string>
+    <string name="rss_your_feeds_count">Your feeds (%1$d)</string>
+    <string name="rss_empty_hint">Paste a feed URL above to subscribe, or pick from the suggested list below.</string>
+    <string name="rss_suggested_collapse">Collapse suggested feeds</string>
+    <string name="rss_suggested_expand">Expand suggested feeds</string>
+    <string name="rss_suggested_expanded_header">▾  Suggested feeds</string>
+    <string name="rss_suggested_collapsed_header">▸  Suggested feeds</string>
+    <string name="rss_suggested_collapsed_hint">Tap to browse curated feeds (Buddhist &amp; dharma, more coming).</string>
+    <string name="rss_kind_text">Text articles — narrate well</string>
+    <string name="rss_kind_audio_podcast">Audio podcast — storyvox narrates show notes only</string>
+    <string name="rss_already_added">Added</string>
+
+    <!-- Craigslist template card -->
+    <string name="craigslist_expand">Expand Craigslist template</string>
+    <string name="craigslist_collapse">Collapse Craigslist template</string>
+    <string name="craigslist_header_expanded">▾  Local marketplace · Craigslist</string>
+    <string name="craigslist_header_collapsed">▸  Local marketplace · Craigslist</string>
+    <string name="craigslist_collapsed_hint">Tap to subscribe to a Craigslist regional feed by region + category.</string>
+    <string name="craigslist_step_region">1. Pick a region</string>
+    <string name="craigslist_step_category">2. Pick a category</string>
+    <string name="craigslist_pick_preview_hint">Pick a region and a category to preview the feed URL.</string>
+    <string name="craigslist_already_subscribed">Already subscribed</string>
+    <string name="craigslist_subscribe">Subscribe</string>
+    <string name="craigslist_subscribed_confirmation">Subscribed: %1$s. See it under Browse → RSS.</string>
+
+</resources>

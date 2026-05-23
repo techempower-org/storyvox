@@ -24,6 +24,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -42,6 +43,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import `in`.jphe.storyvox.data.source.SystemTtsVoiceProvider
+import `in`.jphe.storyvox.feature.R
 import `in`.jphe.storyvox.playback.voice.UiVoiceInfo
 import `in`.jphe.storyvox.playback.voice.VoiceCatalog
 import `in`.jphe.storyvox.playback.voice.VoiceManager
@@ -398,7 +400,7 @@ private fun DownloadProgressBlock(
     val spacing = LocalSpacing.current
     when (progress) {
         DownloadProgress.Resolving -> {
-            Text("Resolving…", style = MaterialTheme.typography.bodySmall)
+            Text(stringResource(R.string.engine_voice_resolving), style = MaterialTheme.typography.bodySmall)
             Spacer(Modifier.height(spacing.xs))
             // Indeterminate brass comet — the manifest fetch is brief but
             // network-flaky enough that callers sit on this state for 1-3s.

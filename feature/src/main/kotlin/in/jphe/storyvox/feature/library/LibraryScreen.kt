@@ -42,6 +42,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
@@ -51,6 +52,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import `in`.jphe.storyvox.data.TechEmpowerLinks
 import `in`.jphe.storyvox.data.db.entity.InboxEvent
+import `in`.jphe.storyvox.feature.R
 import `in`.jphe.storyvox.data.db.entity.Shelf
 import `in`.jphe.storyvox.data.repository.ContinueListeningEntry
 import `in`.jphe.storyvox.data.repository.HistoryEntry
@@ -172,7 +174,7 @@ fun LibraryScreen(
         // exists in LibraryViewModel yet.
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text("Library", style = MaterialTheme.typography.titleMedium) },
+                title = { Text(stringResource(R.string.library_title), style = MaterialTheme.typography.titleMedium) },
                 actions = {
                     // Issue #533 — top-bar action icons used to pack
                     // flush together at 0dp gap on the Flip3 (1080dp
@@ -507,7 +509,7 @@ private fun ResumeCard(entry: ContinueListeningEntry, onResume: () -> Unit) {
                 modifier = Modifier.size(width = 68.dp, height = 100.dp),
             )
             Column(modifier = Modifier.weight(1f)) {
-                Text("Resume", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                Text(stringResource(R.string.library_resume), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
                 Text(entry.fiction.title, style = MaterialTheme.typography.titleMedium, maxLines = 1)
                 // #265 — when chapter.title is blank (RSS feeds where only
                 // the index was parsed, first-cold-launch state), the old
@@ -1020,7 +1022,7 @@ private fun InboxList(
                 horizontalArrangement = Arrangement.End,
             ) {
                 TextButton(onClick = onMarkAllRead) {
-                    Text("Mark all read", style = MaterialTheme.typography.labelLarge)
+                    Text(stringResource(R.string.library_mark_all_read), style = MaterialTheme.typography.labelLarge)
                 }
             }
         }

@@ -22,8 +22,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
+import `in`.jphe.storyvox.feature.R
 import `in`.jphe.storyvox.source.rss.templates.CraigslistCategory
 import `in`.jphe.storyvox.source.rss.templates.CraigslistRegion
 import `in`.jphe.storyvox.source.rss.templates.CraigslistTemplates
@@ -77,16 +79,16 @@ internal fun BrowseCraigslistTemplateCard(
             .fillMaxWidth()
             .clickable(
                 role = Role.Button,
-                onClickLabel = if (expanded) "Collapse Craigslist template" else "Expand Craigslist template",
+                onClickLabel = if (expanded) stringResource(R.string.craigslist_collapse) else stringResource(R.string.craigslist_expand),
             ) { expanded = !expanded }
             .padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
             text = if (expanded) {
-                "▾  Local marketplace · Craigslist"
+                stringResource(R.string.craigslist_header_expanded)
             } else {
-                "▸  Local marketplace · Craigslist"
+                stringResource(R.string.craigslist_header_collapsed)
             },
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.primary,
@@ -95,7 +97,7 @@ internal fun BrowseCraigslistTemplateCard(
     }
     if (!expanded) {
         Text(
-            text = "Tap to subscribe to a Craigslist regional feed by region + category.",
+            text = stringResource(R.string.craigslist_collapsed_hint),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -107,7 +109,7 @@ internal fun BrowseCraigslistTemplateCard(
         verticalArrangement = Arrangement.spacedBy(spacing.xs),
     ) {
         Text(
-            text = "1. Pick a region",
+            text = stringResource(R.string.craigslist_step_region),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = spacing.xs),
@@ -137,7 +139,7 @@ internal fun BrowseCraigslistTemplateCard(
         }
 
         Text(
-            text = "2. Pick a category",
+            text = stringResource(R.string.craigslist_step_category),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = spacing.sm),
@@ -196,7 +198,7 @@ internal fun BrowseCraigslistTemplateCard(
             }
         } else {
             Text(
-                text = "Pick a region and a category to preview the feed URL.",
+                text = stringResource(R.string.craigslist_pick_preview_hint),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = spacing.sm),
@@ -210,7 +212,7 @@ internal fun BrowseCraigslistTemplateCard(
             horizontalArrangement = Arrangement.End,
         ) {
             BrassButton(
-                label = if (alreadySubscribed) "Already subscribed" else "Subscribe",
+                label = if (alreadySubscribed) stringResource(R.string.craigslist_already_subscribed) else stringResource(R.string.craigslist_subscribe),
                 onClick = {
                     if (composedUrl != null && !alreadySubscribed) {
                         onSubscribe(composedUrl)
@@ -229,7 +231,7 @@ internal fun BrowseCraigslistTemplateCard(
 
         lastSubscribedTitle?.let { title ->
             Text(
-                text = "Subscribed: $title. See it under Browse → RSS.",
+                text = stringResource(R.string.craigslist_subscribed_confirmation, title),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.padding(top = spacing.xs),

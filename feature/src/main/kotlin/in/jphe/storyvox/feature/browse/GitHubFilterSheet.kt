@@ -27,6 +27,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import `in`.jphe.storyvox.feature.R
 import `in`.jphe.storyvox.feature.api.GitHubArchivedStatus
 import `in`.jphe.storyvox.feature.api.GitHubPushedSince
 import `in`.jphe.storyvox.feature.api.GitHubSearchFilter
@@ -73,7 +75,7 @@ fun GitHubFilterSheet(
             verticalArrangement = Arrangement.spacedBy(spacing.md),
         ) {
             Text(
-                "Filter GitHub",
+                stringResource(R.string.github_filter_title),
                 style = MaterialTheme.typography.titleLarge,
                 modifier = Modifier.padding(top = spacing.sm),
             )
@@ -82,7 +84,7 @@ fun GitHubFilterSheet(
             // Above 500 is uncommon for fiction repos and would mask
             // smaller-but-relevant repos. User who wants exact control
             // can supply a precise GitHub URL via the add-by-URL sheet.
-            SectionLabel("Minimum stars: ${local.minStars ?: 0}")
+            SectionLabel(stringResource(R.string.github_min_stars_section, local.minStars ?: 0))
             Slider(
                 value = (local.minStars ?: 0).toFloat(),
                 onValueChange = { v ->
@@ -98,20 +100,20 @@ fun GitHubFilterSheet(
             // Language — free-text ISO-639-1 (en, fr, ja, ...). GitHub
             // accepts the human label too ("English") but the code is
             // less ambiguous. Empty = no language qualifier.
-            SectionLabel("Language (ISO code, e.g. en, ja)")
+            SectionLabel(stringResource(R.string.github_language_section))
             OutlinedTextField(
                 value = local.language.orEmpty(),
                 onValueChange = { v ->
                     local = local.copy(language = v.trim().takeIf { it.isNotEmpty() })
                 },
-                placeholder = { Text("e.g. en") },
+                placeholder = { Text(stringResource(R.string.filter_language_short_placeholder)) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
             )
 
             HorizontalDivider()
 
-            SectionLabel("Last pushed")
+            SectionLabel(stringResource(R.string.github_pushed_section))
             PushedSinceDropdown(
                 value = local.pushedSince,
                 onChange = { local = local.copy(pushedSince = it) },
@@ -124,7 +126,7 @@ fun GitHubFilterSheet(
             // `topic:X` qualifier; multiple AND together. We avoid a
             // chip-based picker for v1 because GitHub has no public
             // topic-suggestion API — users type what they know.
-            SectionLabel("Topic tags (comma-separated, e.g. litrpg, fantasy)")
+            SectionLabel(stringResource(R.string.github_topics_section))
             var tagsDraft by remember(local.tags) { mutableStateOf(local.tags.joinToString(", ")) }
             OutlinedTextField(
                 value = tagsDraft,
@@ -134,7 +136,7 @@ fun GitHubFilterSheet(
                         tags = v.split(',').map { it.trim().lowercase() }.filter { it.isNotEmpty() }.toSet(),
                     )
                 },
-                placeholder = { Text("e.g. litrpg, fantasy") },
+                placeholder = { Text(stringResource(R.string.filter_tags_short_placeholder)) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
             )
@@ -144,15 +146,15 @@ fun GitHubFilterSheet(
             // Archive status (#205). Default `Any` returns both kinds;
             // ActiveOnly is the most common power-user filter (skip
             // deprecated forks); ArchivedOnly is for retro-archeology.
-            SectionLabel("Repository state")
+            SectionLabel(stringResource(R.string.github_repo_state_section))
             Row(horizontalArrangement = Arrangement.spacedBy(spacing.xs)) {
-                ArchivedChip("Any", local.archivedStatus == GitHubArchivedStatus.Any) {
+                ArchivedChip(stringResource(R.string.github_repo_state_any), local.archivedStatus == GitHubArchivedStatus.Any) {
                     local = local.copy(archivedStatus = GitHubArchivedStatus.Any)
                 }
-                ArchivedChip("Active only", local.archivedStatus == GitHubArchivedStatus.ActiveOnly) {
+                ArchivedChip(stringResource(R.string.github_repo_state_active), local.archivedStatus == GitHubArchivedStatus.ActiveOnly) {
                     local = local.copy(archivedStatus = GitHubArchivedStatus.ActiveOnly)
                 }
-                ArchivedChip("Archived only", local.archivedStatus == GitHubArchivedStatus.ArchivedOnly) {
+                ArchivedChip(stringResource(R.string.github_repo_state_archived), local.archivedStatus == GitHubArchivedStatus.ArchivedOnly) {
                     local = local.copy(archivedStatus = GitHubArchivedStatus.ArchivedOnly)
                 }
             }
@@ -163,15 +165,15 @@ fun GitHubFilterSheet(
             // silently empties the grid.
             if (showVisibilityChips) {
                 HorizontalDivider()
-                SectionLabel("Visibility")
+                SectionLabel(stringResource(R.string.github_visibility_section))
                 Row(horizontalArrangement = Arrangement.spacedBy(spacing.xs)) {
-                    ArchivedChip("Both", local.visibility == GitHubVisibilityFilter.Both) {
+                    ArchivedChip(stringResource(R.string.github_visibility_both), local.visibility == GitHubVisibilityFilter.Both) {
                         local = local.copy(visibility = GitHubVisibilityFilter.Both)
                     }
-                    ArchivedChip("Public", local.visibility == GitHubVisibilityFilter.PublicOnly) {
+                    ArchivedChip(stringResource(R.string.github_visibility_public), local.visibility == GitHubVisibilityFilter.PublicOnly) {
                         local = local.copy(visibility = GitHubVisibilityFilter.PublicOnly)
                     }
-                    ArchivedChip("Private", local.visibility == GitHubVisibilityFilter.PrivateOnly) {
+                    ArchivedChip(stringResource(R.string.github_visibility_private), local.visibility == GitHubVisibilityFilter.PrivateOnly) {
                         local = local.copy(visibility = GitHubVisibilityFilter.PrivateOnly)
                     }
                 }
@@ -179,7 +181,7 @@ fun GitHubFilterSheet(
 
             HorizontalDivider()
 
-            SectionLabel("Sort by")
+            SectionLabel(stringResource(R.string.filter_sort_by_section))
             SortDropdown(
                 value = local.sort,
                 onChange = { local = local.copy(sort = it) },
@@ -193,11 +195,11 @@ fun GitHubFilterSheet(
                 OutlinedButton(
                     onClick = onReset,
                     modifier = Modifier.weight(1f),
-                ) { Text("Reset") }
+                ) { Text(stringResource(R.string.filter_reset)) }
                 Button(
                     onClick = { onApply(local) },
                     modifier = Modifier.weight(2f),
-                ) { Text("Apply") }
+                ) { Text(stringResource(R.string.filter_apply)) }
             }
         }
     }
@@ -233,7 +235,7 @@ private fun PushedSinceDropdown(
         onExpandedChange = { expanded = it },
     ) {
         OutlinedTextField(
-            value = value.label,
+            value = stringResource(value.labelRes),
             onValueChange = {},
             readOnly = true,
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
@@ -247,7 +249,7 @@ private fun PushedSinceDropdown(
         ) {
             GitHubPushedSince.entries.forEach { option ->
                 DropdownMenuItem(
-                    text = { Text(option.label) },
+                    text = { Text(stringResource(option.labelRes)) },
                     onClick = {
                         onChange(option)
                         expanded = false
@@ -270,7 +272,7 @@ private fun SortDropdown(
         onExpandedChange = { expanded = it },
     ) {
         OutlinedTextField(
-            value = value.label,
+            value = stringResource(value.labelRes),
             onValueChange = {},
             readOnly = true,
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
@@ -284,7 +286,7 @@ private fun SortDropdown(
         ) {
             GitHubSort.entries.forEach { option ->
                 DropdownMenuItem(
-                    text = { Text(option.label) },
+                    text = { Text(stringResource(option.labelRes)) },
                     onClick = {
                         onChange(option)
                         expanded = false
@@ -298,18 +300,18 @@ private fun SortDropdown(
 private const val STARS_MAX = 500f
 private const val STARS_STEPS = 49 // every 10 stars in 0..500
 
-private val GitHubPushedSince.label: String
+private val GitHubPushedSince.labelRes: Int
     get() = when (this) {
-        GitHubPushedSince.Any -> "Any time"
-        GitHubPushedSince.Last7Days -> "Last 7 days"
-        GitHubPushedSince.Last30Days -> "Last 30 days"
-        GitHubPushedSince.Last90Days -> "Last 90 days"
-        GitHubPushedSince.LastYear -> "Last year"
+        GitHubPushedSince.Any -> R.string.github_pushed_any
+        GitHubPushedSince.Last7Days -> R.string.github_pushed_last_7_days
+        GitHubPushedSince.Last30Days -> R.string.github_pushed_last_30_days
+        GitHubPushedSince.Last90Days -> R.string.github_pushed_last_90_days
+        GitHubPushedSince.LastYear -> R.string.github_pushed_last_year
     }
 
-private val GitHubSort.label: String
+private val GitHubSort.labelRes: Int
     get() = when (this) {
-        GitHubSort.BestMatch -> "Best match"
-        GitHubSort.Stars -> "Stars"
-        GitHubSort.Updated -> "Recently updated"
+        GitHubSort.BestMatch -> R.string.github_sort_best_match
+        GitHubSort.Stars -> R.string.github_sort_stars
+        GitHubSort.Updated -> R.string.github_sort_updated
     }

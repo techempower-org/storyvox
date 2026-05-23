@@ -54,6 +54,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
@@ -65,6 +66,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import `in`.jphe.storyvox.feature.R
 import `in`.jphe.storyvox.playback.voice.EngineKey
 import `in`.jphe.storyvox.playback.voice.EngineType
 import `in`.jphe.storyvox.playback.voice.QualityLevel
@@ -103,7 +105,7 @@ fun VoiceLibraryScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Voice library") },
+                title = { Text(stringResource(R.string.voicelibrary_title)) },
                 // Voice Library was promoted to a first-class home tab
                 // (issue #264 follow-up), so it no longer has a back
                 // arrow — peer of Library/Browse/Follows/Playing. The
@@ -183,7 +185,7 @@ fun VoiceLibraryScreen(
             OutlinedTextField(
                 value = rawQuery,
                 onValueChange = { viewModel.setQuery(it) },
-                placeholder = { Text("Search voices") },
+                placeholder = { Text(stringResource(R.string.voicelibrary_search_placeholder)) },
                 singleLine = true,
                 leadingIcon = {
                     Icon(Icons.Outlined.Search, contentDescription = null)
@@ -274,7 +276,7 @@ fun VoiceLibraryScreen(
                     onClick = {
                         selectedGenders = selectedGenders.toggleMember(VoiceGender.Female)
                     },
-                    label = { Text("♀ Female") },
+                    label = { Text(stringResource(R.string.voicelibrary_female)) },
                     colors = brassFilterChipColors(),
                 )
                 FilterChip(
@@ -282,7 +284,7 @@ fun VoiceLibraryScreen(
                     onClick = {
                         selectedGenders = selectedGenders.toggleMember(VoiceGender.Male)
                     },
-                    label = { Text("♂ Male") },
+                    label = { Text(stringResource(R.string.voicelibrary_male)) },
                     colors = brassFilterChipColors(),
                 )
                 FilterChip(
@@ -290,7 +292,7 @@ fun VoiceLibraryScreen(
                     onClick = {
                         selectedGenders = selectedGenders.toggleMember(VoiceGender.Unknown)
                     },
-                    label = { Text("Neutral") },
+                    label = { Text(stringResource(R.string.voicelibrary_neutral)) },
                     colors = brassFilterChipColors(),
                 )
                 listOf(
@@ -309,7 +311,7 @@ fun VoiceLibraryScreen(
                 FilterChip(
                     selected = multilingualOnly,
                     onClick = { multilingualOnly = !multilingualOnly },
-                    label = { Text("Multilingual") },
+                    label = { Text(stringResource(R.string.voicelibrary_multilingual)) },
                     colors = brassFilterChipColors(),
                 )
             }
@@ -1211,7 +1213,7 @@ private fun DeleteConfirmDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Delete ${voice.displayName}?") },
+        title = { Text(stringResource(R.string.voicelibrary_delete_title, voice.displayName)) },
         text = {
             Text(
                 "Frees ${formatBytes(voice.sizeBytes)}. You can re-download anytime from this screen.",
@@ -1556,7 +1558,7 @@ private fun PhonemizerLangDropdown(
         FilterChip(
             selected = selected.isEmpty(),
             onClick = { onSelected(null) },
-            label = { Text("Default", style = MaterialTheme.typography.labelMedium) },
+            label = { Text(stringResource(R.string.voicelibrary_default), style = MaterialTheme.typography.labelMedium) },
             colors = brassFilterChipColors(),
         )
         for (code in `in`.jphe.storyvox.playback.KOKORO_PHONEMIZER_LANGS) {

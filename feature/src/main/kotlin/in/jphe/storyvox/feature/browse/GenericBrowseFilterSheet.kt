@@ -30,6 +30,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import `in`.jphe.storyvox.feature.R
 import `in`.jphe.storyvox.feature.api.GenericBrowseFilter
 import `in`.jphe.storyvox.feature.api.GenericDateRange
 import `in`.jphe.storyvox.feature.api.GenericFilterCapabilities
@@ -79,13 +81,13 @@ fun GenericBrowseFilterSheet(
             verticalArrangement = Arrangement.spacedBy(spacing.md),
         ) {
             Text(
-                "Filter $sourceLabel",
+                stringResource(R.string.generic_filter_title, sourceLabel),
                 style = MaterialTheme.typography.titleLarge,
                 modifier = Modifier.padding(top = spacing.sm),
             )
 
             if (capabilities.supportsSortOrder) {
-                SectionLabel("Sort by")
+                SectionLabel(stringResource(R.string.filter_sort_by_section))
                 SortDropdown(
                     available = capabilities.availableSortOrders,
                     value = local.sortOrder,
@@ -95,14 +97,14 @@ fun GenericBrowseFilterSheet(
             }
 
             if (capabilities.supportsCategory) {
-                SectionLabel("Category")
+                SectionLabel(stringResource(R.string.filter_category_section))
                 if (capabilities.availableCategories.isNotEmpty()) {
                     FlowRow(
                         horizontalArrangement = Arrangement.spacedBy(spacing.xs),
                         verticalArrangement = Arrangement.spacedBy(spacing.xs),
                     ) {
                         ChipOption(
-                            label = "Any",
+                            label = stringResource(R.string.generic_filter_chip_any),
                             selected = local.category == null,
                             onClick = { local = local.copy(category = null) },
                         )
@@ -124,7 +126,7 @@ fun GenericBrowseFilterSheet(
                         onValueChange = { v ->
                             local = local.copy(category = v.trim().takeIf { it.isNotEmpty() })
                         },
-                        placeholder = { Text("e.g. fantasy, biology") },
+                        placeholder = { Text(stringResource(R.string.filter_tags_placeholder)) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                     )
@@ -133,14 +135,14 @@ fun GenericBrowseFilterSheet(
             }
 
             if (capabilities.supportsLanguage) {
-                SectionLabel("Language")
+                SectionLabel(stringResource(R.string.filter_language_section))
                 if (capabilities.availableLanguages.isNotEmpty()) {
                     FlowRow(
                         horizontalArrangement = Arrangement.spacedBy(spacing.xs),
                         verticalArrangement = Arrangement.spacedBy(spacing.xs),
                     ) {
                         ChipOption(
-                            label = "Any",
+                            label = stringResource(R.string.generic_filter_chip_any),
                             selected = local.language == null,
                             onClick = { local = local.copy(language = null) },
                         )
@@ -162,7 +164,7 @@ fun GenericBrowseFilterSheet(
                         onValueChange = { v ->
                             local = local.copy(language = v.trim().takeIf { it.isNotEmpty() })
                         },
-                        placeholder = { Text("ISO code (e.g. en, fr, ja)") },
+                        placeholder = { Text(stringResource(R.string.filter_language_iso_placeholder)) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                     )
@@ -171,14 +173,14 @@ fun GenericBrowseFilterSheet(
             }
 
             if (capabilities.supportsDateRange) {
-                SectionLabel("Recent")
+                SectionLabel(stringResource(R.string.filter_recent_section))
                 FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(spacing.xs),
                     verticalArrangement = Arrangement.spacedBy(spacing.xs),
                 ) {
                     GenericDateRange.entries.forEach { range ->
                         ChipOption(
-                            label = range.uiLabel(),
+                            label = stringResource(range.uiLabelRes()),
                             selected = local.dateRange == range,
                             onClick = { local = local.copy(dateRange = range) },
                         )
@@ -194,11 +196,11 @@ fun GenericBrowseFilterSheet(
                 OutlinedButton(
                     onClick = onReset,
                     modifier = Modifier.weight(1f),
-                ) { Text("Reset") }
+                ) { Text(stringResource(R.string.filter_reset)) }
                 Button(
                     onClick = { onApply(local) },
                     modifier = Modifier.weight(2f),
-                ) { Text("Apply") }
+                ) { Text(stringResource(R.string.filter_apply)) }
             }
         }
     }
@@ -240,7 +242,7 @@ private fun SortDropdown(
         onExpandedChange = { expanded = it },
     ) {
         OutlinedTextField(
-            value = value.uiLabel(),
+            value = stringResource(value.uiLabelRes()),
             onValueChange = {},
             readOnly = true,
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
@@ -254,7 +256,7 @@ private fun SortDropdown(
         ) {
             available.forEach { option ->
                 DropdownMenuItem(
-                    text = { Text(option.uiLabel()) },
+                    text = { Text(stringResource(option.uiLabelRes())) },
                     onClick = {
                         onChange(option)
                         expanded = false
@@ -265,19 +267,19 @@ private fun SortDropdown(
     }
 }
 
-private fun GenericSortOrder.uiLabel(): String = when (this) {
-    GenericSortOrder.Default -> "Default"
-    GenericSortOrder.Newest -> "Newest"
-    GenericSortOrder.Popular -> "Popular"
-    GenericSortOrder.Title -> "Title (A-Z)"
+private fun GenericSortOrder.uiLabelRes(): Int = when (this) {
+    GenericSortOrder.Default -> R.string.generic_sort_default
+    GenericSortOrder.Newest -> R.string.generic_sort_newest
+    GenericSortOrder.Popular -> R.string.generic_sort_popular
+    GenericSortOrder.Title -> R.string.generic_sort_title
 }
 
-private fun GenericDateRange.uiLabel(): String = when (this) {
-    GenericDateRange.Any -> "Any time"
-    GenericDateRange.Last7Days -> "Last 7 days"
-    GenericDateRange.Last30Days -> "Last 30 days"
-    GenericDateRange.Last90Days -> "Last 90 days"
-    GenericDateRange.LastYear -> "Last year"
+private fun GenericDateRange.uiLabelRes(): Int = when (this) {
+    GenericDateRange.Any -> R.string.generic_range_any
+    GenericDateRange.Last7Days -> R.string.generic_range_last_7_days
+    GenericDateRange.Last30Days -> R.string.generic_range_last_30_days
+    GenericDateRange.Last90Days -> R.string.generic_range_last_90_days
+    GenericDateRange.LastYear -> R.string.generic_range_last_year
 }
 
 /** True when [filter] has any non-default knob set. Drives the

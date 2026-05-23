@@ -29,6 +29,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -38,6 +39,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import `in`.jphe.storyvox.feature.R
 import `in`.jphe.storyvox.feature.api.UiPlaybackState
 import `in`.jphe.storyvox.ui.component.FictionCoverThumb
 import `in`.jphe.storyvox.ui.component.fictionMonogram
@@ -100,11 +102,10 @@ internal fun NowPlayingDockContent(
     modifier: Modifier = Modifier,
 ) {
     val isTablet = isAtLeastTablet()
-    val fictionTitle = state.fictionTitle.ifBlank { "Now playing" }
+    val fictionTitle = state.fictionTitle.ifBlank { stringResource(R.string.reader_now_playing) }
     val chapterTitle = state.chapterTitle
-    val cardDescription =
-        "Now playing: $fictionTitle. $chapterTitle. Tap to open reader."
-    val playPauseLabel = if (state.isPlaying) "Pause" else "Play"
+    val cardDescription = stringResource(R.string.reader_dock_card_description, fictionTitle, chapterTitle)
+    val playPauseLabel = if (state.isPlaying) stringResource(R.string.reader_pause) else stringResource(R.string.reader_play)
     // Why: progress is read-only in v1.0; clamp to [0, 1] so a stale
     // duration (e.g. mid-load) can't produce an out-of-range value the
     // LinearProgressIndicator would log-warn about.
@@ -138,7 +139,7 @@ internal fun NowPlayingDockContent(
                     // on hits to the thumbnail/title area.
                     .clickable(
                         role = Role.Button,
-                        onClickLabel = "Open reader",
+                        onClickLabel = stringResource(R.string.reader_open_reader),
                         onClick = onOpenReader,
                     )
                     .semantics { contentDescription = cardDescription }

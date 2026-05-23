@@ -37,8 +37,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.positionInParent
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.dp
+import `in`.jphe.storyvox.feature.R
 import `in`.jphe.storyvox.feature.api.UiPlaybackState
 import `in`.jphe.storyvox.ui.component.SentenceHighlight
 import `in`.jphe.storyvox.ui.theme.LocalSpacing
@@ -209,14 +211,13 @@ fun ReaderTextView(
                 },
                 title = {
                     Text(
-                        text = "Ask AI: who is \"$word\"?",
+                        text = stringResource(R.string.reader_ask_ai_title, word),
                         style = MaterialTheme.typography.titleMedium,
                     )
                 },
                 text = {
                     Text(
-                        text = "The librarian-companion will answer based on what you've " +
-                            "read so far — no spoilers from later chapters.",
+                        text = stringResource(R.string.reader_ask_ai_body),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -229,12 +230,12 @@ fun ReaderTextView(
                             onAskAiAbout(q)
                         },
                     ) {
-                        Text("Ask AI")
+                        Text(stringResource(R.string.reader_ask_ai))
                     }
                 },
                 dismissButton = {
                     TextButton(onClick = { lookupWord = null }) {
-                        Text("Cancel")
+                        Text(stringResource(R.string.reader_cancel))
                     }
                 },
             )

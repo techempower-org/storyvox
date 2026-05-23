@@ -56,11 +56,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import `in`.jphe.storyvox.feature.R
 import `in`.jphe.storyvox.llm.tools.ToolCallEvent
 import `in`.jphe.storyvox.llm.tools.ToolResult
 import kotlinx.coroutines.launch
@@ -748,7 +750,7 @@ private fun ChatInput(
                 value = text,
                 onValueChange = { text = it },
                 enabled = enabled,
-                placeholder = { Text("Ask a question…") },
+                placeholder = { Text(stringResource(R.string.chat_ask_question_placeholder)) },
                 modifier = Modifier.weight(1f),
                 singleLine = false,
                 maxLines = 4,
