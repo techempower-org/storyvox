@@ -49,6 +49,7 @@ storyvox-upload.keystore
 
 # storyvox-local
 .superpowers/
+.claude/
 scratch/
 
 # Issue #417 — :source-kvmr was renamed to :source-radio. Older

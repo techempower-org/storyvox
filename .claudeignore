@@ -1,0 +1,51 @@
+# Build output — 3GB+ of compiled classes, dex, resources, transforms
+**/build/
+.gradle/
+.kotlin/
+
+# Generated code — KSP (Hilt, plugin-ksp), databinding, AIDL
+**/generated/
+**/ksp/
+
+# Baseline profiles — binary + generated
+baselineprofile/
+
+# Gradle wrapper jar
+gradle/wrapper/gradle-wrapper.jar
+
+# IDE
+.idea/
+*.iml
+local.properties
+
+# APK / AAB binaries
+*.apk
+*.aab
+
+# Wear module — separate concern, rarely touched
+wear/
+
+# Test snapshots and fixtures (read explicitly when needed)
+**/src/test/resources/
+
+# Room schema exports — only latest version matters; 6700 lines of JSON noise
+core-data/schemas/
+
+# Gradle config (version catalog is useful, but wrapper props are not)
+gradle/wrapper/
+
+# Docs — screenshots (6MB), play-store assets (2MB), architecture docs
+# Slack template structure is summarized in CLAUDE.md; read the file only for emoji palette
+docs/screenshots/
+docs/play-store/
+docs/superpowers/
+docs/assets/
+
+# Scratch — stale agent work directories (7MB)
+scratch/
+
+# Superpowers plugin config
+.superpowers/
+
+# Git
+.git/
