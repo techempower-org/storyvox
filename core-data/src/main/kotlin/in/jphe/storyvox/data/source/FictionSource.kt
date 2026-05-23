@@ -1,5 +1,7 @@
 package `in`.jphe.storyvox.data.source
 
+import `in`.jphe.storyvox.data.source.filter.FilterDimension
+import `in`.jphe.storyvox.data.source.filter.FilterState
 import `in`.jphe.storyvox.data.source.model.ChapterContent
 import `in`.jphe.storyvox.data.source.model.FictionDetail
 import `in`.jphe.storyvox.data.source.model.FictionResult
@@ -113,6 +115,12 @@ interface FictionSource {
      */
     suspend fun latestRevisionToken(fictionId: String): FictionResult<String?> =
         FictionResult.Success(null)
+
+    // ─── filter contract ────────────────────────────────────────────────
+
+    fun filterDimensions(): List<FilterDimension> = emptyList()
+
+    fun applyFilters(base: SearchQuery, state: FilterState): SearchQuery = base
 
     // ─── eventing ─────────────────────────────────────────────────────────
 
