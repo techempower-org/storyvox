@@ -493,6 +493,9 @@ private class RealFictionRepositoryUi(
     override suspend fun chapterTextById(chapterId: String): String? =
         chapters.getChapter(chapterId)?.text
 
+    override fun observeIsInLibrary(fictionId: String): Flow<Boolean> =
+        repo.observeIsInLibrary(fictionId)
+
     override fun chaptersFor(fictionId: String): Flow<List<UiChapter>> =
         // Issue #282 — the previous mapping hard-coded `isFinished = false`,
         // so the played-indicator on the Fiction detail chapter list never

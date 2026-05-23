@@ -222,6 +222,7 @@ private class FakeFictionRepoT : FictionRepositoryUi {
     )
     override fun fictionLoadError(id: String): Flow<String?> = flowOf(null)
     override fun chaptersFor(fictionId: String): Flow<List<UiChapter>> = flowOf(emptyList())
+    override fun observeIsInLibrary(fictionId: String): Flow<Boolean> = flowOf(false)
     override suspend fun chapterTextById(chapterId: String): String? = null
     override suspend fun setDownloadMode(fictionId: String, mode: DownloadMode) = Unit
     override suspend fun follow(fictionId: String, follow: Boolean) = Unit

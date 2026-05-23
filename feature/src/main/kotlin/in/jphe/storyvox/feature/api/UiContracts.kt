@@ -143,6 +143,13 @@ interface FictionRepositoryUi {
     fun fictionLoadError(id: String): Flow<String?>
     fun chaptersFor(fictionId: String): Flow<List<UiChapter>>
     /**
+     * Targeted boolean stream: true when [fictionId] is in the user's
+     * library. Scoped to a single row — unlike [library], this flow
+     * does not re-emit when unrelated fictions change. Used by
+     * FictionDetailViewModel to avoid the O(n) full-list scan.
+     */
+    fun observeIsInLibrary(fictionId: String): Flow<Boolean>
+    /**
      * Issue #212 — fetch the plain-text body of a downloaded chapter
      * for AI grounding. Returns null if the chapter row doesn't exist
      * or its body hasn't been downloaded yet. Suspends because the

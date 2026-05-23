@@ -157,14 +157,14 @@ class FictionDetailViewModel @Inject constructor(
         val base = combine(
             repo.fictionById(fictionId),
             repo.chaptersFor(fictionId),
-            repo.library,
+            repo.observeIsInLibrary(fictionId),
             repo.fictionLoadError(fictionId),
             isExporting,
-        ) { fiction, chapters, library, error, exporting ->
+        ) { fiction, chapters, inLibrary, error, exporting ->
             FictionDetailUiState(
                 fiction = fiction,
                 chapters = chapters,
-                isInLibrary = library.any { it.id == fictionId },
+                isInLibrary = inLibrary,
                 // Stop showing the spinner once we either have a cached row
                 // OR the refresh has failed — otherwise a Cloudflare/network
                 // error leaves the user on a permanent spinner with no signal.
