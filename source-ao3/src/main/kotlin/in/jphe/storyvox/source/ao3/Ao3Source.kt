@@ -151,6 +151,24 @@ internal class Ao3Source @Inject constructor(
             label = "Completion",
             options = listOf("Complete", "In Progress"),
         ),
+        // AO3's four canonical archive warnings. TagSet with
+        // allowExclude=true so users can include OR exclude — matches
+        // AO3's own search UI which has separate include/exclude pickers
+        // for warnings. Until AO3 search() is wired (currently a no-op
+        // per the comment on [search]), the chosen values flow into
+        // SearchQuery.tags/excludeTags but have no functional effect;
+        // the declaration is what surfaces the filter to the user.
+        FilterDimension.TagSet(
+            key = "warnings",
+            label = "Archive warnings",
+            options = listOf(
+                "Major Character Death",
+                "Graphic Depictions Of Violence",
+                "Rape/Non-Con",
+                "Underage",
+            ),
+            allowExclude = true,
+        ),
     )
 
     override fun applyFilters(base: SearchQuery, state: FilterState): SearchQuery {
@@ -166,6 +184,12 @@ internal class Ao3Source @Inject constructor(
         }
         state.stringVal("category")?.takeIf { it.isNotBlank() }?.let { cat ->
             q = q.copy(tags = q.tags + cat.lowercase())
+        }
+        state.stringSetVal("warnings")?.let { w ->
+            q = q.copy(
+                tags = q.tags + w.included.map { it.lowercase() },
+                excludeTags = q.excludeTags + w.excluded.map { it.lowercase() },
+            )
         }
         return q
     }

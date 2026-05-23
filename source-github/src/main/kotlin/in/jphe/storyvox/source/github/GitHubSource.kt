@@ -100,6 +100,19 @@ internal class GitHubSource @Inject constructor(
                 "go", "rust", "swift", "ruby", "c", "cpp", "csharp",
             ),
         ),
+        // SPDX license keys accepted by GitHub's `license:` qualifier.
+        // Curated to the most-common OSS licenses; the GitHub API will
+        // 422 on unknown values, so this is a closed list rather than
+        // free text. https://docs.github.com/en/search-github/searching-on-github/searching-for-repositories#search-by-license
+        FilterDimension.Select(
+            key = "license",
+            label = "License",
+            options = listOf(
+                "mit", "apache-2.0", "gpl-3.0", "gpl-2.0",
+                "bsd-3-clause", "bsd-2-clause", "isc", "mpl-2.0",
+                "lgpl-3.0", "agpl-3.0", "unlicense", "cc0-1.0",
+            ),
+        ),
         FilterDimension.DateRange(
             key = "pushedSince",
             label = "Pushed since",
@@ -139,6 +152,9 @@ internal class GitHubSource @Inject constructor(
         }
         state.stringVal("language")?.takeIf { it.isNotBlank() }?.let { lang ->
             parts += "language:${lang.lowercase()}"
+        }
+        state.stringVal("license")?.takeIf { it.isNotBlank() }?.let { license ->
+            parts += "license:${license.lowercase()}"
         }
         state.stringVal("pushedSince")?.takeIf { it != "any" && it.isNotBlank() }?.let { preset ->
             val today = java.time.LocalDate.now()
