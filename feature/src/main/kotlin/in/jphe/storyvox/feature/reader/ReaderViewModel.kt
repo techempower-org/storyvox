@@ -8,8 +8,10 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import `in`.jphe.storyvox.data.repository.ContinueListeningEntry
 import `in`.jphe.storyvox.data.repository.PlaybackPositionRepository
 import `in`.jphe.storyvox.data.repository.playback.PlaybackResumePolicyConfig
+import `in`.jphe.storyvox.feature.api.FictionRepositoryUi
 import `in`.jphe.storyvox.feature.api.PlaybackControllerUi
 import `in`.jphe.storyvox.feature.api.SettingsRepositoryUi
+import `in`.jphe.storyvox.feature.api.UiChapter
 import `in`.jphe.storyvox.feature.api.UiPlaybackState
 import `in`.jphe.storyvox.feature.api.UiRecapPlaybackState
 import `in`.jphe.storyvox.feature.api.UiSleepTimerMode
@@ -30,6 +32,8 @@ import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.flow.receiveAsFlow
@@ -164,6 +168,7 @@ class ReaderViewModel @Inject constructor(
      * [`in`.jphe.storyvox.feature.library.LibraryViewModel.resume].
      */
     private val resumePolicy: PlaybackResumePolicyConfig,
+    private val fictionRepo: FictionRepositoryUi,
     savedState: SavedStateHandle,
 ) : ViewModel() {
 
@@ -394,6 +399,15 @@ class ReaderViewModel @Inject constructor(
         .observeMostRecentContinueListening()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    val chapters: StateFlow<List<UiChapter>> = playback.state
+        .map { it.fictionId }
+        .distinctUntilChanged()
+        .flatMapLatest { id ->
+            if (id.isNullOrBlank()) flowOf(emptyList()) else fictionRepo.chaptersFor(id)
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
     /** Issue #278 — user-initiated retry from the timed-out error block.
      *  Re-invokes the playback `play()` path; the underlying controller
      *  will re-fetch the chapter / re-prime the voice. We also reset the
@@ -460,6 +474,13 @@ class ReaderViewModel @Inject constructor(
     fun skipBack() = playback.skipBack()
     fun nextChapter() = playback.nextChapter()
     fun previousChapter() = playback.previousChapter()
+
+    fun playChapter(chapterId: String) {
+        val fictionId = uiState.value.playback?.fictionId ?: return
+        _loadingPhase.value = LoadingPhase.Loading
+        _bookFinished.value = false
+        playback.startListening(fictionId = fictionId, chapterId = chapterId)
+    }
     fun nextSentence() = playback.nextSentence()
     fun previousSentence() = playback.previousSentence()
 

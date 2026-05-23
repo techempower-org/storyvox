@@ -89,4 +89,38 @@ class PlayerQuickChipsTest {
         assertEquals("1.25×", formatSpeedPreset(1.25f))
         assertEquals("1.5×", formatSpeedPreset(1.5f))
     }
+
+    /**
+     * Issue #736 — pin the chapter chip label format. The chip lives
+     * on row 4 of [PlayerQuickChips], opens the
+     * [`in`.jphe.storyvox.feature.reader.ChapterListSheet`], and its
+     * label is the only visible affordance other than the
+     * [`Icons.AutoMirrored.Outlined.FormatListBulleted`] anchor icon —
+     * if the format silently changes the chip becomes meaningless.
+     */
+    @Test
+    fun `chapter chip label uses count delimiter format`() {
+        assertEquals("Chapters · 12", formatChapterChipLabel(12))
+        assertEquals("Chapters · 47", formatChapterChipLabel(47))
+        assertEquals("Chapters · 156", formatChapterChipLabel(156))
+    }
+
+    @Test
+    fun `chapter chip label handles single chapter`() {
+        // Singular reads "Chapters · 1" — kept plural for the chip
+        // label because the row's anchor icon already disambiguates
+        // and "Chapter · 1" would read oddly when the typical case is
+        // multi-chapter.
+        assertEquals("Chapters · 1", formatChapterChipLabel(1))
+    }
+
+    @Test
+    fun `chapter chip label handles zero chapters`() {
+        // Zero shouldn't be rendered (the AudiobookView guards
+        // chip visibility with `if (chapterCount > 0)`) but the
+        // formatter must still produce a sane string — the chip
+        // visibility guard is one edge of the contract, the
+        // formatter being non-throwing is the other.
+        assertEquals("Chapters · 0", formatChapterChipLabel(0))
+    }
 }
