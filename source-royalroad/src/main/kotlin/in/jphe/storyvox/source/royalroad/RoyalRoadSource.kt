@@ -2,6 +2,8 @@ package `in`.jphe.storyvox.source.royalroad
 
 import `in`.jphe.storyvox.data.source.FictionSource
 import `in`.jphe.storyvox.data.source.SourceIds
+import `in`.jphe.storyvox.data.source.filter.FilterDimension
+import `in`.jphe.storyvox.data.source.filter.FilterState
 import `in`.jphe.storyvox.data.source.plugin.SourceCategory
 import `in`.jphe.storyvox.data.source.plugin.SourcePlugin
 import `in`.jphe.storyvox.data.source.model.ChapterContent
@@ -70,6 +72,119 @@ class RoyalRoadSource @Inject internal constructor(
     // a fresh __RequestVerificationToken; pull is the periodic
     // /my/follows scrape from FollowsViewModel.refreshFollows.
     override val supportsFollow: Boolean = true
+
+    override fun filterDimensions(): List<FilterDimension> = listOf(
+        FilterDimension.Sort(
+            options = listOf(
+                FilterDimension.SortOption("popularity", "Popularity"),
+                FilterDimension.SortOption("rating", "Rating"),
+                FilterDimension.SortOption("last_update", "Last Updated"),
+                FilterDimension.SortOption("release_date", "Release Date"),
+                FilterDimension.SortOption("followers", "Followers"),
+                FilterDimension.SortOption("length", "Length"),
+                FilterDimension.SortOption("views", "Views"),
+                FilterDimension.SortOption("title", "Title"),
+            ),
+        ),
+        FilterDimension.TagSet(
+            key = "tags",
+            label = "Tags",
+            options = KnownTagSlugs,
+            allowExclude = true,
+        ),
+        FilterDimension.Select(
+            key = "status",
+            label = "Status",
+            options = listOf("Ongoing", "Completed", "Hiatus", "Stub", "Dropped"),
+        ),
+        FilterDimension.Select(
+            key = "type",
+            label = "Type",
+            options = listOf("All", "Original", "Fan Fiction"),
+        ),
+        FilterDimension.NumberRange(
+            key = "pages",
+            label = "Pages",
+            min = 0f,
+            max = 10000f,
+            step = 100f,
+            formatLabel = "pages",
+        ),
+        FilterDimension.NumberRange(
+            key = "rating",
+            label = "Rating",
+            min = 0f,
+            max = 5f,
+            step = 0.5f,
+        ),
+        FilterDimension.TagSet(
+            key = "warnings",
+            label = "Content warnings",
+            options = listOf(
+                "Profanity", "Sexual Content", "Graphic Violence",
+                "Sensitive Content", "AI Assisted", "AI Generated",
+            ),
+            allowExclude = true,
+        ),
+    )
+
+    override fun applyFilters(base: SearchQuery, state: FilterState): SearchQuery {
+        var q = base
+        state.stringVal("sort")?.let { sortId ->
+            q = q.copy(
+                orderBy = when (sortId) {
+                    "popularity" -> SearchOrder.POPULARITY
+                    "rating" -> SearchOrder.RATING
+                    "last_update" -> SearchOrder.LAST_UPDATE
+                    "release_date" -> SearchOrder.RELEASE_DATE
+                    "followers" -> SearchOrder.FOLLOWERS
+                    "length" -> SearchOrder.LENGTH
+                    "views" -> SearchOrder.VIEWS
+                    "title" -> SearchOrder.TITLE
+                    else -> SearchOrder.RELEVANCE
+                },
+            )
+        }
+        state.stringSetVal("tags")?.let { tags ->
+            q = q.copy(tags = tags.included, excludeTags = tags.excluded)
+        }
+        state.stringVal("status")?.let { status ->
+            val fs = when (status) {
+                "Ongoing" -> FictionStatus.ONGOING
+                "Completed" -> FictionStatus.COMPLETED
+                "Hiatus" -> FictionStatus.HIATUS
+                "Stub" -> FictionStatus.STUB
+                "Dropped" -> FictionStatus.DROPPED
+                else -> null
+            }
+            if (fs != null) q = q.copy(statuses = setOf(fs))
+        }
+        state.stringVal("type")?.let { type ->
+            q = q.copy(
+                type = when (type) {
+                    "Original" -> FictionType.ORIGINAL
+                    "Fan Fiction" -> FictionType.FAN_FICTION
+                    else -> FictionType.ALL
+                },
+            )
+        }
+        state.rangeVal("pages")?.let { range ->
+            q = q.copy(
+                minPages = range.min?.toInt(),
+                maxPages = range.max?.toInt(),
+            )
+        }
+        state.rangeVal("rating")?.let { range ->
+            q = q.copy(minRating = range.min, maxRating = range.max)
+        }
+        state.stringSetVal("warnings")?.let { warnings ->
+            q = q.copy(
+                requireWarnings = warnings.included.mapNotNull { warningFromLabel(it) }.toSet(),
+                excludeWarnings = warnings.excluded.mapNotNull { warningFromLabel(it) }.toSet(),
+            )
+        }
+        return q
+    }
 
     override suspend fun popular(page: Int): FictionResult<ListPage<FictionSummary>> =
         fetchBrowsePage(browseUrl("/fictions/active-popular", page), page)
@@ -287,6 +402,16 @@ private fun FictionType.toRrSlug(): String = when (this) {
     FictionType.ALL -> "ALL"
     FictionType.ORIGINAL -> "original"
     FictionType.FAN_FICTION -> "fanfiction"
+}
+
+private fun warningFromLabel(label: String): ContentWarning? = when (label) {
+    "Profanity" -> ContentWarning.PROFANITY
+    "Sexual Content" -> ContentWarning.SEXUAL_CONTENT
+    "Graphic Violence" -> ContentWarning.GRAPHIC_VIOLENCE
+    "Sensitive Content" -> ContentWarning.SENSITIVE_CONTENT
+    "AI Assisted" -> ContentWarning.AI_ASSISTED
+    "AI Generated" -> ContentWarning.AI_GENERATED
+    else -> null
 }
 
 private fun SearchOrder.toRrSlug(): String = when (this) {
