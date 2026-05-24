@@ -1,5 +1,6 @@
 package `in`.jphe.storyvox.sync
 
+import `in`.jphe.storyvox.sync.SyncIds
 import `in`.jphe.storyvox.sync.client.FakeInstantBackend
 import `in`.jphe.storyvox.sync.client.SignedInUser
 import `in`.jphe.storyvox.sync.coordinator.Stamped
@@ -52,7 +53,7 @@ class LwwBlobSyncerTest {
     @Test fun `newer remote overrides local on pull`() = runTest {
         val backend = FakeInstantBackend()
         // Pre-seed remote.
-        backend.upsert(USER, "blobs", "pronunciation:u-1", payload = "fresh", updatedAt = 2000L)
+        backend.upsert(USER, "blobs", SyncIds.rowUuid("pronunciation", USER.userId), payload = "fresh", updatedAt = 2000L)
 
         val local = LocalCell().apply { value = Stamped("stale", 1000L) }
         val syncer = LwwBlobSyncer(
@@ -68,7 +69,7 @@ class LwwBlobSyncerTest {
 
     @Test fun `older remote does not override newer local`() = runTest {
         val backend = FakeInstantBackend()
-        backend.upsert(USER, "blobs", "pronunciation:u-1", payload = "stale", updatedAt = 1000L)
+        backend.upsert(USER, "blobs", SyncIds.rowUuid("pronunciation", USER.userId), payload = "stale", updatedAt = 1000L)
         val local = LocalCell().apply { value = Stamped("fresh", 2000L) }
         val syncer = LwwBlobSyncer(
             name = "pronunciation",
@@ -80,7 +81,7 @@ class LwwBlobSyncerTest {
         // Local should still be "fresh".
         assertEquals("fresh", local.value!!.value)
         // And remote should be updated to match local.
-        val onRemote = backend.fetch(USER, "blobs", "pronunciation:u-1").getOrNull()!!
+        val onRemote = backend.fetch(USER, "blobs", SyncIds.rowUuid("pronunciation", USER.userId)).getOrNull()!!
         assertEquals("fresh", onRemote.payload)
     }
 }

@@ -1,5 +1,6 @@
 package `in`.jphe.storyvox.sync.domain
 
+import `in`.jphe.storyvox.sync.SyncIds
 import `in`.jphe.storyvox.sync.client.InstantBackend
 import `in`.jphe.storyvox.sync.client.SignedInUser
 import `in`.jphe.storyvox.sync.coordinator.Stamped
@@ -84,7 +85,7 @@ class BackendSetRemote(
         )
     }
 
-    private fun rowId(user: SignedInUser) = "$domain:${user.userId}"
+    private fun rowId(user: SignedInUser) = SyncIds.rowUuid(domain, user.userId)
 
     private companion object { const val ENTITY = "sets" }
 }
@@ -113,7 +114,7 @@ class BackendBlobRemote(
             updatedAt = payload.updatedAt,
         )
 
-    private fun rowId(user: SignedInUser) = "$domain:${user.userId}"
+    private fun rowId(user: SignedInUser) = SyncIds.rowUuid(domain, user.userId)
 
     private companion object { const val ENTITY = "blobs" }
 }

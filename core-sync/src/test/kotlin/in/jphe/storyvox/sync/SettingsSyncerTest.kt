@@ -1,6 +1,7 @@
 package `in`.jphe.storyvox.sync
 
 import `in`.jphe.storyvox.data.repository.sync.SettingsSnapshotSource
+import `in`.jphe.storyvox.sync.SyncIds
 import `in`.jphe.storyvox.sync.client.FakeInstantBackend
 import `in`.jphe.storyvox.sync.client.RowSnapshot
 import `in`.jphe.storyvox.sync.client.SignedInUser
@@ -60,7 +61,7 @@ class SettingsSyncerTest {
         val outcome = syncer.push(USER)
         assertTrue("push must succeed: $outcome", outcome is SyncOutcome.Ok)
 
-        val row = backend.fetch(USER, "blobs", "settings:${USER.userId}").getOrNull()
+        val row = backend.fetch(USER, "blobs", SyncIds.rowUuid("settings", USER.userId)).getOrNull()
         assertNotNull("remote row must exist after push", row)
         // Payload contains both keys, JSON-encoded.
         assertTrue(row!!.payload.contains("\"settings.pref_theme_override\""))
@@ -125,7 +126,7 @@ class SettingsSyncerTest {
         // Local must still be DARK.
         assertEquals("DARK", sourceB.store["settings.pref_theme_override"])
         // And the remote must now reflect the newer local.
-        val row = backend.fetch(USER, "blobs", "settings:${USER.userId}").getOrNull()!!
+        val row = backend.fetch(USER, "blobs", SyncIds.rowUuid("settings", USER.userId)).getOrNull()!!
         assertTrue("remote should now hold DARK", row.payload.contains("\"DARK\""))
         assertEquals(5_000L, row.updatedAt)
     }
@@ -137,7 +138,7 @@ class SettingsSyncerTest {
         val outcome = syncer.push(USER)
         assertTrue("no-op push should be Ok: $outcome", outcome is SyncOutcome.Ok)
         // Nothing on the remote.
-        assertNull(backend.fetch(USER, "blobs", "settings:${USER.userId}").getOrNull())
+        assertNull(backend.fetch(USER, "blobs", SyncIds.rowUuid("settings", USER.userId)).getOrNull())
     }
 
     @Test fun `tombstone propagates — local clears a key, remote sees the clear`() = runTest {
@@ -160,7 +161,7 @@ class SettingsSyncerTest {
         source.stamp = 2_000L
         SettingsSyncer(source, backend).push(USER)
 
-        val row = backend.fetch(USER, "blobs", "settings:${USER.userId}").getOrNull()!!
+        val row = backend.fetch(USER, "blobs", SyncIds.rowUuid("settings", USER.userId)).getOrNull()!!
         assertTrue("remote should retain the theme", row.payload.contains("\"DARK\""))
         assertTrue(
             "remote should NOT carry the cleared default-speed",
@@ -201,7 +202,7 @@ class SettingsSyncerTest {
         ).also { it.stamp = 500L }
         SettingsSyncer(sourceB, backend).push(USER)
 
-        val row = backend.fetch(USER, "blobs", "settings:${USER.userId}").getOrNull()
+        val row = backend.fetch(USER, "blobs", SyncIds.rowUuid("settings", USER.userId)).getOrNull()
         assertNotNull(row)
         assertTrue(row!!.payload.contains("\"DARK\""))
     }
@@ -244,7 +245,7 @@ class SettingsSyncerTest {
         // Local must still hold LOCAL_VAL (tie went to local).
         assertEquals("LOCAL_VAL", sourceB.store["settings.pref_theme_override"])
         // Remote is now updated to local (same updatedAt — LwwBlobSyncer pushes back).
-        val row = backend.fetch(USER, "blobs", "settings:${USER.userId}").getOrNull()!!
+        val row = backend.fetch(USER, "blobs", SyncIds.rowUuid("settings", USER.userId)).getOrNull()!!
         assertTrue(row.payload.contains("\"LOCAL_VAL\""))
     }
 
@@ -254,7 +255,7 @@ class SettingsSyncerTest {
         backend.upsert(
             USER,
             entity = "blobs",
-            id = "settings:${USER.userId}",
+            id = SyncIds.rowUuid("settings", USER.userId),
             payload = """{"settings.pref_theme_override":"DARK","settings.pref_future_v999_unknown":"hello"}""",
             updatedAt = 5_000L,
         )
@@ -282,11 +283,11 @@ class SettingsSyncerTest {
             ),
         ).also { it.stamp = 1_000L }
         SettingsSyncer(source, backend).push(USER)
-        val first = backend.fetch(USER, "blobs", "settings:${USER.userId}").getOrNull()!!.payload
+        val first = backend.fetch(USER, "blobs", SyncIds.rowUuid("settings", USER.userId)).getOrNull()!!.payload
 
         // Re-push with the same source — payload should be byte-identical.
         SettingsSyncer(source, backend).push(USER)
-        val second = backend.fetch(USER, "blobs", "settings:${USER.userId}").getOrNull()!!.payload
+        val second = backend.fetch(USER, "blobs", SyncIds.rowUuid("settings", USER.userId)).getOrNull()!!.payload
 
         assertEquals("repeated push of identical source must produce byte-identical payload", first, second)
     }
@@ -300,9 +301,9 @@ class SettingsSyncerTest {
             FakeSource(mapOf("settings.pref_theme_override" to "LIGHT")).also { it.stamp = 1L },
             backend,
         ).push(USER)
-        // The row id is `<domain>:<userId>` per the BackendBlobRemote
-        // contract — direct-fetch by that id should return the row.
-        assertNotNull(backend.fetch(USER, "blobs", "settings:${USER.userId}").getOrNull())
+        // The row id is a UUID v3 derived from `domain:userId` per
+        // SyncIds.rowUuid — direct-fetch by that id should return the row.
+        assertNotNull(backend.fetch(USER, "blobs", SyncIds.rowUuid("settings", USER.userId)).getOrNull())
     }
 
     @Test fun `per-backend keys round-trip alongside main settings`() = runTest {
@@ -336,7 +337,7 @@ class SettingsSyncerTest {
         val source = FakeSource(mapOf("settings.pref_theme_override" to "DARK"))
         source.stamp = 42L
         SettingsSyncer(source, backend).push(USER)
-        val row = backend.fetch(USER, "blobs", "settings:${USER.userId}").getOrNull()!!
+        val row = backend.fetch(USER, "blobs", SyncIds.rowUuid("settings", USER.userId)).getOrNull()!!
         assertEquals(42L, row.updatedAt)
     }
 }

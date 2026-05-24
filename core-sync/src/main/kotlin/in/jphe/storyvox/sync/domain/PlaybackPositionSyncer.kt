@@ -2,6 +2,7 @@ package `in`.jphe.storyvox.sync.domain
 
 import `in`.jphe.storyvox.data.db.dao.PlaybackDao
 import `in`.jphe.storyvox.data.db.entity.PlaybackPosition
+import `in`.jphe.storyvox.sync.SyncIds
 import `in`.jphe.storyvox.sync.client.InstantBackend
 import `in`.jphe.storyvox.sync.client.SignedInUser
 import `in`.jphe.storyvox.sync.coordinator.SyncOutcome
@@ -146,7 +147,7 @@ class PlaybackPositionSyncer @Inject constructor(
         updatedAt = updatedAt,
     )
 
-    private fun rowId(user: SignedInUser) = "${DOMAIN}:${user.userId}"
+    private fun rowId(user: SignedInUser) = SyncIds.rowUuid(DOMAIN, user.userId)
 
     companion object {
         const val DOMAIN: String = "positions"

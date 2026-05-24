@@ -2,6 +2,7 @@ package `in`.jphe.storyvox.sync.domain
 
 import android.content.SharedPreferences
 import androidx.core.content.edit
+import `in`.jphe.storyvox.sync.SyncIds
 import `in`.jphe.storyvox.sync.client.InstantBackend
 import `in`.jphe.storyvox.sync.client.SignedInUser
 import `in`.jphe.storyvox.sync.coordinator.Stamped
@@ -206,7 +207,7 @@ class SecretsSyncer @Inject constructor(
         return digest.digest(("storyvox-secrets:${user.userId}").toByteArray()).copyOf(16)
     }
 
-    private fun rowId(user: SignedInUser) = "$DOMAIN:${user.userId}"
+    private fun rowId(user: SignedInUser) = SyncIds.rowUuid(DOMAIN, user.userId)
 
     companion object {
         const val DOMAIN: String = "secrets"

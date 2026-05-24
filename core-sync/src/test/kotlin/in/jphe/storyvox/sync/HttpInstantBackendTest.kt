@@ -48,7 +48,7 @@ class HttpInstantBackendTest {
         ))
         val backend = HttpInstantBackend("test-app", transport)
 
-        val res = backend.fetch(user, entity = "blobs", id = "settings:u-1")
+        val res = backend.fetch(user, entity = "blobs", id = "0e9a6111-40d8-3ef1-9fd1-fadfe3240618")
 
         assertTrue(res.isSuccess)
         assertNull(res.getOrThrow())
@@ -60,9 +60,9 @@ class HttpInstantBackendTest {
         assertEquals("application/json", call.headers["content-type"])
         assertEquals("test-app", call.headers["app-id"])
         assertEquals("rt-1", call.headers["as-token"])
-        // Body shape: { query: { blobs: { $: { where: { id: "settings:u-1" } } } }, inference?: false }
+        // Body shape: { query: { blobs: { $: { where: { id: "0e9a6111-40d8-3ef1-9fd1-fadfe3240618" } } } }, inference?: false }
         assertTrue("body has query envelope", call.body.contains("\"query\""))
-        assertTrue("body filters by id", call.body.contains("\"id\":\"settings:u-1\""))
+        assertTrue("body filters by id", call.body.contains("\"id\":\"0e9a6111-40d8-3ef1-9fd1-fadfe3240618\""))
         assertTrue("body has inference? flag", call.body.contains("\"inference?\":false"))
     }
 
@@ -70,12 +70,12 @@ class HttpInstantBackendTest {
         val transport = FakeTransport(mapOf(
             "/admin/query" to TransportResult(
                 200,
-                """{"blobs":[{"id":"settings:u-1","payload":"hello","updatedAt":12345}]}""",
+                """{"blobs":[{"id":"0e9a6111-40d8-3ef1-9fd1-fadfe3240618","payload":"hello","updatedAt":12345}]}""",
             ),
         ))
         val backend = HttpInstantBackend("test-app", transport)
 
-        val res = backend.fetch(user, entity = "blobs", id = "settings:u-1")
+        val res = backend.fetch(user, entity = "blobs", id = "0e9a6111-40d8-3ef1-9fd1-fadfe3240618")
         val row = res.getOrThrow()
         assertNotNull(row)
         assertEquals("hello", row!!.payload)
@@ -144,7 +144,7 @@ class HttpInstantBackendTest {
         val res = backend.upsert(
             user,
             entity = "blobs",
-            id = "settings:u-1",
+            id = "0e9a6111-40d8-3ef1-9fd1-fadfe3240618",
             payload = "encoded-blob",
             updatedAt = 99L,
         )
@@ -153,13 +153,13 @@ class HttpInstantBackendTest {
         val call = transport.calls.single()
         assertTrue(call.url.endsWith("/admin/transact?app_id=test-app"))
         assertEquals("rt-1", call.headers["as-token"])
-        // Body: { steps: [["update","blobs","settings:u-1",{payload,updatedAt}]], "throw-on-missing-attrs?": false }
+        // Body: { steps: [["update","blobs","0e9a6111-40d8-3ef1-9fd1-fadfe3240618",{payload,updatedAt}]], "throw-on-missing-attrs?": false }
         // — the key is `steps`, NOT `tx-steps`, per the admin SDK.
         assertTrue("body has steps envelope", call.body.contains("\"steps\""))
         assertFalse("body must NOT use tx-steps", call.body.contains("\"tx-steps\""))
         assertTrue("body includes update verb", call.body.contains("\"update\""))
         assertTrue("body includes entity", call.body.contains("\"blobs\""))
-        assertTrue("body includes id", call.body.contains("\"settings:u-1\""))
+        assertTrue("body includes id", call.body.contains("\"0e9a6111-40d8-3ef1-9fd1-fadfe3240618\""))
         assertTrue("body includes payload", call.body.contains("\"payload\":\"encoded-blob\""))
         assertTrue("body includes updatedAt", call.body.contains("\"updatedAt\":99"))
     }

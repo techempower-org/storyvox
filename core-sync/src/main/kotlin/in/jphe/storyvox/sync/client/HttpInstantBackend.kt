@@ -62,9 +62,12 @@ import kotlinx.serialization.json.put
  *
  *   Body:
  *     {
- *       "query": { "<entity>": { "$": { "where": { "id": "<id>" } } } },
+ *       "query": { "<entity>": { "$": { "where": { "id": "<uuid>" } } } },
  *       "inference?": false
  *     }
+ *
+ *   `<uuid>` is a deterministic UUID v3 derived from `"$domain:$userId"`
+ *   via [SyncIds.rowUuid]. InstantDB requires entity IDs to be UUIDs.
  *
  *   Response (200): `{ "<entity>": [ { "id": "...", "payload": "...",
  *                                       "updatedAt": <long> }, ... ] }`

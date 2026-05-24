@@ -3,6 +3,7 @@ package `in`.jphe.storyvox.sync.domain
 import android.content.SharedPreferences
 import androidx.core.content.edit
 import `in`.jphe.storyvox.data.db.dao.ChapterDao
+import `in`.jphe.storyvox.sync.SyncIds
 import `in`.jphe.storyvox.sync.client.InstantBackend
 import `in`.jphe.storyvox.sync.client.SignedInUser
 import `in`.jphe.storyvox.sync.coordinator.SyncOutcome
@@ -119,7 +120,7 @@ class BookmarksSyncer @Inject constructor(
     private fun readLastSyncStamp(): Long = prefs.getLong(LAST_SYNC_KEY, 0L)
     private fun writeLastSyncStamp(at: Long) { prefs.edit { putLong(LAST_SYNC_KEY, at) } }
 
-    private fun rowId(user: SignedInUser) = "$DOMAIN:${user.userId}"
+    private fun rowId(user: SignedInUser) = SyncIds.rowUuid(DOMAIN, user.userId)
 
     companion object {
         const val DOMAIN: String = "bookmarks"

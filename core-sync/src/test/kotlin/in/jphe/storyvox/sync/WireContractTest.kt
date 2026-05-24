@@ -104,7 +104,7 @@ class WireContractTest {
         val transport = CapturingTransport(loadFixture("query-response-blobs-miss.json"))
         val backend = HttpInstantBackend("test-app", transport)
 
-        backend.fetch(user, entity = "blobs", id = "settings:u-1")
+        backend.fetch(user, entity = "blobs", id = "0e9a6111-40d8-3ef1-9fd1-fadfe3240618")
 
         val actual = json.parseToJsonElement(transport.lastBody!!).jsonObject
         val expected = loadJson("query-request-blobs.json").jsonObject
@@ -134,7 +134,7 @@ class WireContractTest {
         val actualQuery = actual["query"]!!.jsonObject
         val expectedQuery = expected["query"]!!.jsonObject
         assertEquals(expectedQuery.keys, actualQuery.keys)
-        assertEquals("settings:u-1",
+        assertEquals("0e9a6111-40d8-3ef1-9fd1-fadfe3240618",
             actualQuery["blobs"]!!.jsonObject["\$"]!!.jsonObject["where"]!!
                 .jsonObject["id"]!!.jsonPrimitive.contentOrNull,
         )
@@ -168,7 +168,7 @@ class WireContractTest {
         val transport = CapturingTransport(loadFixture("query-response-blobs-hit.json"))
         val backend = HttpInstantBackend("test-app", transport)
 
-        val res = backend.fetch(user, entity = "blobs", id = "settings:u-1")
+        val res = backend.fetch(user, entity = "blobs", id = "0e9a6111-40d8-3ef1-9fd1-fadfe3240618")
         val row = res.getOrThrow()
         assertNotNull("hit fixture must deserialize to a row", row)
 
@@ -191,7 +191,7 @@ class WireContractTest {
         val transport = CapturingTransport(loadFixture("query-response-blobs-miss.json"))
         val backend = HttpInstantBackend("test-app", transport)
 
-        val res = backend.fetch(user, entity = "blobs", id = "settings:u-1")
+        val res = backend.fetch(user, entity = "blobs", id = "0e9a6111-40d8-3ef1-9fd1-fadfe3240618")
         assertTrue("empty array is a hit-with-no-row, not an error", res.isSuccess)
         assertNull("missing row maps to null", res.getOrThrow())
     }
@@ -203,7 +203,7 @@ class WireContractTest {
         val transport = CapturingTransport(loadFixture("query-response-blobs-no-entity-key.json"))
         val backend = HttpInstantBackend("test-app", transport)
 
-        val res = backend.fetch(user, entity = "blobs", id = "settings:u-1")
+        val res = backend.fetch(user, entity = "blobs", id = "0e9a6111-40d8-3ef1-9fd1-fadfe3240618")
         assertTrue(res.isSuccess)
         assertNull(res.getOrThrow())
     }
@@ -233,7 +233,7 @@ class WireContractTest {
         backend.upsert(
             user,
             entity = "blobs",
-            id = "settings:u-1",
+            id = "0e9a6111-40d8-3ef1-9fd1-fadfe3240618",
             payload = "{\"theme\":\"dark\"}",
             updatedAt = 1716393600000L,
         )
@@ -266,7 +266,7 @@ class WireContractTest {
         assertEquals("step must be a 4-tuple", 4, step.size)
         assertEquals("update", step[0].jsonPrimitive.contentOrNull)
         assertEquals("blobs", step[1].jsonPrimitive.contentOrNull)
-        assertEquals("settings:u-1", step[2].jsonPrimitive.contentOrNull)
+        assertEquals("0e9a6111-40d8-3ef1-9fd1-fadfe3240618", step[2].jsonPrimitive.contentOrNull)
         val patch = step[3].jsonObject
         assertEquals("{\"theme\":\"dark\"}", patch["payload"]!!.jsonPrimitive.contentOrNull)
         assertEquals(1716393600000L, patch["updatedAt"]!!.jsonPrimitive.long)
