@@ -8,6 +8,7 @@
     <string name="browse_notion_connect_cta">Have a Notion workspace? Connect it →</string>
     <string name="browse_ao3_signin_cta">Sign in to AO3</string>
     <string name="browse_mempalace_wing_chip">Wing: %1$s</string>
+    <string name="filter_tag_search_hint">Search tags…</string>
 
     <!-- Source carousel actions -->
     <string name="source_options">Source options</string>

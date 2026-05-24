@@ -29,7 +29,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import `in`.jphe.storyvox.data.source.filter.FilterDimension
+import `in`.jphe.storyvox.feature.R
 import `in`.jphe.storyvox.data.source.filter.FilterState
 import `in`.jphe.storyvox.data.source.filter.FilterValue
 import `in`.jphe.storyvox.ui.theme.LocalSpacing
@@ -175,72 +177,120 @@ private fun TagSetSection(
     val current = state.stringSetVal(dim.key)
     val included = current?.included.orEmpty()
     val excluded = current?.excluded.orEmpty()
+    val searchable = dim.options.size > TAGSET_SEARCH_THRESHOLD
+    var query by remember { mutableStateOf("") }
 
     SectionLabel(dim.label)
+
+    if (searchable) {
+        OutlinedTextField(
+            value = query,
+            onValueChange = { query = it },
+            modifier = Modifier.fillMaxWidth(),
+            placeholder = { Text(stringResource(R.string.filter_tag_search_hint)) },
+            singleLine = true,
+            textStyle = MaterialTheme.typography.bodyMedium,
+        )
+    }
+
     if (dim.options.isNotEmpty()) {
+        val selected = dim.options.filter { it in included || it in excluded }
+        val unselected = dim.options.filter { it !in included && it !in excluded }
+        val filtered = if (searchable && query.isNotBlank()) {
+            val q = query.trim()
+            selected + unselected.filter { it.contains(q, ignoreCase = true) }
+        } else {
+            selected + unselected
+        }
+
         FlowRow(
             horizontalArrangement = Arrangement.spacedBy(spacing.xs),
             verticalArrangement = Arrangement.spacedBy(spacing.xs),
         ) {
-            dim.options.forEach { tag ->
-                val isIncluded = tag in included
-                val isExcluded = tag in excluded
-                FilterChip(
-                    selected = isIncluded || isExcluded,
-                    onClick = {
-                        val newIncluded: Set<String>
-                        val newExcluded: Set<String>
-                        when {
-                            isIncluded && dim.allowExclude -> {
-                                newIncluded = included - tag
-                                newExcluded = excluded + tag
-                            }
-                            isExcluded -> {
-                                newIncluded = included
-                                newExcluded = excluded - tag
-                            }
-                            else -> {
-                                newIncluded = included + tag
-                                newExcluded = excluded
-                            }
-                        }
-                        if (newIncluded.isEmpty() && newExcluded.isEmpty()) {
-                            onChange(state.without(dim.key))
-                        } else {
-                            onChange(
-                                state.with(
-                                    dim.key,
-                                    FilterValue.StringSetVal(newIncluded, newExcluded),
-                                ),
-                            )
-                        }
-                    },
-                    label = {
-                        Text(
-                            when {
-                                isExcluded -> "- $tag"
-                                isIncluded -> "+ $tag"
-                                else -> tag
-                            },
-                        )
-                    },
-                    colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = if (isExcluded) {
-                            MaterialTheme.colorScheme.errorContainer
-                        } else {
-                            MaterialTheme.colorScheme.primaryContainer
-                        },
-                        selectedLabelColor = if (isExcluded) {
-                            MaterialTheme.colorScheme.onErrorContainer
-                        } else {
-                            MaterialTheme.colorScheme.onPrimaryContainer
-                        },
-                    ),
+            filtered.forEach { tag ->
+                TagSetChip(
+                    tag = tag,
+                    isIncluded = tag in included,
+                    isExcluded = tag in excluded,
+                    allowExclude = dim.allowExclude,
+                    included = included,
+                    excluded = excluded,
+                    state = state,
+                    dimKey = dim.key,
+                    onChange = onChange,
                 )
             }
         }
     }
 }
+
+@Composable
+private fun TagSetChip(
+    tag: String,
+    isIncluded: Boolean,
+    isExcluded: Boolean,
+    allowExclude: Boolean,
+    included: Set<String>,
+    excluded: Set<String>,
+    state: FilterState,
+    dimKey: String,
+    onChange: (FilterState) -> Unit,
+) {
+    FilterChip(
+        selected = isIncluded || isExcluded,
+        onClick = {
+            val newIncluded: Set<String>
+            val newExcluded: Set<String>
+            when {
+                isIncluded && allowExclude -> {
+                    newIncluded = included - tag
+                    newExcluded = excluded + tag
+                }
+                isExcluded -> {
+                    newIncluded = included
+                    newExcluded = excluded - tag
+                }
+                else -> {
+                    newIncluded = included + tag
+                    newExcluded = excluded
+                }
+            }
+            if (newIncluded.isEmpty() && newExcluded.isEmpty()) {
+                onChange(state.without(dimKey))
+            } else {
+                onChange(
+                    state.with(
+                        dimKey,
+                        FilterValue.StringSetVal(newIncluded, newExcluded),
+                    ),
+                )
+            }
+        },
+        label = {
+            Text(
+                when {
+                    isExcluded -> "- $tag"
+                    isIncluded -> "+ $tag"
+                    else -> tag
+                },
+            )
+        },
+        colors = FilterChipDefaults.filterChipColors(
+            selectedContainerColor = if (isExcluded) {
+                MaterialTheme.colorScheme.errorContainer
+            } else {
+                MaterialTheme.colorScheme.primaryContainer
+            },
+            selectedLabelColor = if (isExcluded) {
+                MaterialTheme.colorScheme.onErrorContainer
+            } else {
+                MaterialTheme.colorScheme.onPrimaryContainer
+            },
+        ),
+    )
+}
+
+private const val TAGSET_SEARCH_THRESHOLD = 12
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
