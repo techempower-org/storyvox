@@ -33,6 +33,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -546,13 +547,31 @@ fun BrowseScreen(
                         }
                     } else if (!state.hasMore && state.items.isNotEmpty()) {
                         item(span = { GridItemSpan(maxLineSpan) }) {
-                            Text(
-                                "End of list",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.fillMaxWidth().padding(spacing.lg),
-                                textAlign = TextAlign.Center,
-                            )
+                            // Issue #782 — realm-vocabulary footer. Was a bare
+                            // M3-default "End of list" Text; the rest of Browse
+                            // already speaks the realm (MagicSpinner, brass
+                            // error blocks), so the last line should too.
+                            // Thin outline-variant divider anchors the footer
+                            // as a deliberate landmark rather than a stray label.
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = spacing.lg),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                            ) {
+                                HorizontalDivider(
+                                    modifier = Modifier
+                                        .fillMaxWidth(0.4f)
+                                        .padding(bottom = spacing.md),
+                                    color = MaterialTheme.colorScheme.outlineVariant,
+                                )
+                                Text(
+                                    text = stringResource(R.string.browse_end_of_list),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    textAlign = TextAlign.Center,
+                                )
+                            }
                         }
                     }
                 }

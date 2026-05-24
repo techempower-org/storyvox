@@ -8,6 +8,8 @@
     <string name="browse_notion_connect_cta">Have a Notion workspace? Connect it →</string>
     <string name="browse_ao3_signin_cta">Sign in to AO3</string>
     <string name="browse_mempalace_wing_chip">Wing: %1$s</string>
+    <!-- Issue #782 — realm-vocabulary footer when the Browse grid runs out of pages. -->
+    <string name="browse_end_of_list">You\'ve reached the edge of the realm.</string>
     <string name="filter_tag_search_hint">Search tags…</string>
 
     <!-- Source carousel actions -->
