@@ -181,12 +181,12 @@ fun LibraryScreen(
                     // grouped action icons without bumping the row past
                     // Flip3 width.
                     //
-                    // Issue #517 — TechEmpower help icons (phone +
-                    // Discord) — leftmost so the cross-cutting "I
-                    // need help" affordances read before the
-                    // engine-specific cloud-icon.
-                    // Phone is tap = 211, long-press = 988; Discord
-                    // opens the peer-support invite URL. See
+                    // Issue #517 / #775 — TechEmpower help icons
+                    // (phone for 211, forum for Discord) — leftmost so
+                    // the cross-cutting "I need help" affordances read
+                    // before the engine-specific cloud-icon. Phone is
+                    // a direct tap to 211; Discord opens the
+                    // peer-support invite URL. See
                     // [TechEmpowerHelpIcons] for the design rationale.
                     TechEmpowerHelpIcons()
                     Spacer(Modifier.width(spacing.xs))

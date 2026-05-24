@@ -107,40 +107,15 @@ object TechEmpowerLinks {
      * assistance, utility assistance, mental health referrals.
      * Available in most of the US + Canada; the OS dialer handles
      * region availability gracefully (dials normally if local).
+     *
+     * Issue #775 — 988 (Suicide & Crisis Lifeline) and 911 (emergency
+     * dispatch) affordances were removed for the current app stage;
+     * they can be reinstated when the user base is large enough that
+     * a proper crisis-UX review with intervention experts is
+     * warranted. 211 stays because it's the everyday social-services
+     * line and aligns with TechEmpower's mission.
      */
     const val PRIMARY_HELP_NUMBER: String = "211"
-
-    /**
-     * Secondary helpline surfaced via long-press on the phone icon —
-     * the **988 Suicide & Crisis Lifeline**. We deliberately put 988
-     * on the long-press path rather than the primary tap so a user
-     * who needs the social-services line (the much-more-common case)
-     * doesn't have to scroll past a crisis-line option to reach it.
-     *
-     * Also surfaced as the *top* button on the TechEmpower Home
-     * Emergency Help card (issue #516) — the card is the discoverable
-     * companion to the hidden long-press affordance.
-     */
-    const val CRISIS_HELP_NUMBER: String = "988"
-
-    /**
-     * Issue #516 — **911 emergency dispatch**, surfaced ONLY on the
-     * TechEmpower Home Emergency Help card. Intentionally NOT on the
-     * top-app-bar phone icon: a stray tap on a top-bar shortcut that
-     * dials emergency services is the wrong UX (accidental misdials
-     * waste dispatch capacity). On the card surface, the user has
-     * already chosen "I'm looking at emergency numbers" — context-
-     * aware enough that a tap-to-dial affordance is appropriate.
-     *
-     * `ACTION_DIAL` (not `ACTION_CALL`) keeps storyvox out of the
-     * permission-requiring path; the user lands in the system dialer
-     * with `911` pre-filled and has to hit the green button to
-     * actually place the call.
-     *
-     * V1 is US-only. CA/UK/AU have different emergency numbers
-     * (999/000/etc.) — localisation is a v2 issue (see #516).
-     */
-    const val EMERGENCY_DISPATCH_NUMBER: String = "911"
 
     /**
      * Building a `tel:` URI for [Intent.ACTION_DIAL]. Returns a String

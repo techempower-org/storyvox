@@ -77,21 +77,23 @@ internal fun launchDiscord(context: Context) {
 }
 
 /**
- * Issue #546 — single source of truth for the three Emergency Help
- * helplines + the everyday "Call 211" card. Each target bundles the
- * dial number with the label/body shown in the in-card chip and the
- * web fallback URL surfaced when telephony is unavailable.
+ * Issue #546 — single source of truth for the helpline surfaces. Each
+ * target bundles the dial number with the label/body shown in the
+ * in-card chip and the web fallback URL surfaced when telephony is
+ * unavailable.
  *
  * The web fallback is what saves the user on a WiFi-only tablet: a
  * `tel:` URI on a device without telephony routes to the AOSP contact
- * picker by default — which is exactly the wrong landing for someone
- * in a crisis. With a web URL in hand we can offer "open in your
- * browser" as a real alternative to dialling.
+ * picker by default — which is exactly the wrong landing. With a web
+ * URL in hand we can offer "open in your browser" as a real
+ * alternative to dialling.
  *
- * 911 has no real web counterpart (you cannot place an emergency
- * dispatch through a webpage), so the web fallback is the FCC's
- * informational page on text-to-911 — the closest the public web gets
- * to "here is how you reach 911 without a regular voice call".
+ * Issue #775 — Crisis988 + Dispatch911 entries were removed alongside
+ * the rest of the 988/911 UI. Help211 is the only surviving target;
+ * the enum stays as an enum (single-entry) so the shared
+ * [dialOrSurfaceFallback] + [NoTelephonyFallbackDialog] plumbing is
+ * unchanged and the crisis affordances can be reinstated as new
+ * entries when the UX review lands.
  */
 internal enum class EmergencyTarget(
     val number: String,
@@ -99,15 +101,6 @@ internal enum class EmergencyTarget(
     val body: String,
     val webFallback: String,
 ) {
-    Crisis988(
-        number = TechEmpowerLinks.CRISIS_HELP_NUMBER,
-        label = "Suicide & Crisis Lifeline",
-        body = "National 24/7 mental health crisis support.",
-        // 988lifeline.org has a Chat option that works WITHOUT
-        // telephony — the user can reach a counsellor right now from
-        // a WiFi-only device. This is the killer fallback for #546.
-        webFallback = "https://988lifeline.org/chat/",
-    ),
     Help211(
         number = TechEmpowerLinks.PRIMARY_HELP_NUMBER,
         label = "United Way social services",
@@ -115,15 +108,6 @@ internal enum class EmergencyTarget(
         // 211.org has a "search by ZIP" tool plus a chat option — both
         // work without telephony.
         webFallback = "https://www.211.org/",
-    ),
-    Dispatch911(
-        number = TechEmpowerLinks.EMERGENCY_DISPATCH_NUMBER,
-        label = "Emergency dispatch",
-        body = "Life-threatening situations — police, fire, ambulance.",
-        // 911 has no real WiFi-only equivalent — point the user at the
-        // FCC's text-to-911 guidance, which is the official US
-        // resource for "I can't make a voice call right now".
-        webFallback = "https://www.fcc.gov/consumers/guides/what-you-need-know-about-text-911",
     ),
 }
 
@@ -140,12 +124,6 @@ internal enum class EmergencyTarget(
  * ACTION_DIAL intent reliably falls through to a contact picker in
  * that state. The check is fast (constant-time lookup against the
  * system features table) and has no permission requirements.
- *
- * 911 is handled identically — even though "emergency call routing on
- * WiFi-only devices" is a real concept in some regions, in practice
- * Android tablets without telephony cannot place 911 calls. The
- * fallback dialog still surfaces the number for a user to dial from
- * another device or via the FCC text-to-911 path.
  */
 internal fun dialOrSurfaceFallback(
     context: Context,
@@ -176,11 +154,11 @@ internal fun dialOrSurfaceFallback(
 /**
  * Issue #546 — fallback dialog shown when a user taps a helpline on a
  * device without telephony. Surfaces the number prominently, offers
- * copy-to-clipboard (so they can dial from another device), and a
+ * copy-to-clipboard (so they can dial from another device), and an
  * "Open in browser" affordance pointing at the helpline's web
- * counterpart (988 chat, 211 search, FCC text-to-911 guidance).
+ * counterpart (211 search).
  *
- * Why an AlertDialog instead of a bottom sheet: a crisis surface
+ * Why an AlertDialog instead of a bottom sheet: a help-line surface
  * needs a modal, focus-stealing affordance with a single primary
  * action. Bottom sheets dismiss on outside-tap and stack with the
  * scaffold; AlertDialog is the right semantic for "we owe you an
@@ -220,9 +198,8 @@ internal fun NoTelephonyFallbackDialog(
                     text = "${target.label} — call ${target.number} from a phone, or use the web option below.",
                     style = MaterialTheme.typography.bodyMedium,
                 )
-                // The number itself, large-and-brass — matches the
-                // EmergencyDialButton visual ranking so the user
-                // anchors on it as the actionable atom.
+                // The number itself, large-and-brass — anchors the
+                // user on the actionable atom of the dialog.
                 Text(
                     text = target.number,
                     style = MaterialTheme.typography.displaySmall,

@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Forum
-import androidx.compose.material.icons.filled.MonitorHeart
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -23,24 +22,17 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 
 /**
- * Issue #517 + #608 — brass-tinted help icons (988 + 211 + Discord)
- * surfaced in the top-app-bar on Library and TechEmpower Home. Three
- * single-tap affordances for "I need help right now". JP's design call
- * locks 988 (Suicide & Crisis Lifeline), 211 (social services), and
- * Discord (peer-support) as the always-on entry points.
+ * Issue #517 + #608 — brass-tinted help icons (211 + Discord) surfaced
+ * in the top-app-bar on Library and TechEmpower Home. Two single-tap
+ * affordances for "I need help right now": 211 (social services) and
+ * Discord (peer-support).
  *
- * Why three separate icons and not "tap = 211, long-press = 988":
- * Issue #608 — TalkBack users cannot reliably trigger the long-press
- * gesture (Android's "double-tap and hold" is non-obvious and
- * error-prone), so a sight-impaired user in crisis previously had no
- * one-shot path to 988 from the top-app-bar. Splitting 988 into its
- * own tappable icon — with an explicit `contentDescription` —
- * gives every user (sighted + screen-reader) the same single-gesture
- * affordance. Long-press is gone entirely; the Emergency Help card on
- * Library home exposes the same numbers for users who prefer that
- * surface.
+ * Issue #775 — the 988 (Suicide & Crisis Lifeline) icon that used to
+ * lead this row was removed for the current app stage; it can be
+ * reinstated when the user base is large enough to warrant a proper
+ * crisis-UX review with intervention experts.
  *
- * Why a shared composable: the icon trio appears identically on both
+ * Why a shared composable: the icon pair appears identically on both
  * surfaces (Library + TechEmpower Home), and centralising the layout
  * + intent wiring means a behavioural change is a one-file edit
  * instead of keeping two copies in sync.
@@ -57,60 +49,16 @@ import androidx.compose.ui.unit.dp
  *
  * v0.5.51 — first pass alongside the TechEmpower brand integration.
  * v0.5.61 — split 988 into its own icon (#608, TalkBack safety).
+ * Issue #775 — 988 icon removed.
  */
 @Composable
 fun TechEmpowerHelpIcons() {
     val context = LocalContext.current
 
-    // Issue #546 — fallback dialog state for any helpline tapped on a
-    // device without telephony. Shared across all three direct-dial
-    // entry points (988 icon, 211 icon — and any future additions)
-    // because they all route through [dialOrSurfaceFallback]. The
-    // Discord icon is non-telephony so it bypasses this state.
+    // Issue #546 — fallback dialog state for the 211 helpline tap on a
+    // device without telephony. The Discord icon is non-telephony so
+    // it bypasses this state.
     var noTelephonyTarget by remember { mutableStateOf<EmergencyTarget?>(null) }
-
-    // ─── Call 988 — Suicide & Crisis Lifeline ────────────────────────
-    // Issue #608 — TalkBack-safe direct tap. Previously this number
-    // was hidden behind a long-press on the 211 icon, which TalkBack
-    // users could not reliably trigger. Now it is its own 48dp icon
-    // with an explicit content description so screen-reader users
-    // hear "Call 988, Suicide and Crisis Lifeline" on swipe and can
-    // reach it with a single double-tap.
-    //
-    // MonitorHeart is the closest M3 stock glyph to a "crisis /
-    // health-line" affordance — a heart with a pulse waveform reads
-    // as medical-urgency in a way the plain Phone icon does not.
-    // Tinted brass like every other top-bar action so the colour
-    // pairs with the brass-on-warm-dark palette.
-    Box(
-        modifier = Modifier
-            .size(48.dp)
-            .clickable(
-                role = Role.Button,
-                onClick = {
-                    dialOrSurfaceFallback(
-                        context = context,
-                        target = EmergencyTarget.Crisis988,
-                        onNoTelephony = { noTelephonyTarget = it },
-                    )
-                },
-            ),
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(
-            imageVector = Icons.Filled.MonitorHeart,
-            contentDescription = "Call 988, Suicide and Crisis Lifeline.",
-            tint = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.size(24.dp),
-        )
-    }
-
-    // Issue #533 — 8dp gap between icons. The 48dp Boxes pack flush
-    // together otherwise, making mis-taps trivial on the Flip3
-    // (1080dp narrow). The Spacer keeps each icon at its full 48dp
-    // tap target while giving the user enough visual + finger
-    // separation to choose one deliberately.
-    Spacer(Modifier.width(8.dp))
 
     // ─── Call 211 — local help / social services ─────────────────────
     // Single tap. tel: URI goes through ACTION_DIAL so the user lands

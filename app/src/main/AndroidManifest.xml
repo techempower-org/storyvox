@@ -18,18 +18,19 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
-    <!-- Issue #546 — telephony is OPTIONAL. The TechEmpower Emergency
-         Help card surfaces 988 / 211 / 911 dial affordances that only
-         work on devices with telephony hardware (phones, not WiFi-only
-         tablets). Marking `required="false"` keeps storyvox eligible
-         for install on tablets in the Play Store; the in-app
+    <!-- Issue #546 / #775 — telephony is OPTIONAL. The TechEmpower
+         "Call 211" card (and the matching top-app-bar phone icon)
+         dials only on devices with telephony hardware (phones, not
+         WiFi-only tablets). Marking `required="false"` keeps storyvox
+         eligible for install on tablets in the Play Store; the in-app
          [dialOrSurfaceFallback] helper probes
          PackageManager.FEATURE_TELEPHONY at runtime and surfaces a
          "this device can't make calls" dialog with copy-to-clipboard
          + web-fallback when telephony is absent (rather than letting
          ACTION_DIAL route the user to the AOSP contact picker — the
-         documented default fallback, and the wrong UX for a crisis
-         surface). -->
+         documented default fallback, and the wrong UX for the
+         help-line surface). 988 / 911 affordances were removed in
+         #775; 211 is the surviving dial path. -->
     <uses-feature
         android:name="android.hardware.telephony"
         android:required="false" />
