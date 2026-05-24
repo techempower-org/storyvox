@@ -1062,7 +1062,27 @@ class GitHubSourceTest {
         assertTrue("plain code repo should be excluded", r.value.isEmpty())
     }
 
-    @Test fun `scanUserBooksRepos propagates rate limit from allMyRepos`() = runBlocking {
+    @Test fun `scanUserBooksRepos stops probing on rate limit and returns partial results`() = runBlocking {
+        val api = FakeGitHubApi(
+            myReposByPage = mapOf(
+                1 to GitHubApiResult.Success(
+                    listOf(
+                        ghRepo(owner = "me", name = "known-book", topics = listOf("ebook")),
+                        ghRepo(owner = "me", name = "maybe-book", topics = emptyList()),
+                        ghRepo(owner = "me", name = "after-limit", topics = listOf("novel")),
+                    ),
+                    etag = null,
+                ),
+            ),
+            rateLimitedFiles = setOf(Triple("me", "maybe-book", "book.toml")),
+        )
+        val r = source(api = api).scanUserBooksRepos() as FictionResult.Success
+        val ids = r.value.map { it.id }.toSet()
+        assertTrue("known-book found by topic before probe", "github:me/known-book" in ids)
+        assertTrue("after-limit skipped because scan broke", "github:me/after-limit" !in ids)
+    }
+
+        @Test fun `scanUserBooksRepos propagates rate limit from allMyRepos`() = runBlocking {
         val api = FakeGitHubApi(
             myReposByPage = mapOf(
                 1 to GitHubApiResult.RateLimited(retryAfterSeconds = 30),

@@ -1070,18 +1070,19 @@ internal class GitHubSource @Inject constructor(
         //  1. Topic match (cheap — already in the repo metadata).
         //  2. Manifest probe (one API call per repo to check for
         //     book.toml / SUMMARY.md / storyvox.json).
-        // Tier 1 is free; tier 2 costs 1 API call per repo. To stay
-        // within rate limits, only probe repos that don't match tier 1.
+        // Tier 1 is free; tier 2 costs 1-4 API calls per repo. To stay
+        // within rate limits, only probe repos that don't match tier 1,
+        // and bail the entire scan on the first rate-limit / network error.
         val books = mutableListOf<FictionSummary>()
         for (repo in allRepos) {
             if (repo.isBookByTopics()) {
                 books.add(repo.toFictionSummary())
                 continue
             }
-            // Tier 2: probe for manifest files. Check book.toml first
-            // (cheapest signal); fall back to SUMMARY.md.
-            if (probeForBookManifest(repo)) {
-                books.add(repo.toFictionSummary())
+            when (probeForBookManifest(repo)) {
+                true -> books.add(repo.toFictionSummary())
+                null -> break
+                false -> { /* no match */ }
             }
         }
         return FictionResult.Success(books)
@@ -1098,13 +1099,11 @@ internal class GitHubSource @Inject constructor(
         }
 
     /**
-     * Tier-2 check: probe the repo's default branch for manifest files
-     * that indicate book structure. Costs 1-4 API calls (getContent for
-     * book.toml, SUMMARY.md, src/SUMMARY.md, storyvox.json). Stops at
-     * the first hit. Returns false on any error (rate limit, network) —
-     * we don't want to block the scan on transient failures.
+     * Tier-2 check: probe the repo's default branch for manifest files.
+     * Returns `true` (found), `false` (not found), or `null` (rate-limit
+     * or network error — caller should stop scanning further repos).
      */
-    private suspend fun probeForBookManifest(repo: GhRepo): Boolean {
+    private suspend fun probeForBookManifest(repo: GhRepo): Boolean? {
         val owner = repo.owner.login
         val name = repo.name
         val branch = repo.defaultBranch
@@ -1113,7 +1112,7 @@ internal class GitHubSource @Inject constructor(
             when (api.getContent(owner, name, path, branch)) {
                 is GitHubApiResult.Success -> return true
                 is GitHubApiResult.NotFound -> continue // file doesn't exist, try next
-                else -> return false // rate limit / network error — bail out
+                else -> return null // rate limit / network error — caller should stop
             }
         }
         return false
