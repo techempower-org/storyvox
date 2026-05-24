@@ -468,12 +468,21 @@ private fun StoryvoxNavHostContent(
             // is popped, and restores it when the user returns. This is
             // the standard Compose bottom-nav pattern from the Now in
             // Android reference app and the official navigation docs.
+            //
+            // Library is the start destination and always lives at the
+            // bottom of the back stack — its NavBackStackEntry (and
+            // ViewModel / composable state) persist naturally. Using
+            // restoreState for Library would push saved drill-down
+            // routes (Reader, AudiobookView) back on top, so tapping
+            // "Library" after playing would land on the Reader instead
+            // of the Library grid. Disable restoreState for Library;
+            // other tabs restore normally.
             navController.navigate(target) {
                 popUpTo(StoryvoxRoutes.LIBRARY) {
                     saveState = true
                 }
                 launchSingleTop = true
-                restoreState = true
+                restoreState = target != StoryvoxRoutes.LIBRARY
             }
         }
     }
