@@ -16,6 +16,7 @@ import `in`.jphe.storyvox.feature.api.SetFollowedRemoteResult
 import `in`.jphe.storyvox.feature.api.SettingsRepositoryUi
 import `in`.jphe.storyvox.feature.api.UiChapter
 import `in`.jphe.storyvox.feature.api.UiFiction
+import `in`.jphe.storyvox.feature.api.UiRecapPlaybackState
 import `in`.jphe.storyvox.playback.cache.CacheStateInspector
 import `in`.jphe.storyvox.playback.cache.ChapterCacheState
 import `in`.jphe.storyvox.playback.cache.PcmCache
@@ -210,6 +211,31 @@ class FictionDetailViewModel @Inject constructor(
             }
             state.copy(chapters = chaptersWithCache, notebookEntries = notebook)
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), FictionDetailUiState())
+    }
+
+    /** Issue #760 — synopsis-aloud TTS state. Reuses the recap-aloud
+     *  pipeline from [PlaybackControllerUi.speakText]. Exposed as a
+     *  StateFlow so the Synopsis composable's listen icon can toggle
+     *  between play and stop states. */
+    val synopsisSpeaking: StateFlow<UiRecapPlaybackState> = playback.recapPlayback
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), UiRecapPlaybackState.Idle)
+
+    /** Issue #760 — toggle listening to the full synopsis text via TTS.
+     *  When already speaking, stops. Otherwise pauses any active fiction
+     *  playback (so the voices don't overlap) and speaks the full
+     *  synopsis text. The recap pipeline handles state transitions;
+     *  [synopsisSpeaking] updates automatically via the shared
+     *  [PlaybackControllerUi.recapPlayback] flow. */
+    fun toggleSynopsisAloud() {
+        if (synopsisSpeaking.value == UiRecapPlaybackState.Speaking) {
+            playback.stopSpeaking()
+            return
+        }
+        val text = uiState.value.fiction?.synopsis ?: return
+        if (text.isBlank()) return
+        viewModelScope.launch {
+            playback.speakText(text)
+        }
     }
 
     /**

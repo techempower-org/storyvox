@@ -25,6 +25,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
@@ -66,6 +68,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import `in`.jphe.storyvox.feature.R
 import `in`.jphe.storyvox.feature.api.UiChapter
 import `in`.jphe.storyvox.feature.api.UiFiction
+import `in`.jphe.storyvox.feature.api.UiRecapPlaybackState
 import `in`.jphe.storyvox.source.epub.writer.EpubExportResult
 import `in`.jphe.storyvox.ui.component.BrassButton
 import `in`.jphe.storyvox.ui.component.BrassButtonVariant
@@ -100,6 +103,7 @@ fun FictionDetailScreen(
     viewModel: FictionDetailViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val synopsisSpeaking by viewModel.synopsisSpeaking.collectAsStateWithLifecycle()
     val spacing = LocalSpacing.current
     val twoColumn = isAtLeastTablet()
     val context = LocalContext.current
@@ -385,7 +389,11 @@ fun FictionDetailScreen(
                         )
                     }
                     Hero(fiction)
-                    Synopsis(fiction.synopsis)
+                    Synopsis(
+                        text = fiction.synopsis,
+                        speakingState = synopsisSpeaking,
+                        onToggleListen = viewModel::toggleSynopsisAloud,
+                    )
                     // Issue #217 — Notebook section in the wide-layout
                     // left column. Hides itself if there's nothing to show
                     // and the user hasn't tapped Add.
@@ -497,7 +505,13 @@ fun FictionDetailScreen(
                         ),
                     )
                 }
-                item { Synopsis(fiction.synopsis) }
+                item {
+                    Synopsis(
+                        text = fiction.synopsis,
+                        speakingState = synopsisSpeaking,
+                        onToggleListen = viewModel::toggleSynopsisAloud,
+                    )
+                }
                 // Issue #217 — Notebook section in the narrow (phone)
                 // layout. Inserted as a single LazyColumn item so it
                 // scrolls with the chapter list rather than pinning.
@@ -922,11 +936,21 @@ private fun NotebookSection(
     }
 }
 
+/** Issue #760 — Synopsis section with a "Listen to summary" toggle.
+ *  The listen icon speaks the FULL synopsis text (not the truncated
+ *  4-line preview) via the recap-aloud TTS pipeline. Tapping while
+ *  speaking stops playback. The icon tints brass-primary when active
+ *  so the user can see at a glance that TTS is running. */
 @Composable
-private fun Synopsis(text: String) {
+private fun Synopsis(
+    text: String,
+    speakingState: UiRecapPlaybackState = UiRecapPlaybackState.Idle,
+    onToggleListen: () -> Unit = {},
+) {
     if (text.isBlank()) return
     val spacing = LocalSpacing.current
     var expanded by remember { mutableStateOf(false) }
+    val isSpeaking = speakingState == UiRecapPlaybackState.Speaking
     Column(
         modifier = Modifier.fillMaxWidth().padding(horizontal = spacing.md, vertical = spacing.sm),
         verticalArrangement = Arrangement.spacedBy(spacing.xs),
@@ -936,11 +960,31 @@ private fun Synopsis(text: String) {
             style = MaterialTheme.typography.bodyMedium,
             maxLines = if (expanded) Int.MAX_VALUE else 4,
         )
-        BrassButton(
-            label = if (expanded) "Show less" else "Read more",
-            onClick = { expanded = !expanded },
-            variant = BrassButtonVariant.Text,
-        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(spacing.xxs),
+        ) {
+            BrassButton(
+                label = if (expanded) "Show less" else "Read more",
+                onClick = { expanded = !expanded },
+                variant = BrassButtonVariant.Text,
+            )
+            IconButton(
+                onClick = onToggleListen,
+                modifier = Modifier.size(36.dp),
+            ) {
+                Icon(
+                    imageVector = if (isSpeaking) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                    contentDescription = stringResource(
+                        if (isSpeaking) R.string.fiction_stop_summary
+                        else R.string.fiction_listen_summary,
+                    ),
+                    tint = if (isSpeaking) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+        }
     }
 }
 

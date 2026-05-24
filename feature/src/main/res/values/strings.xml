@@ -278,6 +278,8 @@
     <string name="fiction_separator">·</string>
     <string name="fiction_name_label">Name</string>
     <string name="fiction_one_line_description">One-line description</string>
+    <string name="fiction_listen_summary">Listen to summary</string>
+    <string name="fiction_stop_summary">Stop listening</string>
 
     <!-- Voice library -->
     <string name="voicelibrary_title">Voice library</string>
