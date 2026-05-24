@@ -1,12 +1,12 @@
 {
   "name": "storyvox",
   "description": "Neural-voice audiobook player for any text you have \u2014 offline TTS, optional Azure HD cloud voices, Library Nocturne aesthetic",
-  "version": "Runic Throne \u00b7 f824efe",
-  "hash": "f824efe",
+  "version": "Mythic Throne \u00b7 21af521",
+  "hash": "21af521",
   "branch": "main",
   "dirty": false,
-  "built": "2026-05-22T22:37:13Z",
+  "built": "2026-05-24T21:13:12Z",
   "realm": "fantasy",
   "repo": "https://github.com/techempower-org/storyvox",
-  "commit_url": "https://github.com/techempower-org/storyvox/commit/f824efe"
+  "commit_url": "https://github.com/techempower-org/storyvox/commit/21af521"
 }
