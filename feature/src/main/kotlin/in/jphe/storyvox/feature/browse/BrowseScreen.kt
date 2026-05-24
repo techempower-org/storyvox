@@ -184,6 +184,8 @@ fun BrowseScreen(
             favoriteSourceIds = state.favoriteSourceIds,
             onToggleFavorite = viewModel::toggleFavorite,
             onHideSource = { viewModel.setSourceEnabled(it, enabled = false) },
+            // Long-press + horizontal drag reorders source cards.
+            onReorder = viewModel::reorderSources,
             modifier = Modifier.fillMaxWidth(),
         )
 

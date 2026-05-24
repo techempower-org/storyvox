@@ -316,6 +316,7 @@ class RealPlaybackControllerUiTest {
         override suspend fun fetchTelegramChannels(): List<Pair<String, String>> = emptyList()
         override suspend fun setSourcePluginEnabled(id: String, enabled: Boolean) = Unit
         override suspend fun setSourceFavorite(id: String, favorite: Boolean) = Unit
+        override suspend fun setSourceDisplayOrder(order: List<String>) = Unit
         override suspend fun setVoiceFamilyEnabled(id: String, enabled: Boolean) = Unit
         override suspend fun setNotionDatabaseId(id: String) = Unit
         override suspend fun setNotionApiToken(token: String?) = Unit
