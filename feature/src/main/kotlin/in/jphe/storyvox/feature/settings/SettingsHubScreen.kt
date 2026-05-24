@@ -3,6 +3,7 @@ package `in`.jphe.storyvox.feature.settings
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -16,25 +17,49 @@ import androidx.compose.material.icons.outlined.Palette
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.AutoStories
 import androidx.compose.material.icons.outlined.BugReport
+import androidx.compose.material.icons.outlined.Clear
 import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material.icons.outlined.Cloud
 import androidx.compose.material.icons.outlined.Extension
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.RecordVoiceOver
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Speed
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import `in`.jphe.storyvox.feature.settings.components.SectionHeading
 import `in`.jphe.storyvox.ui.theme.LocalSpacing
+
+/**
+ * Issue #773 — Settings hub search filter. Threaded to every
+ * [SettingsHubRow] via a CompositionLocal so the call sites in
+ * [SettingsHubScreen] stay declarative: the rows skip themselves
+ * when the current query doesn't match title or subtitle. Empty
+ * query (the default) matches everything.
+ */
+private val LocalSettingsHubQuery = staticCompositionLocalOf { "" }
+
+private fun matchesHubQuery(query: String, title: String, subtitle: String): Boolean {
+    if (query.isBlank()) return true
+    val q = query.trim()
+    return title.contains(q, ignoreCase = true) || subtitle.contains(q, ignoreCase = true)
+}
 
 /**
  * Issue #440 — Settings hub screen. Follow-up to #467 wired every
@@ -118,6 +143,7 @@ fun SettingsHubScreen(
     onOpenAdvanced: () -> Unit = {},
 ) {
     val spacing = LocalSpacing.current
+    var query by remember { mutableStateOf("") }
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
@@ -151,6 +177,27 @@ fun SettingsHubScreen(
                 icon = Icons.Outlined.AutoAwesome,
                 descriptor = "Pick a section to configure.",
             )
+            // Issue #773 — search filter. Case-insensitive substring
+            // match against each row's title and subtitle; non-matching
+            // rows skip themselves via [LocalSettingsHubQuery].
+            OutlinedTextField(
+                value = query,
+                onValueChange = { query = it },
+                label = { Text("Search settings") },
+                singleLine = true,
+                leadingIcon = {
+                    Icon(Icons.Outlined.Search, contentDescription = null)
+                },
+                trailingIcon = {
+                    if (query.isNotEmpty()) {
+                        IconButton(onClick = { query = "" }) {
+                            Icon(Icons.Outlined.Clear, contentDescription = "Clear search")
+                        }
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+            )
+            CompositionLocalProvider(LocalSettingsHubQuery provides query) {
             SettingsGroupCard {
                 // Voice & Playback — most-touched, first.
                 SettingsHubRow(
@@ -270,6 +317,7 @@ fun SettingsHubScreen(
                     onClick = onOpenAllSettings,
                 )
             }
+            }
         }
     }
 }
@@ -289,6 +337,10 @@ internal fun SettingsHubRow(
     subtitle: String,
     onClick: () -> Unit,
 ) {
+    // Issue #773 — search filter. When [LocalSettingsHubQuery] is
+    // non-blank and matches neither title nor subtitle, the row
+    // skips itself so the hub collapses to just the matches.
+    if (!matchesHubQuery(LocalSettingsHubQuery.current, title, subtitle)) return
     SettingsRow(
         title = title,
         subtitle = subtitle,
