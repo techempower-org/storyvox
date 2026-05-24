@@ -49,6 +49,7 @@ fun RoyalRoadAuthWebView(
 
     BackHandler(enabled = canGoBack) {
         webView?.goBack()
+        canGoBack = webView?.canGoBack() == true
     }
 
     AndroidView(
