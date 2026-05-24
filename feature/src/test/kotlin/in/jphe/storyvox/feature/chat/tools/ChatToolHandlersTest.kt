@@ -351,6 +351,7 @@ private class FakeSettings : SettingsRepositoryUi {
     override suspend fun setGitHubPrivateReposEnabled(enabled: Boolean) = Unit
     override suspend fun setSourcePluginEnabled(id: String, enabled: Boolean) = Unit
     override suspend fun setSourceFavorite(id: String, favorite: Boolean) = Unit
+    override suspend fun setSourceDisplayOrder(order: List<String>) = Unit
     override suspend fun setVoiceFamilyEnabled(id: String, enabled: Boolean) = Unit
     override suspend fun setOutlineHost(host: String) = Unit
     override suspend fun setOutlineApiKey(apiKey: String) = Unit

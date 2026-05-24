@@ -640,6 +640,15 @@ private object Keys {
      */
     val SOURCE_FAVORITES_JSON = stringPreferencesKey("pref_source_favorites_v1")
 
+    /**
+     * JSON-encoded `List<String>` of source plugin ids representing the
+     * user's custom display order in the Browse carousel. Codec lives in
+     * [`in.jphe.storyvox.data.source.plugin.encodeSourceDisplayOrderJson`].
+     * Empty list (the natural default) means "use favourites-first, then
+     * registry order". `_v1` suffix lets us rev the shape later.
+     */
+    val SOURCE_DISPLAY_ORDER_JSON = stringPreferencesKey("pref_source_display_order_v1")
+
     // ── Sleep timer shake-to-extend (issue #150) ───────────────────
     val SLEEP_SHAKE_TO_EXTEND_ENABLED = booleanPreferencesKey("pref_sleep_shake_to_extend_enabled")
 
@@ -1173,6 +1182,9 @@ class SettingsRepositoryUiImpl(
             // shape to seed from.
             favoriteSourceIds = `in`.jphe.storyvox.data.source.plugin.decodeSourceFavoritesJson(
                 prefs[Keys.SOURCE_FAVORITES_JSON],
+            ),
+            sourceDisplayOrder = `in`.jphe.storyvox.data.source.plugin.decodeSourceDisplayOrderJson(
+                prefs[Keys.SOURCE_DISPLAY_ORDER_JSON],
             ),
             notionDatabaseId = notion.databaseId,
             notionTokenConfigured = notion.apiToken.isNotBlank(),
@@ -2105,6 +2117,23 @@ class SettingsRepositoryUiImpl(
     }
 
     /**
+     * Persist the user's custom display order for the Browse carousel.
+     * Serialized as a JSON array of plugin ids under
+     * [Keys.SOURCE_DISPLAY_ORDER_JSON]. An empty list clears the
+     * custom order, reverting to the default favourites-first layout.
+     * [stampSyncedWrite] fires so the order syncs across devices via
+     * InstantDB — cross-device intent for carousel arrangement is
+     * the same family as favourites and enabled-plugin toggles.
+     */
+    override suspend fun setSourceDisplayOrder(order: List<String>) {
+        store.edit { prefs ->
+            prefs[Keys.SOURCE_DISPLAY_ORDER_JSON] =
+                `in`.jphe.storyvox.data.source.plugin.encodeSourceDisplayOrderJson(order)
+        }
+        stampSyncedWrite()
+    }
+
+    /**
      * Plugin-seam Phase 4 (#501) — twin of [setSourcePluginEnabled]
      * for the voice family map. Single setter for the Plugin Manager's
      * Voice bundles section; absent ids fall back to each family's
@@ -2805,6 +2834,9 @@ class SettingsRepositoryUiImpl(
             // enabled-plugins map: cross-device intent ("AO3 is my main
             // source") rides the sync.
             "pref_source_favorites_v1",
+            // Browse-carousel custom display order. Synced so the user's
+            // arrangement carries across devices.
+            "pref_source_display_order_v1",
             // Sleep timer.
             "pref_sleep_shake_to_extend_enabled",
             // Azure fallback.
@@ -2874,6 +2906,7 @@ class SettingsRepositoryUiImpl(
             "pref_ai_bedrock_model" to SyncedType.STRING,
             "pref_source_plugins_enabled_v1" to SyncedType.STRING,
             "pref_source_favorites_v1" to SyncedType.STRING,
+            "pref_source_display_order_v1" to SyncedType.STRING,
             "pref_azure_fallback_voice_id" to SyncedType.STRING,
             // Float keys.
             "pref_default_speed" to SyncedType.FLOAT,

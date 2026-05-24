@@ -285,6 +285,15 @@ class BrowseViewModel @Inject constructor(
             .distinctUntilChanged()
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
 
+    /** User's custom display order for the Browse carousel. Empty list
+     *  means "use the default order" (favourites-first, then registry
+     *  order). When non-empty, sources are displayed in this order. */
+    private val sourceDisplayOrder: StateFlow<List<String>> =
+        settings.settings
+            .map { it.sourceDisplayOrder }
+            .distinctUntilChanged()
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
     private val paginator: StateFlow<BrowsePaginator?> = run {
         val baseTuple = combine(
             _sourceId,
@@ -353,22 +362,38 @@ class BrowseViewModel @Inject constructor(
         ) { sourceId, tab, q, fs ->
             ResolveTuple(sourceId, tab, q, fs)
         }
-        val enabledAndFavorites = combine(enabledSourceIds, favoriteSourceIds) { e, f -> e to f }
+        val enabledFavoritesOrder = combine(
+            enabledSourceIds,
+            favoriteSourceIds,
+            sourceDisplayOrder,
+        ) { e, f, o -> Triple(e, f, o) }
         combine(
             baseTuple,
             _palaceFilter,
             authSnapshot,
-            enabledAndFavorites,
-        ) { tup, pf, auth, ef ->
-            val (enabled, favorites) = ef
+            enabledFavoritesOrder,
+        ) { tup, pf, auth, efo ->
+            val (enabled, favorites, customOrder) = efo
             val visible = run {
-                val faves = mutableListOf<SourcePluginDescriptor>()
-                val rest = mutableListOf<SourcePluginDescriptor>()
-                for (d in registry.descriptors) {
-                    if (d.id !in enabled) continue
-                    if (d.id in favorites) faves.add(d) else rest.add(d)
+                val enabledDescriptors = registry.descriptors.filter { it.id in enabled }
+                if (customOrder.isNotEmpty()) {
+                    // User has a custom drag-and-drop order — honour it.
+                    // Sources in the custom order come first (in that order),
+                    // followed by any enabled sources not yet in the list
+                    // (newly enabled since the last reorder).
+                    val byId = enabledDescriptors.associateBy { it.id }
+                    val ordered = customOrder.mapNotNull { byId[it] }
+                    val remaining = enabledDescriptors.filter { it.id !in customOrder }
+                    ordered + remaining
+                } else {
+                    // Default: favourites-first, then the rest in registry order.
+                    val faves = mutableListOf<SourcePluginDescriptor>()
+                    val rest = mutableListOf<SourcePluginDescriptor>()
+                    for (d in enabledDescriptors) {
+                        if (d.id in favorites) faves.add(d) else rest.add(d)
+                    }
+                    faves + rest
                 }
-                faves + rest
             }
             ControlsView(
                 sourceId = tup.sourceId,
@@ -508,6 +533,18 @@ class BrowseViewModel @Inject constructor(
         val currentFavorite = id in (uiState.value.favoriteSourceIds)
         viewModelScope.launch {
             settings.setSourceFavorite(id, favorite = !currentFavorite)
+        }
+    }
+
+    /**
+     * Persist a new display order for the Browse carousel. Called after
+     * the user completes a drag-and-drop reorder gesture. The list
+     * contains the stable plugin ids in the user's chosen order. An
+     * empty list reverts to the default favourites-first ordering.
+     */
+    fun reorderSources(newOrder: List<String>) {
+        viewModelScope.launch {
+            settings.setSourceDisplayOrder(newOrder)
         }
     }
 

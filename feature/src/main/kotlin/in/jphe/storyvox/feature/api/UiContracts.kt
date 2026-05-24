@@ -888,6 +888,14 @@ data class UiSettings(
      */
     val favoriteSourceIds: Set<String> = emptySet(),
     /**
+     * User-arranged display order for the Browse carousel. Persisted as
+     * a JSON array of plugin ids under `pref_source_display_order_v1`.
+     * An empty list means "use the default order" (favourites-first,
+     * then registry order). When non-empty, sources are displayed in
+     * this order, with any sources not in the list appended at the end.
+     */
+    val sourceDisplayOrder: List<String> = emptyList(),
+    /**
      * Plugin-seam Phase 4 (#501) — per-voice-family on/off keyed by
      * stable family id (`voice_piper`, `voice_kokoro`, `voice_kitten`,
      * `voice_azure`). Twin of [sourcePluginsEnabled] for the Plugin
@@ -1857,6 +1865,13 @@ interface SettingsRepositoryUi {
      * apply once the source is re-enabled).
      */
     suspend fun setSourceFavorite(id: String, favorite: Boolean)
+
+    /**
+     * Persist the user's custom display order for the Browse carousel.
+     * An empty list clears the custom order, reverting to the default
+     * favourites-first layout. The order syncs across devices.
+     */
+    suspend fun setSourceDisplayOrder(order: List<String>)
 
     /**
      * Plugin-seam Phase 4 (#501) — toggle a voice family by its stable

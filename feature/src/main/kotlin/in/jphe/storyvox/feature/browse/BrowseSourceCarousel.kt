@@ -9,7 +9,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -62,6 +63,7 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -71,7 +73,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -79,11 +86,15 @@ import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import `in`.jphe.storyvox.data.source.SourceIds
 import `in`.jphe.storyvox.data.source.plugin.SourcePluginDescriptor
 import `in`.jphe.storyvox.feature.R
 import `in`.jphe.storyvox.ui.theme.LocalSpacing
+import kotlin.math.abs
+import kotlin.math.roundToInt
 import kotlinx.coroutines.launch
 
 /**
@@ -131,6 +142,7 @@ internal fun BrowseSourceCarousel(
     favoriteSourceIds: Set<String> = emptySet(),
     onToggleFavorite: (String) -> Unit = {},
     onHideSource: (String) -> Unit = {},
+    onReorder: (List<String>) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val spacing = LocalSpacing.current
@@ -155,6 +167,20 @@ internal fun BrowseSourceCarousel(
     // once at a time.
     var contextSheetFor by remember { mutableStateOf<SourcePluginDescriptor?>(null) }
 
+    // ── Drag-and-drop reorder state ────────────────────────────────
+    // Tracked at the carousel level so the dragged card's visual offset
+    // and the computed target index are shared across all card slots.
+    var draggingItemId by remember { mutableStateOf<String?>(null) }
+    var dragOffset by remember { mutableFloatStateOf(0f) }
+    val haptic = LocalHapticFeedback.current
+    val density = LocalDensity.current
+    // Card width + inter-item spacing in px, for computing how many
+    // slots the drag has crossed.
+    val slotWidthPx = with(density) { (CARD_WIDTH + spacing.sm).toPx() }
+    // Minimum drag distance (in px) to count as a real reorder rather
+    // than a long-press-only (which opens the context sheet).
+    val dragThresholdPx = with(density) { 12.dp.toPx() }
+
     LazyRow(
         state = listState,
         modifier = modifier
@@ -164,12 +190,49 @@ internal fun BrowseSourceCarousel(
         contentPadding = PaddingValues(horizontal = spacing.md, vertical = spacing.xs),
     ) {
         items(visibleSources, key = { it.id }) { descriptor ->
+            val isDragging = draggingItemId == descriptor.id
             BrowseSourceCard(
                 descriptor = descriptor,
                 isSelected = descriptor.id == selectedId,
                 isFavorite = descriptor.id in favoriteSourceIds,
+                isDragging = isDragging,
+                dragOffsetX = if (isDragging) dragOffset else 0f,
                 onClick = { onSelect(descriptor.id) },
-                onLongClick = { contextSheetFor = descriptor },
+                onDragStart = {
+                    draggingItemId = descriptor.id
+                    dragOffset = 0f
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                },
+                onDrag = { dx ->
+                    dragOffset += dx
+                },
+                onDragEnd = {
+                    val totalDrag = abs(dragOffset)
+                    if (totalDrag < dragThresholdPx) {
+                        // Minimal drag — treat as long-press-only → context sheet.
+                        contextSheetFor = descriptor
+                    } else {
+                        // Real drag — compute the new order and commit.
+                        val currentIndex = visibleSources.indexOfFirst { it.id == descriptor.id }
+                        if (currentIndex >= 0) {
+                            val slotsMoved = (dragOffset / slotWidthPx).roundToInt()
+                            val targetIndex = (currentIndex + slotsMoved)
+                                .coerceIn(0, visibleSources.lastIndex)
+                            if (targetIndex != currentIndex) {
+                                val newOrder = visibleSources.map { it.id }.toMutableList()
+                                newOrder.removeAt(currentIndex)
+                                newOrder.add(targetIndex, descriptor.id)
+                                onReorder(newOrder)
+                            }
+                        }
+                    }
+                    draggingItemId = null
+                    dragOffset = 0f
+                },
+                onDragCancel = {
+                    draggingItemId = null
+                    dragOffset = 0f
+                },
             )
         }
     }
@@ -191,14 +254,18 @@ internal fun BrowseSourceCarousel(
     }
 }
 
-@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 private fun BrowseSourceCard(
     descriptor: SourcePluginDescriptor,
     isSelected: Boolean,
     isFavorite: Boolean,
+    isDragging: Boolean,
+    dragOffsetX: Float,
     onClick: () -> Unit,
-    onLongClick: () -> Unit,
+    onDragStart: () -> Unit,
+    onDrag: (Float) -> Unit,
+    onDragEnd: () -> Unit,
+    onDragCancel: () -> Unit,
 ) {
     // Hoist into a local so the `Modifier.semantics { selected = ... }`
     // lambda below isn't confused by Compose's `selected` property name —
@@ -255,23 +322,48 @@ private fun BrowseSourceCard(
         modifier = Modifier
             .width(CARD_WIDTH)
             .height(cardHeight)
+            // Drag-and-drop: the dragged card floats above siblings via
+            // zIndex and translates horizontally by the accumulated drag
+            // offset. Non-dragged cards use animateItem() on the LazyRow
+            // to slide into their new positions.
+            .zIndex(if (isDragging) 1f else 0f)
+            .offset { IntOffset(dragOffsetX.roundToInt(), 0) }
+            .graphicsLayer {
+                if (isDragging) {
+                    scaleX = 1.05f
+                    scaleY = 1.05f
+                    shadowElevation = 8f
+                }
+            }
             // a11y — every source card is a button with selected state so
             // TalkBack announces "Royal Road, web serials, selected".
             // Role.Button (not Role.Tab) keeps the "double-tap to activate"
             // hint intact even on the selected cell — same rationale as
             // BottomTabBar #645.
             .semantics { this.selected = selected }
-            // v0.5.76 — combinedClickable adds long-press without losing
-            // the click semantics or role. The onLongClickLabel is read by
-            // TalkBack on long-press hint announce ("Double-tap and hold
-            // for options").
-            .combinedClickable(
+            // Tap handler — selects the source. Separated from the long-
+            // press gesture below so they don't fight over pointer events.
+            .clickable(
                 role = Role.Button,
                 onClickLabel = label,
-                onLongClickLabel = stringResource(R.string.source_options),
                 onClick = onClick,
-                onLongClick = onLongClick,
-            ),
+            )
+            // Long-press + optional drag. detectDragGesturesAfterLongPress
+            // fires onDragStart as soon as the long-press threshold passes;
+            // the carousel-level onDragEnd discriminates between "long-press
+            // only" (open context sheet) and "long-press + drag" (reorder)
+            // using the accumulated drag distance.
+            .pointerInput(descriptor.id) {
+                detectDragGesturesAfterLongPress(
+                    onDragStart = { onDragStart() },
+                    onDrag = { change, dragAmount ->
+                        change.consume()
+                        onDrag(dragAmount.x)
+                    },
+                    onDragEnd = onDragEnd,
+                    onDragCancel = onDragCancel,
+                )
+            },
         shape = RoundedCornerShape(14.dp),
         color = Color.Transparent,
         border = BorderStroke(if (selected) 2.dp else 1.dp, borderAlpha),
