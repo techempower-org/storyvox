@@ -227,10 +227,13 @@ class SystemTtsEngine(
         // well outside the healthy band and matches the buffering
         // watchdog window in PlaybackController so upstream's
         // AudioOutputStuck recovery kicks in at the same horizon.
-        val ok = withTimeoutOrNull(SYNTH_TIMEOUT_MS) { deferred.await() }
+        val ok = try {
+            withTimeoutOrNull(SYNTH_TIMEOUT_MS) { deferred.await() }
+        } finally {
+            pending.remove(utteranceId)
+        }
         if (ok == null) {
             Log.w(TAG, "synth timed out after ${SYNTH_TIMEOUT_MS}ms text.len=${text.length}")
-            pending.remove(utteranceId)
             runCatching { outFile.delete() }
             return@withContext null
         }

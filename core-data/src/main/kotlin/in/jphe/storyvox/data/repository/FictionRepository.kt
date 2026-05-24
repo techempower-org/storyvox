@@ -296,7 +296,7 @@ class FictionRepositoryImpl @Inject constructor(
         val source = sourceFor(SourceIds.ROYAL_ROAD)
         val allIncoming = mutableListOf<FictionSummary>()
         var page = 1
-        while (true) {
+        while (page <= MAX_FOLLOWS_PAGES) {
             when (val result = source.followsList(page = page)) {
                 is FictionResult.Success -> {
                     allIncoming.addAll(result.value.items)
@@ -483,6 +483,7 @@ class FictionRepositoryImpl @Inject constructor(
     private companion object {
         const val CHOOSER_THRESHOLD: Float = 0.5f
         const val DOMINANT_GAP: Float = 0.2f
+        const val MAX_FOLLOWS_PAGES: Int = 200
     }
 
     // ─── helpers ──────────────────────────────────────────────────────────

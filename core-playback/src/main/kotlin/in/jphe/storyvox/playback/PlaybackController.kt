@@ -526,7 +526,7 @@ class DefaultPlaybackController @Inject constructor(
                         android.util.Log.w(
                             "PlaybackController",
                             "#553/#726 watchdog: isBuffering stuck on $armedFor for " +
-                                "${BUFFERING_STUCK_WATCHDOG_MS}ms; firing fallback advance " +
+                                "${threshold}ms; firing fallback advance " +
                                 "direction=$watchdogDir (in-flight=${p.inFlightAdvanceDirection})",
                         )
                         // #553 follow-up — Media3's Player object is

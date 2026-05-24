@@ -33,8 +33,7 @@ class PassphraseStore @Inject constructor(
         secrets.edit().remove(PREF_KEY).apply()
     }
 
-    override fun isSet(): Boolean =
-        !secrets.getString(PREF_KEY, null).isNullOrEmpty()
+    override fun isSet(): Boolean = secrets.contains(PREF_KEY)
 
     companion object {
         internal const val PREF_KEY = "sync.passphrase"

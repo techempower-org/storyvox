@@ -343,7 +343,7 @@ internal class Ao3Api @Inject constructor(
          * in unit tests.
          */
         internal fun searchPath(query: String, page: Int = 1): String {
-            val encoded = java.net.URLEncoder.encode(query, Charsets.UTF_8)
+            val encoded = java.net.URLEncoder.encode(query, "UTF-8")
             return if (page <= 1) {
                 "/works/search?work_search%5Bquery%5D=$encoded"
             } else {

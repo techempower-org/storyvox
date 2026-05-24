@@ -194,13 +194,14 @@ private fun TagSetSection(
     }
 
     if (dim.options.isNotEmpty()) {
-        val selected = dim.options.filter { it in included || it in excluded }
-        val unselected = dim.options.filter { it !in included && it !in excluded }
-        val filtered = if (searchable && query.isNotBlank()) {
+        val filtered = remember(dim.options, included, excluded, query) {
+            val (selected, unselected) = dim.options.partition { it in included || it in excluded }
             val q = query.trim()
-            selected + unselected.filter { it.contains(q, ignoreCase = true) }
-        } else {
-            selected + unselected
+            if (searchable && q.isNotEmpty()) {
+                selected + unselected.filter { it.contains(q, ignoreCase = true) }
+            } else {
+                selected + unselected
+            }
         }
 
         FlowRow(
@@ -245,6 +246,10 @@ private fun TagSetChip(
                 isIncluded && allowExclude -> {
                     newIncluded = included - tag
                     newExcluded = excluded + tag
+                }
+                isIncluded -> {
+                    newIncluded = included - tag
+                    newExcluded = excluded
                 }
                 isExcluded -> {
                     newIncluded = included
@@ -396,7 +401,7 @@ private fun TextSection(
         value = value,
         onValueChange = { text ->
             if (text.isBlank()) onChange(state.without(dim.key))
-            else onChange(state.with(dim.key, FilterValue.StringVal(text.trim())))
+            else onChange(state.with(dim.key, FilterValue.StringVal(text)))
         },
         placeholder = if (dim.placeholder.isNotEmpty()) {
             { Text(dim.placeholder, style = MaterialTheme.typography.bodyMedium) }
