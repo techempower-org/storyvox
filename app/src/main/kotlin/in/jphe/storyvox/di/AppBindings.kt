@@ -50,6 +50,7 @@ import `in`.jphe.storyvox.playback.tts.RecapPlaybackState
 import `in`.jphe.storyvox.playback.SPEED_BASELINE_CHARS_PER_SECOND
 import `in`.jphe.storyvox.playback.SleepTimerMode
 import `in`.jphe.storyvox.playback.StoryvoxPlaybackService
+import javax.inject.Named
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -374,6 +375,23 @@ object AppBindings {
     // No additional binding needed — `SecretsSyncer` picks them up via
     // the extended `SECRET_KEY_PREFIXES` (`notion.`) and
     // `SECRET_KEY_NAMES` (Discord's flat-named token).
+
+    /**
+     * Real passphrase provider — replaces the no-op default that
+     * was in `:core-sync`'s SyncModule. [PassphraseStore] reads from
+     * EncryptedSharedPreferences under `sync.passphrase`.
+     */
+    @Provides
+    @Singleton
+    @Named(`in`.jphe.storyvox.sync.domain.SecretsSyncer.PASSPHRASE_PROVIDER)
+    fun providePassphraseProvider(
+        impl: `in`.jphe.storyvox.data.PassphraseStore,
+    ): `in`.jphe.storyvox.sync.domain.PassphraseProvider = impl
+
+    @Provides @Singleton
+    fun providePassphraseManager(
+        impl: `in`.jphe.storyvox.data.PassphraseStore,
+    ): `in`.jphe.storyvox.sync.domain.PassphraseManager = impl
 
     /**
      * Issue #203 — narrow [GitHubScopePreferences] surface for the

@@ -22,12 +22,12 @@ import `in`.jphe.storyvox.sync.coordinator.TombstoneStore
 import `in`.jphe.storyvox.sync.domain.BookmarksSyncer
 import `in`.jphe.storyvox.sync.domain.FollowsSyncer
 import `in`.jphe.storyvox.sync.domain.LibrarySyncer
-import `in`.jphe.storyvox.sync.domain.PassphraseProvider
+
 import `in`.jphe.storyvox.sync.domain.PlaybackPositionSyncer
 import `in`.jphe.storyvox.sync.domain.PronunciationDictSyncer
 import `in`.jphe.storyvox.sync.domain.SecretsSyncer
 import `in`.jphe.storyvox.sync.domain.SettingsSyncer
-import javax.inject.Named
+
 import javax.inject.Singleton
 
 /**
@@ -130,18 +130,6 @@ object SyncModule {
     @Provides @IntoSet
     fun provideSettingsSyncer(impl: SettingsSyncer): Syncer = impl
 
-    /**
-     * Default passphrase provider — returns null, i.e. "secrets sync is
-     * a no-op." The real provider lives in `:app` once the Settings →
-     * Account passphrase entry is wired; until then this lets the DI
-     * graph resolve and the rest of the syncers run while
-     * [SecretsSyncer.reconcile] returns `Permanent("set a passphrase")`
-     * straight away.
-     */
-    @Provides
-    @Singleton
-    @Named(SecretsSyncer.PASSPHRASE_PROVIDER)
-    fun provideDefaultPassphraseProvider(): PassphraseProvider = PassphraseProvider { null }
 }
 
 // [SettingsSnapshotSource] and [SecretsSnapshotSource] bindings live

@@ -35,6 +35,17 @@ fun interface PassphraseProvider {
 }
 
 /**
+ * Write-side extension of [PassphraseProvider] — used by the settings UI
+ * to let the user set, clear, and check the passphrase. The syncer only
+ * needs [PassphraseProvider.get]; this interface is for the Account screen.
+ */
+interface PassphraseManager : PassphraseProvider {
+    fun set(passphrase: CharArray)
+    fun clear()
+    fun isSet(): Boolean
+}
+
+/**
  * Syncs the user's encrypted secrets — API keys (Claude, OpenAI, etc.),
  * Royal Road session cookies, GitHub PAT, Outline tokens, Notion
  * integration token, Discord bot token.

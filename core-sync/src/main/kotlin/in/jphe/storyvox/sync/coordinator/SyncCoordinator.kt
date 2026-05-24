@@ -90,6 +90,15 @@ class SyncCoordinator @Inject constructor(
         }
     }
 
+    /** Manual sync trigger from Settings → Account. Pull then push. */
+    fun syncNow() {
+        val user = session.current() ?: return
+        scope.launch {
+            pullAll(user)
+            requestPushAll()
+        }
+    }
+
     /** Request a push for every domain. Used by the post-sign-in
      *  migration step. */
     fun requestPushAll() {
