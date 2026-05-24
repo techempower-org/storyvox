@@ -32,18 +32,21 @@ class BrowseSourceUiTest {
             // migration overlap.
             SourceIds.RADIO to "Radio",
             SourceIds.KVMR to "Radio",
-            SourceIds.NOTION to "Notion",
+            // Issue #770 — split NOTION into TECHEMPOWER + PAT.
+            SourceIds.NOTION_TECHEMPOWER to "TechEmpower",
+            SourceIds.NOTION_PAT to "Notion",
             SourceIds.HACKERNEWS to "Hacker News",
             SourceIds.ARXIV to "arXiv",
             SourceIds.PLOS to "PLOS",
             SourceIds.DISCORD to "Discord",
         )
 
-        // 18 = 11 catalog backends + Radio/Kvmr alias + Notion + HN +
-        // arXiv + PLOS + Discord. Slack and Telegram intentionally fall
-        // through to the registry's displayName (chip strip uses the
-        // same string as the Settings → Plugins label).
-        assertEquals(18, expected.size)
+        // 19 = 11 catalog backends + Radio/Kvmr alias +
+        // Notion TechEmpower + Notion PAT + HN + arXiv + PLOS + Discord.
+        // Slack and Telegram intentionally fall through to the registry's
+        // displayName (chip strip uses the same string as the Settings →
+        // Plugins label).
+        assertEquals(19, expected.size)
         for ((id, label) in expected) {
             assertEquals(
                 "Unexpected chip label for $id",
@@ -166,7 +169,9 @@ class BrowseSourceUiTest {
             // Issue #417 — RADIO is canonical; KVMR alias kept for
             // one cycle to cover persisted-id resolution.
             SourceIds.RADIO, SourceIds.KVMR,
-            SourceIds.NOTION, SourceIds.HACKERNEWS, SourceIds.ARXIV,
+            // Issue #770 — split NOTION into TECHEMPOWER + PAT.
+            SourceIds.NOTION_TECHEMPOWER, SourceIds.NOTION_PAT,
+            SourceIds.HACKERNEWS, SourceIds.ARXIV,
             SourceIds.PLOS, SourceIds.DISCORD,
             // Issue #695 — Slack/Telegram declare supportsSearch=false;
             // the smoke loops verify their tab list still includes

@@ -346,6 +346,12 @@ internal object LegacySourceKeys {
             Spec(booleanPreferencesKey("pref_source_radio_enabled"), defaultValue = true),
         `in`.jphe.storyvox.data.source.SourceIds.KVMR to
             Spec(booleanPreferencesKey("pref_source_kvmr_enabled"), defaultValue = true),
+        `in`.jphe.storyvox.data.source.SourceIds.NOTION_TECHEMPOWER to
+            Spec(booleanPreferencesKey("pref_source_notion_techempower_enabled"), defaultValue = true),
+        `in`.jphe.storyvox.data.source.SourceIds.NOTION_PAT to
+            Spec(booleanPreferencesKey("pref_source_notion_pat_enabled"), defaultValue = false),
+        // Legacy alias — one migration cycle so persisted enabled-state
+        // for the old "notion" source survives.
         `in`.jphe.storyvox.data.source.SourceIds.NOTION to
             Spec(booleanPreferencesKey("pref_source_notion_enabled"), defaultValue = true),
         `in`.jphe.storyvox.data.source.SourceIds.HACKERNEWS to

@@ -540,7 +540,8 @@ private fun sourceTagline(id: String): String {
         SourceIds.OUTLINE -> R.string.source_tagline_outline
         SourceIds.MEMPALACE -> R.string.source_tagline_mempalace
         SourceIds.RADIO, SourceIds.KVMR -> R.string.source_tagline_radio
-        SourceIds.NOTION -> R.string.source_tagline_notion
+        SourceIds.NOTION_TECHEMPOWER -> R.string.source_tagline_techempower
+        SourceIds.NOTION_PAT -> R.string.source_tagline_notion
         SourceIds.HACKERNEWS -> R.string.source_tagline_hackernews
         SourceIds.ARXIV -> R.string.source_tagline_arxiv
         SourceIds.PLOS -> R.string.source_tagline_plos
@@ -575,7 +576,8 @@ private fun sourceGlyph(id: String): ImageVector = when (id) {
     SourceIds.OUTLINE -> Icons.Filled.Description
     SourceIds.MEMPALACE -> Icons.Filled.LocalLibrary
     SourceIds.RADIO, SourceIds.KVMR -> Icons.Filled.Radio
-    SourceIds.NOTION -> Icons.Filled.Description
+    SourceIds.NOTION_TECHEMPOWER -> Icons.Filled.Bolt
+    SourceIds.NOTION_PAT -> Icons.Filled.Description
     SourceIds.HACKERNEWS -> Icons.Filled.Bolt
     SourceIds.ARXIV -> Icons.Filled.Science
     SourceIds.PLOS -> Icons.Filled.Science

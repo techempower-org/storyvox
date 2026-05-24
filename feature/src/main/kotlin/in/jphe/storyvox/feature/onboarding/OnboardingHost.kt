@@ -257,7 +257,7 @@ class OnboardingHostViewModel @Inject constructor(
             //  1. Seed the local Fiction DAO with the Notion
             //     anonymous-mode source's "popular" tiles. This is
             //     what writes the `notion:guides` row into the DB
-            //     with the correct `sourceId="notion"`. Without it,
+            //     with the correct `sourceId="notion-techempower"`. Without it,
             //     [FictionRepository.refreshDetail] falls back to
             //     `SourceIds.ROYAL_ROAD` for an unknown row and the
             //     refresh silently fails — chapters never land. This
@@ -336,12 +336,13 @@ class OnboardingHostViewModel @Inject constructor(
         /**
          * Source id for the anonymous-mode Notion delegate that
          * serves the `notion:guides` fiction. Inline here (mirrors
-         * `SourceIds.NOTION` in :core-data) so the onboarding doesn't
-         * take a module dependency on `:core-data` just for one
-         * string constant. If `SourceIds.NOTION` ever moves to a
-         * different string, a one-grep audit catches this site.
+         * `SourceIds.NOTION_TECHEMPOWER` in :core-data) so the
+         * onboarding doesn't take a module dependency on `:core-data`
+         * just for one string constant. If `SourceIds.NOTION_TECHEMPOWER`
+         * ever moves to a different string, a one-grep audit catches
+         * this site.
          */
-        const val NOTION_SOURCE_ID: String = "notion"
+        const val NOTION_SOURCE_ID: String = "notion-techempower"
 
         /**
          * Upper bound on how long [openGuidesAndAutoPlay] waits for

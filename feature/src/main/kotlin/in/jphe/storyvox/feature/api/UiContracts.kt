@@ -858,7 +858,7 @@ data class UiSettings(
     val telegramTokenConfigured: Boolean = false,
     /**
      * Plugin-seam Phase 3 (#384) — per-plugin on/off keyed by stable
-     * plugin id ("kvmr", "royalroad", "notion", ...). Single source of
+     * plugin id ("kvmr", "royalroad", "notion-techempower", ...). Single source of
      * truth as of v0.5.31: the deleted Phase 1/2 hand-rolled
      * `sourceXxxEnabled` fields have all collapsed into this map.
      *

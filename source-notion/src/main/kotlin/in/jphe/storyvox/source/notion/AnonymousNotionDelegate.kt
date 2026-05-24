@@ -256,7 +256,7 @@ internal class AnonymousNotionDelegate @Inject constructor(
         return fictions.map { fiction ->
             FictionSummary(
                 id = notionFictionId(fiction.id),
-                sourceId = SourceIds.NOTION,
+                sourceId = SourceIds.NOTION_TECHEMPOWER,
                 title = fiction.title,
                 author = "TechEmpower",
                 description = fiction.description,
@@ -325,7 +325,7 @@ internal class AnonymousNotionDelegate @Inject constructor(
         val cover = readCoverUrl(block) ?: readBodyImageUrl(root.recordMap, block)
         return FictionSummary(
             id = notionFictionId(compactRoot),
-            sourceId = SourceIds.NOTION,
+            sourceId = SourceIds.NOTION_TECHEMPOWER,
             title = title,
             author = "Notion",
             description = description,
@@ -353,7 +353,7 @@ internal class AnonymousNotionDelegate @Inject constructor(
         }
         val summary = FictionSummary(
             id = fictionId,
-            sourceId = SourceIds.NOTION,
+            sourceId = SourceIds.NOTION_TECHEMPOWER,
             title = fiction.title,
             author = "TechEmpower",
             description = fiction.description,
@@ -403,7 +403,7 @@ internal class AnonymousNotionDelegate @Inject constructor(
         }
         val summary = FictionSummary(
             id = fictionId,
-            sourceId = SourceIds.NOTION,
+            sourceId = SourceIds.NOTION_TECHEMPOWER,
             title = fiction.title,
             author = "TechEmpower",
             description = fiction.description,
@@ -430,7 +430,7 @@ internal class AnonymousNotionDelegate @Inject constructor(
         )
         val summary = FictionSummary(
             id = fictionId,
-            sourceId = SourceIds.NOTION,
+            sourceId = SourceIds.NOTION_TECHEMPOWER,
             title = fiction.title,
             author = "TechEmpower",
             description = fiction.description,

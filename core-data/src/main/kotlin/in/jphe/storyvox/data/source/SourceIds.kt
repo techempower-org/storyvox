@@ -101,8 +101,25 @@ object SourceIds {
      *  Integration Token (PAT). Default database id points at the
      *  techempower.org content database (#390) so a fresh install
      *  surfaces TechEmpower content without configuration once the
-     *  user supplies the integration token. */
+     *  user supplies the integration token.
+     *
+     *  Legacy alias — kept across one migration cycle so persisted
+     *  fictions with `sourceId = "notion"` (pre-split) continue to
+     *  resolve. Routes to [NOTION_TECHEMPOWER] via the Hilt FictionSource
+     *  map binding. */
     const val NOTION: String = "notion"
+
+    /** TechEmpower anonymous Notion reader (#770) — public TechEmpower
+     *  guides, resources, and about pages via the unofficial Notion API.
+     *  Default ON. No token required. Split from the old dual-mode
+     *  [NOTION] source into a dedicated `@SourcePlugin`. */
+    const val NOTION_TECHEMPOWER: String = "notion-techempower"
+
+    /** Private Notion workspace via PAT (#770) — user's own Notion
+     *  databases via an Internal Integration Token. Default OFF.
+     *  Split from the old dual-mode [NOTION] source into a dedicated
+     *  `@SourcePlugin`. */
+    const val NOTION_PAT: String = "notion-pat"
     /** Hacker News (#379) — front-page stories + Ask HN / Show HN +
      *  Algolia-backed search. Each story = one fiction with exactly
      *  one chapter ("listen to one HN thread as an episode"). Free,

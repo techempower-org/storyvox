@@ -329,7 +329,7 @@ fun BrowseScreen(
         // "Notion" → TechEmpower cards and conclude the source is
         // broken / mis-wired. JP design (issue comment): keep the
         // fallback, add a clear demo label + a Settings deep-link.
-        if (state.sourceId == SourceIds.NOTION && state.notionAnonymousActive) {
+        if (state.sourceId == SourceIds.NOTION_TECHEMPOWER && state.notionAnonymousActive) {
             NotionDemoBanner(onOpenSettings = onOpenSettings)
         }
 

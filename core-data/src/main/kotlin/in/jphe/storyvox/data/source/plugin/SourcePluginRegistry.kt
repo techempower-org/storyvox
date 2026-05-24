@@ -52,7 +52,7 @@ class SourcePluginRegistry @Inject constructor(
      *  list order doesn't churn. */
     val all: List<SourcePluginDescriptor> = descriptors
         .sortedWith(
-            compareBy<SourcePluginDescriptor> { if (it.id == SourceIds.NOTION) 0 else 1 }
+            compareBy<SourcePluginDescriptor> { if (it.id == SourceIds.NOTION_TECHEMPOWER) 0 else 1 }
                 .thenBy { it.category.ordinal }
                 .thenBy { it.displayName.lowercase() },
         )

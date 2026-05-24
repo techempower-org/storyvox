@@ -101,12 +101,15 @@ class SettingsRepositorySourcePluginsTest {
             // migration alias and stays in the round-trip set so the
             // dual-key persistence shape is exercised.
             SourceIds.RADIO, SourceIds.KVMR,
-            SourceIds.NOTION, SourceIds.HACKERNEWS, SourceIds.ARXIV,
+            // Issue #770 — split NOTION into TECHEMPOWER + PAT.
+            // Legacy NOTION alias is kept for one migration cycle.
+            SourceIds.NOTION_TECHEMPOWER, SourceIds.NOTION_PAT, SourceIds.NOTION,
+            SourceIds.HACKERNEWS, SourceIds.ARXIV,
             SourceIds.PLOS, SourceIds.DISCORD,
             // #462 — Telegram backend.
             SourceIds.TELEGRAM,
         )
-        assertEquals(19, allIds.size)
+        assertEquals(21, allIds.size)
 
         // Toggle each off then on, in order — verify both states
         // land in the persisted map.
@@ -200,7 +203,9 @@ class SettingsRepositorySourcePluginsTest {
             SourceIds.RSS, SourceIds.EPUB, SourceIds.OUTLINE,
             SourceIds.GUTENBERG, SourceIds.AO3, SourceIds.STANDARD_EBOOKS,
             SourceIds.WIKIPEDIA, SourceIds.WIKISOURCE,
-            SourceIds.RADIO, SourceIds.KVMR, SourceIds.NOTION,
+            SourceIds.RADIO, SourceIds.KVMR,
+            // Issue #770 — split NOTION into TECHEMPOWER + PAT.
+            SourceIds.NOTION_TECHEMPOWER, SourceIds.NOTION,
             SourceIds.HACKERNEWS, SourceIds.ARXIV, SourceIds.PLOS,
             SourceIds.DISCORD,
             // #462 — Telegram backend defaults ON for fresh-install
@@ -217,6 +222,12 @@ class SettingsRepositorySourcePluginsTest {
                 snapshot[id],
             )
         }
+        // NOTION_PAT defaults OFF — private workspace requires token setup.
+        assertEquals(
+            "Fresh install should disable NOTION_PAT by default",
+            false,
+            snapshot[SourceIds.NOTION_PAT],
+        )
     }
 
     @Test
@@ -247,14 +258,14 @@ class SettingsRepositorySourcePluginsTest {
 
     @Test
     fun `independent toggles do not affect each other`() = runTest {
-        repo.setSourcePluginEnabled(SourceIds.NOTION, enabled = false)
+        repo.setSourcePluginEnabled(SourceIds.NOTION_PAT, enabled = false)
         repo.setSourcePluginEnabled(SourceIds.WIKIPEDIA, enabled = true)
         val snapshot = repo.settings.first().sourcePluginsEnabled
 
-        assertEquals(false, snapshot[SourceIds.NOTION])
+        assertEquals(false, snapshot[SourceIds.NOTION_PAT])
         assertEquals(true, snapshot[SourceIds.WIKIPEDIA])
         // No cross-contamination — these are two independent keys.
-        assertTrue(snapshot.containsKey(SourceIds.NOTION))
+        assertTrue(snapshot.containsKey(SourceIds.NOTION_PAT))
         assertTrue(snapshot.containsKey(SourceIds.WIKIPEDIA))
     }
 }

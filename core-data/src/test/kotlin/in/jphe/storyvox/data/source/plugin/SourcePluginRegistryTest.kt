@@ -124,7 +124,11 @@ class SourcePluginRegistryTest {
             // in the FictionSource map binding, not in the descriptor
             // registry.
             SourceIds.RADIO,
-            SourceIds.NOTION,
+            // Issue #770 — split NotionSource into TechEmpower + PAT.
+            // The legacy NOTION id survives as a routing alias in the
+            // FictionSource map binding, not in the descriptor registry.
+            SourceIds.NOTION_TECHEMPOWER,
+            SourceIds.NOTION_PAT,
         )
         val descriptors = expectedIds.map { id ->
             descriptor(
@@ -136,7 +140,7 @@ class SourcePluginRegistryTest {
 
         val registry = SourcePluginRegistry(descriptors.toSet())
 
-        assertEquals(12, registry.all.size)
+        assertEquals(13, registry.all.size)
         // Every expected id resolves via byId — order-independent so
         // the assertion stays robust against future sort changes.
         for (id in expectedIds) {

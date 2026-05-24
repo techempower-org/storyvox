@@ -52,7 +52,8 @@ internal object BrowseSourceUi {
         // any code path still resolving through it stays consistent.
         SourceIds.RADIO -> "Radio"
         SourceIds.KVMR -> "Radio"
-        SourceIds.NOTION -> "Notion"
+        SourceIds.NOTION_TECHEMPOWER -> "TechEmpower"
+        SourceIds.NOTION_PAT -> "Notion"
         SourceIds.HACKERNEWS -> "Hacker News"
         SourceIds.ARXIV -> "arXiv"
         SourceIds.PLOS -> "PLOS"
@@ -149,7 +150,8 @@ internal object BrowseSourceUi {
         // Search tab anyway.
         SourceIds.RADIO -> listOf(BrowseTab.Popular, BrowseTab.Search)
         SourceIds.KVMR -> listOf(BrowseTab.Popular)
-        SourceIds.NOTION -> listOf(BrowseTab.Popular, BrowseTab.Search)
+        SourceIds.NOTION_TECHEMPOWER -> listOf(BrowseTab.Popular, BrowseTab.Search)
+        SourceIds.NOTION_PAT -> listOf(BrowseTab.Popular, BrowseTab.Search)
         SourceIds.HACKERNEWS -> listOf(BrowseTab.Popular, BrowseTab.Search)
         SourceIds.ARXIV -> listOf(BrowseTab.Popular, BrowseTab.Search)
         SourceIds.PLOS -> listOf(BrowseTab.Popular, BrowseTab.Search)
@@ -173,7 +175,8 @@ internal object BrowseSourceUi {
         // Issue #417 — Radio search drives the Radio Browser API.
         SourceIds.RADIO -> "Search Radio Browser — community, public, and college stations worldwide"
         SourceIds.KVMR -> "Tune in to KVMR — live community radio from Nevada City"
-        SourceIds.NOTION -> "Search your configured Notion database"
+        SourceIds.NOTION_TECHEMPOWER -> "Search TechEmpower guides & resources"
+        SourceIds.NOTION_PAT -> "Search your configured Notion database"
         SourceIds.HACKERNEWS -> "Search Hacker News stories (Algolia-backed full-text)"
         SourceIds.ARXIV -> "Search arXiv — open-access academic papers"
         SourceIds.PLOS -> "Search PLOS — open-access peer-reviewed science"

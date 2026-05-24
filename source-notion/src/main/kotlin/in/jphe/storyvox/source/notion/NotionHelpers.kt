@@ -1,24 +1,8 @@
 package `in`.jphe.storyvox.source.notion
 
-import `in`.jphe.storyvox.data.source.FictionSource
 import `in`.jphe.storyvox.data.source.SourceIds
-import `in`.jphe.storyvox.data.source.filter.FilterDimension
-import `in`.jphe.storyvox.data.source.filter.FilterState
-import `in`.jphe.storyvox.data.source.plugin.SourceCategory
-import `in`.jphe.storyvox.data.source.plugin.SourcePlugin
-import `in`.jphe.storyvox.data.source.model.ChapterContent
-import `in`.jphe.storyvox.data.source.model.ChapterInfo
-import `in`.jphe.storyvox.data.source.model.FictionDetail
-import `in`.jphe.storyvox.data.source.model.FictionResult
 import `in`.jphe.storyvox.data.source.model.FictionStatus
 import `in`.jphe.storyvox.data.source.model.FictionSummary
-import `in`.jphe.storyvox.data.source.model.ListPage
-import `in`.jphe.storyvox.data.source.model.SearchOrder
-import `in`.jphe.storyvox.data.source.model.SearchQuery
-import `in`.jphe.storyvox.data.source.model.map
-import `in`.jphe.storyvox.source.notion.config.NotionConfig
-import `in`.jphe.storyvox.source.notion.config.NotionMode
-import `in`.jphe.storyvox.source.notion.net.NotionApi
 import `in`.jphe.storyvox.source.notion.net.NotionBlock
 import `in`.jphe.storyvox.source.notion.net.NotionPage
 import kotlinx.serialization.json.JsonArray
@@ -28,266 +12,6 @@ import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import javax.inject.Inject
-import javax.inject.Singleton
-
-/**
- * Issue #233 — Notion as a fiction backend. Issue #390 — the bundled
- * default points at the techempower.org content database, so a fresh
- * install opens Browse → Notion and immediately surfaces TechEmpower
- * content as narratable audio.
- *
- * Data model:
- *  - One Notion **database** → the Browse catalog. Configured per-user.
- *  - Each **page** in the database → one [FictionSummary].
- *  - The page's top-level **blocks** split into chapters on every
- *    `heading_1` boundary. The lead (before the first `heading_1`) is
- *    chapter 0 / "Introduction" — same shape as `:source-wikipedia`,
- *    which makes long-form Notion docs behave like an article.
- *  - Sub-headings (`heading_2`, `heading_3`) and other blocks stay
- *    inline within their parent chapter's HTML so the chapter count
- *    stays sensible.
- *
- * Auth: PAT-based. Notion's REST API requires `Authorization: Bearer
- * <integration_token>` on every call — there is no anonymous tier and
- * Notion's "public share" pages don't expose a public REST surface.
- * Users supply an Internal Integration Token from
- * notion.so/my-integrations and share the database with that
- * integration. The token is stored encrypted in app config.
- *
- * Fiction IDs: `notion:<pageId-with-hyphens-stripped>`. Chapter IDs:
- * `notion:<pageId>::section-<index>` where `index` is the 0-based
- * heading-split section (0 = Introduction).
- */
-@SourcePlugin(
-    id = SourceIds.NOTION,
-    displayName = "Notion",
-    defaultEnabled = true,
-    category = SourceCategory.Text,
-    supportsFollow = false,
-    supportsSearch = true,
-    description = "Notion databases or public pages as fictions · anonymous reader by default · PAT for private workspaces",
-    sourceUrl = "https://www.notion.so",
-)
-@Singleton
-internal class NotionSource @Inject constructor(
-    private val api: NotionApi,
-    private val anonymous: AnonymousNotionDelegate,
-    private val config: NotionConfig,
-) : FictionSource, `in`.jphe.storyvox.data.source.UrlMatcher {
-
-    override val id: String = SourceIds.NOTION
-    override val displayName: String = "Notion"
-
-    /** Issue #472 — `*.notion.so/<workspace>/<slug-with-32-hex-id>` or
-     *  bare `notion.so/<32-hex-id>`. The pageId is the trailing 32-char
-     *  hex blob with hyphens stripped. */
-    override fun matchUrl(url: String): `in`.jphe.storyvox.data.source.RouteMatch? {
-        val m = NOTION_URL_PATTERN.matchEntire(url.trim()) ?: return null
-        val pageId = m.groupValues[1].replace("-", "")
-        return `in`.jphe.storyvox.data.source.RouteMatch(
-            sourceId = SourceIds.NOTION,
-            fictionId = "${SourceIds.NOTION}:$pageId",
-            confidence = 0.85f,
-            label = "Notion page",
-        )
-    }
-
-    override fun filterDimensions(): List<FilterDimension> = listOf(
-        FilterDimension.Sort(
-            options = listOf(
-                FilterDimension.SortOption("relevance", "Default"),
-                FilterDimension.SortOption("last_update", "Newest"),
-                FilterDimension.SortOption("title", "Title"),
-            ),
-        ),
-    )
-
-    override fun applyFilters(base: SearchQuery, state: FilterState): SearchQuery {
-        var q = base
-        state.stringVal("sort")?.let { sortId ->
-            q = q.copy(
-                orderBy = when (sortId) {
-                    "last_update" -> SearchOrder.LAST_UPDATE
-                    "title" -> SearchOrder.TITLE
-                    else -> SearchOrder.RELEVANCE
-                },
-            )
-        }
-        return q
-    }
-
-    // ─── browse ────────────────────────────────────────────────────────
-
-    override suspend fun popular(page: Int): FictionResult<ListPage<FictionSummary>> {
-        val state = config.current()
-        if (state.mode == NotionMode.ANONYMOUS_PUBLIC) {
-            return anonymous.popular(state, page)
-        }
-        // Notion paginates via opaque `start_cursor` strings, not integer
-        // page numbers. Our BrowsePaginator drives 1-indexed page numbers;
-        // we collapse "first call" = page 1 = cursor=null. Page 2+ from a
-        // cold start can't actually resolve the right cursor without
-        // having seen page 1's response, so storyvox's paginator always
-        // calls page 1 first and we forward the cursor through the
-        // ListPage.nextCursor seam (which doesn't exist today). For v1
-        // we surface the first 100 results only; pagination follow-up
-        // is a separate ticket.
-        //
-        // Notion's default sort = `last_edited_time` desc, which reads
-        // as "most-recently-updated" — perfect for Popular when the user
-        // is following an active content team's Notion DB.
-        if (page > 1) {
-            return FictionResult.Success(ListPage(items = emptyList(), page = page, hasNext = false))
-        }
-        return api.queryDatabase(cursor = null, pageSize = 100).map { list ->
-            ListPage(
-                items = list.results.mapNotNull { it.toSummary() },
-                page = 1,
-                hasNext = list.hasMore,
-            )
-        }
-    }
-
-    override suspend fun latestUpdates(page: Int): FictionResult<ListPage<FictionSummary>> =
-        // Same shape — Notion's default sort already orders by last
-        // edited time (descending), so "popular" and "new releases"
-        // resolve identically. If we ever want a separate Popular
-        // ordering, we'd post a sort body to /databases/{id}/query;
-        // for v1 the two tabs are intentionally aligned.
-        popular(page)
-
-    override suspend fun byGenre(
-        genre: String,
-        page: Int,
-    ): FictionResult<ListPage<FictionSummary>> =
-        // Notion has no built-in genre faceting. Out of scope for v1;
-        // users can search by keyword instead.
-        FictionResult.Success(ListPage(items = emptyList(), page = 1, hasNext = false))
-
-    override suspend fun genres(): FictionResult<List<String>> =
-        FictionResult.Success(emptyList())
-
-    override suspend fun search(query: SearchQuery): FictionResult<ListPage<FictionSummary>> {
-        val state = config.current()
-        if (state.mode == NotionMode.ANONYMOUS_PUBLIC) {
-            return anonymous.search(state, query.term)
-        }
-        // v1 — client-side filter over the database's first 100 pages.
-        // Notion's /search endpoint exists but searches the user's whole
-        // workspace, not just the configured database; that's the wrong
-        // shape (storyvox is per-database, not per-workspace). A
-        // server-side filter via /databases/{id}/query with a `filter`
-        // body is the follow-up.
-        val term = query.term.trim().lowercase()
-        return api.queryDatabase(cursor = null, pageSize = 100).map { list ->
-            val items = list.results.mapNotNull { it.toSummary() }
-                .filter { summary ->
-                    term.isEmpty() ||
-                        summary.title.lowercase().contains(term) ||
-                        summary.description?.lowercase()?.contains(term) == true
-                }
-            ListPage(items = items, page = 1, hasNext = false)
-        }
-    }
-
-    // ─── detail ────────────────────────────────────────────────────────
-
-    override suspend fun fictionDetail(fictionId: String): FictionResult<FictionDetail> {
-        val state = config.current()
-        if (state.mode == NotionMode.ANONYMOUS_PUBLIC) {
-            return anonymous.fictionDetail(state, fictionId)
-        }
-        val pageId = fictionId.toPageId()
-            ?: return FictionResult.NotFound("Notion fiction id not recognized: $fictionId")
-        // Two-call pattern: page metadata + block children. Same shape
-        // as :source-wikipedia uses for summary + html.
-        val pageResult = api.page(pageId)
-        val page = when (pageResult) {
-            is FictionResult.Success -> pageResult.value
-            is FictionResult.Failure -> return pageResult
-        }
-        val blocksResult = api.pageBlocks(pageId)
-        val blocks = when (blocksResult) {
-            is FictionResult.Success -> blocksResult.value
-            is FictionResult.Failure -> return blocksResult
-        }
-        val sections = splitOnHeading1(blocks)
-        val chapters = sections.mapIndexed { idx, section ->
-            ChapterInfo(
-                id = chapterIdFor(fictionId, idx),
-                sourceChapterId = "section-$idx",
-                index = idx,
-                title = section.title,
-                publishedAt = null,
-            )
-        }
-        val summary = page.toSummary()?.copy(chapterCount = chapters.size)
-            ?: FictionSummary(
-                id = fictionId,
-                sourceId = SourceIds.NOTION,
-                title = "Untitled Notion page",
-                author = "Notion",
-                description = null,
-                status = FictionStatus.ONGOING,
-                chapterCount = chapters.size,
-            )
-        return FictionResult.Success(FictionDetail(summary = summary, chapters = chapters))
-    }
-
-    override suspend fun chapter(
-        fictionId: String,
-        chapterId: String,
-    ): FictionResult<ChapterContent> {
-        val state = config.current()
-        if (state.mode == NotionMode.ANONYMOUS_PUBLIC) {
-            return anonymous.chapter(state, fictionId, chapterId)
-        }
-        val pageId = fictionId.toPageId()
-            ?: return FictionResult.NotFound("Notion fiction id not recognized: $fictionId")
-        val sectionIndex = chapterId.substringAfterLast("::section-", "")
-            .toIntOrNull()
-            ?: return FictionResult.NotFound("Notion chapter id not recognized: $chapterId")
-        return when (val r = api.pageBlocks(pageId)) {
-            is FictionResult.Success -> {
-                val sections = splitOnHeading1(r.value)
-                val section = sections.getOrNull(sectionIndex)
-                    ?: return FictionResult.NotFound(
-                        "Section $sectionIndex not found in Notion page $pageId",
-                    )
-                val info = ChapterInfo(
-                    id = chapterId,
-                    sourceChapterId = "section-$sectionIndex",
-                    index = sectionIndex,
-                    title = section.title,
-                )
-                val html = section.blocks.joinToString("\n") { it.toHtml() }
-                val plain = section.blocks.joinToString("\n\n") { it.toPlainText() }
-                    .trim()
-                FictionResult.Success(
-                    ChapterContent(
-                        info = info,
-                        htmlBody = html,
-                        plainBody = plain,
-                    ),
-                )
-            }
-            is FictionResult.Failure -> r
-        }
-    }
-
-    // ─── auth-gated ─────────────────────────────────────────────────────
-
-    override suspend fun followsList(page: Int): FictionResult<ListPage<FictionSummary>> =
-        // Notion has no follow concept; the database membership IS the
-        // follow list. Browse → Notion serves the same purpose.
-        FictionResult.Success(ListPage(items = emptyList(), page = 1, hasNext = false))
-
-    override suspend fun setFollowed(
-        fictionId: String,
-        followed: Boolean,
-    ): FictionResult<Unit> = FictionResult.Success(Unit)
-}
 
 // ─── helpers ──────────────────────────────────────────────────────────
 
@@ -393,15 +117,19 @@ internal fun splitOnHeading1(blocks: List<NotionBlock>): List<NotionSection> {
  * scan the `properties` map for the first entry whose JSON shape
  * declares `"type": "title"`, then extract the rich-text array under
  * that property's `title` key.
+ *
+ * @param sourceId The [SourceIds] constant to stamp on the returned
+ *  summary — callers pass their own id so the split TechEmpower /
+ *  PAT sources each claim their own fictions.
  */
-internal fun NotionPage.toSummary(): FictionSummary? {
+internal fun NotionPage.toSummary(sourceId: String): FictionSummary? {
     val title = extractTitleProperty(properties) ?: return null
     if (title.isBlank()) return null
     val description = extractDescriptionProperty(properties)
     val coverUrl = cover?.let { it.external?.url?.ifBlank { null } ?: it.file?.url?.ifBlank { null } }
     return FictionSummary(
         id = notionFictionId(id),
-        sourceId = SourceIds.NOTION,
+        sourceId = sourceId,
         title = title,
         author = extractAuthorProperty(properties) ?: "Notion",
         description = description,
