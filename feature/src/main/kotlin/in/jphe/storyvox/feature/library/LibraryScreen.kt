@@ -48,7 +48,6 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import `in`.jphe.storyvox.data.TechEmpowerLinks
 import `in`.jphe.storyvox.data.db.entity.InboxEvent
 import `in`.jphe.storyvox.feature.R
 import `in`.jphe.storyvox.data.db.entity.Shelf
@@ -57,7 +56,6 @@ import `in`.jphe.storyvox.data.repository.HistoryEntry
 import `in`.jphe.storyvox.data.source.model.FictionSummary
 import `in`.jphe.storyvox.feature.browse.BrowseScreen
 import `in`.jphe.storyvox.feature.follows.FollowsScreen
-import `in`.jphe.storyvox.feature.techempower.TechEmpowerHelpIcons
 import androidx.compose.ui.draw.clip
 import `in`.jphe.storyvox.ui.component.BrassButton
 import `in`.jphe.storyvox.ui.component.BrassButtonVariant
@@ -110,12 +108,6 @@ fun LibraryScreen(
      * lights up via [SyncCloudIcon] independently of the callback.
      */
     onOpenSync: () -> Unit = {},
-    /**
-     * Issue #517 — TechEmpower hero card tap. Routes to
-     * [StoryvoxRoutes.TECHEMPOWER_HOME]. Default no-op so test /
-     * preview surfaces that don't exercise the hero still compile.
-     */
-    onOpenTechEmpower: () -> Unit = {},
     viewModel: LibraryViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -173,23 +165,6 @@ fun LibraryScreen(
             CenterAlignedTopAppBar(
                 title = { Text(stringResource(R.string.library_title), style = MaterialTheme.typography.titleMedium) },
                 actions = {
-                    // Issue #533 — top-bar action icons used to pack
-                    // flush together at 0dp gap on the Flip3 (1080dp
-                    // narrow). Inserting an 8dp Spacer between each icon
-                    // adds the visual breathing room (and tap-target
-                    // separation) that Material 3 spec recommends for
-                    // grouped action icons without bumping the row past
-                    // Flip3 width.
-                    //
-                    // Issue #517 / #775 — TechEmpower help icons
-                    // (phone for 211, forum for Discord) — leftmost so
-                    // the cross-cutting "I need help" affordances read
-                    // before the engine-specific cloud-icon. Phone is
-                    // a direct tap to 211; Discord opens the
-                    // peer-support invite URL. See
-                    // [TechEmpowerHelpIcons] for the design rationale.
-                    TechEmpowerHelpIcons()
-                    Spacer(Modifier.width(spacing.xs))
                     // Issue #500 — brass cloud-icon affordance for the
                     // InstantDB sync surface. The three icon states
                     // (signed-in checkmark / spinner / question-mark)
@@ -328,7 +303,6 @@ fun LibraryScreen(
                             onResume = viewModel::resume,
                             onOpenFiction = viewModel::openFiction,
                             onLongPress = viewModel::openManageShelves,
-                            onOpenTechEmpower = onOpenTechEmpower,
                         )
                     }
                 }
@@ -384,89 +358,6 @@ fun LibraryScreen(
             onOpenSignIn = onOpenSync,
             onLearnMore = onOpenSync,
         )
-    }
-}
-
-/**
- * Issue #517 — brass-edged TechEmpower hero card. The first item in
- * the Library grid on the All filter, pinned above Resume and "Your
- * library". Reads as the lead surface for the TechEmpower
- * default-use-case framing: sun-disk logo, mission tagline, primary
- * CTA into TechEmpower Home + a small Discord chip for one-tap
- * peer-support reachability without leaving Library.
- *
- * 132dp tall — same height as [ResumeCard] so the two hero rows
- * align visually when both are present. The brass border at 2dp is
- * thicker than the 1dp surface-container default to make this card
- * read as the "lead" item without resorting to a saturated
- * background colour (which would clash with Library Nocturne).
- */
-@Composable
-private fun TechEmpowerHeroCard(onClick: () -> Unit) {
-    val spacing = LocalSpacing.current
-    val brass = MaterialTheme.colorScheme.primary
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(132.dp)
-            .clickable(role = Role.Button, onClick = onClick),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-            contentColor = MaterialTheme.colorScheme.onSurface,
-        ),
-        shape = MaterialTheme.shapes.large,
-        border = androidx.compose.foundation.BorderStroke(2.dp, brass.copy(alpha = 0.60f)),
-    ) {
-        Row(
-            modifier = Modifier.padding(spacing.md).fillMaxSize(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(spacing.md),
-        ) {
-            // Sun-disk logo at 64dp — matches the height of the cover
-            // thumb in ResumeCard so the two heroes have the same
-            // visual mass.
-            androidx.compose.foundation.Image(
-                painter = androidx.compose.ui.res.painterResource(
-                    id = `in`.jphe.storyvox.ui.R.drawable.techempower_sun,
-                ),
-                contentDescription = "TechEmpower sun-disk logo",
-                modifier = Modifier
-                    .size(72.dp)
-                    .clip(MaterialTheme.shapes.medium),
-                contentScale = androidx.compose.ui.layout.ContentScale.Fit,
-            )
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    "TechEmpower",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = brass,
-                )
-                // Issues #603 + #626 (v1.0). The card now leads with a
-                // plain-English benefit headline that answers "what
-                // does this app do?" in seven words, not the marketing-
-                // y MISSION_TAGLINE which made sense only to readers
-                // who already knew TechEmpower. The subtitle was
-                // previously "Browse free tech guides, call 211, or
-                // join the peer-support Discord →" — three CTAs in
-                // one tagline, which the auditor flagged for #626. We
-                // pick ONE supporting line that points at the lead
-                // affordance (Browse the free guides), and let the
-                // TechEmpower Home drill-down handle Discord / call
-                // 211 with dedicated affordances.
-                Text(
-                    "Free books, guides, and help read out loud.",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 2,
-                )
-                Text(
-                    "Tap to see TechEmpower's free guides →",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 2,
-                )
-            }
-        }
     }
 }
 
@@ -683,29 +574,12 @@ private fun LibraryGridBody(
     onResume: () -> Unit,
     onOpenFiction: (String) -> Unit,
     onLongPress: (FictionSummary) -> Unit,
-    onOpenTechEmpower: () -> Unit,
 ) {
     val spacing = LocalSpacing.current
     val isEmpty = !state.isLoading && dedupedFictions.isEmpty() && state.resume == null
     if (isEmpty) {
         when (val f = state.filter) {
-            ShelfFilter.All -> {
-                // Issue #517 — even with an empty library, surface the
-                // TechEmpower hero card as the first item so the
-                // brand-and-mission framing reads as the lead surface
-                // on first-launch / wiped-data states. The empty-state
-                // hint about Browse / Add-by-URL still renders below
-                // the hero via [EmptyLibrary] — call it after the hero
-                // in a Column so both stack.
-                Column(modifier = Modifier.fillMaxSize()) {
-                    Box(modifier = Modifier.padding(spacing.md)) {
-                        TechEmpowerHeroCard(onClick = onOpenTechEmpower)
-                    }
-                    Box(modifier = Modifier.weight(1f)) {
-                        EmptyLibrary()
-                    }
-                }
-            }
+            ShelfFilter.All -> EmptyLibrary()
             is ShelfFilter.OneShelf -> EmptyShelf(f.shelf)
         }
         return
@@ -720,18 +594,6 @@ private fun LibraryGridBody(
         horizontalArrangement = Arrangement.spacedBy(spacing.sm),
         verticalArrangement = Arrangement.spacedBy(spacing.md),
     ) {
-        // Issue #517 — TechEmpower hero card pinned as the FIRST grid
-        // item on the All filter. Brass-edged, full-span, larger than
-        // a fiction tile — reads as the lead surface for the
-        // TechEmpower default-use-case framing without dominating the
-        // user's actual library underneath. Only shown on filter ==
-        // All; shelf-filtered views are user-scoped and the
-        // brand-and-mission frame is the wrong context there.
-        if (state.filter is ShelfFilter.All) {
-            item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) {
-                TechEmpowerHeroCard(onClick = onOpenTechEmpower)
-            }
-        }
         // Hide the Resume card on shelf-filtered views — it's a
         // library-wide affordance, and surfacing it inside a Wishlist
         // filter (a book the user hasn't started) is visually confusing.

@@ -20,7 +20,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.MenuBook
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.AutoStories
 import androidx.compose.material3.Icon
@@ -51,20 +50,22 @@ import `in`.jphe.storyvox.ui.theme.LocalSpacing
 
 /**
  * Issue #599 (v1.0 blocker) — third of three first-launch welcome
- * screens. Closes the loop by giving the user three plain-English
+ * screens. Closes the loop by giving the user two plain-English
  * choices for "what to listen to right now":
  *
- *   1. Browse TechEmpower's free guides — routes to the TechEmpower
- *      Home drill-down which already lands the user on the curated
- *      free content (anonymous Notion path, no token needed).
- *   2. Add a book from a website — routes to Library with the
+ *   1. Add a book from a website — routes to Library with the
  *      magic-add sheet pre-opened. If the user's clipboard contains a
  *      URL, the sheet pre-fills with it (chip the clipboard per the
  *      issue spec).
- *   3. Skip — show me everything — routes to plain Library, blank
+ *   2. Skip — show me everything — routes to plain Library, blank
  *      state.
  *
- * Visual: three full-width brass-bordered cards stacked vertically.
+ * Issue #829 — the third "Browse TechEmpower's free guides" card was
+ * removed alongside the rest of the TechEmpower promotional UI; users
+ * who want curated content arrive there via Browse like every other
+ * source.
+ *
+ * Visual: two full-width brass-bordered cards stacked vertically.
  * Each card has an icon, a plain-English title, a one-line body, and
  * a faint chevron-style right edge. Tapping anywhere on the card
  * fires its action — no "Continue" button after the choice, the tap
@@ -72,7 +73,6 @@ import `in`.jphe.storyvox.ui.theme.LocalSpacing
  */
 @Composable
 fun FirstFictionPicker(
-    onBrowseTechEmpower: () -> Unit,
     onAddFromWebsite: (clipboardUrl: String?) -> Unit,
     onSkip: () -> Unit,
 ) {
@@ -121,13 +121,6 @@ fun FirstFictionPicker(
             )
             Spacer(Modifier.height(spacing.lg))
 
-            BigChoiceCard(
-                icon = Icons.AutoMirrored.Outlined.MenuBook,
-                title = stringResource(R.string.onboarding_pick_te_title),
-                body = stringResource(R.string.onboarding_pick_te_body),
-                onClick = onBrowseTechEmpower,
-            )
-            Spacer(Modifier.height(spacing.md))
             BigChoiceCard(
                 icon = Icons.Outlined.Add,
                 title = stringResource(R.string.onboarding_pick_add_title),

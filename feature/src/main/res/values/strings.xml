@@ -5,7 +5,6 @@
     <!-- Browse -->
     <string name="browse_title">Browse</string>
     <string name="browse_search_hint">Search %1$s</string>
-    <string name="browse_notion_connect_cta">Have a Notion workspace? Connect it →</string>
     <string name="browse_ao3_signin_cta">Sign in to AO3</string>
     <string name="browse_mempalace_wing_chip">Wing: %1$s</string>
     <!-- Issue #782 — realm-vocabulary footer when the Browse grid runs out of pages. -->
@@ -381,8 +380,6 @@
     <!-- Onboarding · FirstFictionPicker -->
     <string name="onboarding_first_fiction_headline">What would you like to hear?</string>
     <string name="onboarding_first_fiction_subtitle">Pick a starting point. You can always add more later.</string>
-    <string name="onboarding_pick_te_title">Browse TechEmpower\'s free guides</string>
-    <string name="onboarding_pick_te_body">Plain-English guides about computers, the internet, and getting set up.</string>
     <string name="onboarding_pick_add_title">Add a book from a website</string>
     <string name="onboarding_pick_add_body_clipboard">We noticed a link on your clipboard — tap to use it.</string>
     <string name="onboarding_pick_add_body_default">Paste a link to a story, article, or book.</string>
