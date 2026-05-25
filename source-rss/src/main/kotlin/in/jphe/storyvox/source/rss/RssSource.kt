@@ -120,15 +120,22 @@ internal class RssSource @Inject constructor(
         )
     }
 
+    /**
+     * Sort is the only honest dimension on a feed listing: the source
+     * has no global catalog, no genre taxonomy, no dates on the
+     * un-hydrated summary cards (those require a full per-feed
+     * fetch — see [listSubscriptions]). DateRange was previously
+     * declared here but dropped on the floor by both [applyFilters]
+     * and [search] because the summary cards carry no date — surfacing
+     * it as a filter chip lied to the user. Removed.
+     */
     override fun filterDimensions(): List<FilterDimension> = listOf(
         FilterDimension.Sort(
             options = listOf(
                 FilterDimension.SortOption("relevance", "Default"),
-                FilterDimension.SortOption("last_update", "Newest"),
                 FilterDimension.SortOption("title", "Title"),
             ),
         ),
-        FilterDimension.DateRange(),
     )
 
     override fun applyFilters(base: SearchQuery, state: FilterState): SearchQuery {
@@ -136,7 +143,6 @@ internal class RssSource @Inject constructor(
         state.stringVal("sort")?.let { sortId ->
             q = q.copy(
                 orderBy = when (sortId) {
-                    "last_update" -> SearchOrder.LAST_UPDATE
                     "title" -> SearchOrder.TITLE
                     else -> SearchOrder.RELEVANCE
                 },
@@ -166,10 +172,28 @@ internal class RssSource @Inject constructor(
 
     override suspend fun search(query: SearchQuery): FictionResult<ListPage<FictionSummary>> {
         val term = query.term.trim().lowercase()
-        if (term.isEmpty()) return listSubscriptions(sortByMostRecent = true)
         val all = subscriptionSummaries()
-        val filtered = all.filter { it.title.lowercase().contains(term) }
-        return FictionResult.Success(ListPage(items = filtered, page = 1, hasNext = false))
+        val filtered = if (term.isEmpty()) all
+            else all.filter { it.title.lowercase().contains(term) }
+        val sorted = applySort(filtered, query.orderBy)
+        return FictionResult.Success(ListPage(items = sorted, page = 1, hasNext = false))
+    }
+
+    /**
+     * Apply the user-selected sort to the (already term-filtered)
+     * subscription list. Only TITLE is meaningful on the un-hydrated
+     * summary cards — the source intentionally avoids fetching every
+     * feed on a Browse-open (see [listSubscriptions]'s rationale), so
+     * there's no per-feed date to honor a LAST_UPDATE sort against.
+     * RELEVANCE and any unknown sort fall back to the snapshot order
+     * the user configured in Settings, which is the right "default."
+     */
+    private fun applySort(
+        items: List<FictionSummary>,
+        order: SearchOrder,
+    ): List<FictionSummary> = when (order) {
+        SearchOrder.TITLE -> items.sortedBy { it.title.lowercase() }
+        else -> items
     }
 
     private suspend fun listSubscriptions(
