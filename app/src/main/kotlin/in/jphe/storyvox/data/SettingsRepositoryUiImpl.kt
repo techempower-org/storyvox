@@ -707,6 +707,19 @@ private object Keys {
      *  (`ignoreUnknownKeys = true; encodeDefaults = true`). */
     val PRONUNCIATION_DICT = stringPreferencesKey("pref_pronunciation_dict_v1")
 
+    /** Issue #778 — epoch-ms stamp of the last local edit to
+     *  [PRONUNCIATION_DICT]. Persisted alongside the dict in the main
+     *  `storyvox_settings` DataStore so the `PronunciationDictSyncer`'s
+     *  LWW push survives cold starts. Before this key existed, the
+     *  syncer kept an in-memory `var lastLocalWriteAt: Long = 0L` that
+     *  reset to 0 on every process restart — `readLocal` then stamped
+     *  the dict with `System.currentTimeMillis()` and a stale local
+     *  dict won blanket against newer remotes. Excluded from
+     *  [SYNC_ALLOWLIST] for the same reason
+     *  `instantdb.settings_synced_at` is excluded — syncing the stamp
+     *  itself would loop. */
+    val PRONUNCIATION_DICT_WRITE_AT = longPreferencesKey("instantdb.pronunciation_dict_write_at")
+
     // ── Calliope (v0.5.00) milestone celebration ──────────────────
     /** One-time gate for the brass "thank-you" dialog. Flips to true
      *  after the user taps Continue (or taps outside the card). Pre-
@@ -2433,6 +2446,7 @@ class SettingsRepositoryUiImpl(
             val current = decodePronunciationDictJson(prefs[Keys.PRONUNCIATION_DICT])
             val next = current.copy(entries = current.entries + entry)
             prefs[Keys.PRONUNCIATION_DICT] = encodePronunciationDictJson(next)
+            prefs[Keys.PRONUNCIATION_DICT_WRITE_AT] = System.currentTimeMillis()
         }
     }
 
@@ -2442,6 +2456,7 @@ class SettingsRepositoryUiImpl(
             if (index !in current.entries.indices) return@edit
             val newList = current.entries.toMutableList().apply { this[index] = entry }
             prefs[Keys.PRONUNCIATION_DICT] = encodePronunciationDictJson(current.copy(entries = newList))
+            prefs[Keys.PRONUNCIATION_DICT_WRITE_AT] = System.currentTimeMillis()
         }
     }
 
@@ -2451,11 +2466,32 @@ class SettingsRepositoryUiImpl(
             if (index !in current.entries.indices) return@edit
             val newList = current.entries.toMutableList().apply { removeAt(index) }
             prefs[Keys.PRONUNCIATION_DICT] = encodePronunciationDictJson(current.copy(entries = newList))
+            prefs[Keys.PRONUNCIATION_DICT_WRITE_AT] = System.currentTimeMillis()
         }
     }
 
     override suspend fun replaceAll(dict: PronunciationDict) {
-        store.edit { it[Keys.PRONUNCIATION_DICT] = encodePronunciationDictJson(dict) }
+        store.edit {
+            it[Keys.PRONUNCIATION_DICT] = encodePronunciationDictJson(dict)
+            it[Keys.PRONUNCIATION_DICT_WRITE_AT] = System.currentTimeMillis()
+        }
+    }
+
+    /**
+     * Issue #778 — persisted across cold starts so the
+     * [PronunciationDictSyncer]'s LWW push carries the dict's true last
+     * edit time rather than `System.currentTimeMillis()` on every
+     * restart (which would let a stale local dict beat a newer remote).
+     * Stored in the main `storyvox_settings` DataStore alongside the
+     * dict payload itself — same lifecycle, atomic with the edit that
+     * advances it. Mirrors the [SYNC_LAST_WRITE_KEY] pattern used by
+     * the Tier-1 [SettingsSyncer].
+     */
+    override suspend fun lastDictWriteAt(): Long =
+        store.data.first()[Keys.PRONUNCIATION_DICT_WRITE_AT] ?: 0L
+
+    override suspend fun stampDictWrite(at: Long) {
+        store.edit { it[Keys.PRONUNCIATION_DICT_WRITE_AT] = at }
     }
 
     // ── LlmConfigProvider — bridge to :core-llm ────────────────────

@@ -44,4 +44,35 @@ interface PronunciationDictRepository {
     /** Bulk replace — used by tests, future import/export, and the
      *  reset path. */
     suspend fun replaceAll(dict: PronunciationDict)
+
+    /**
+     * Epoch-ms timestamp of the last local edit to the dictionary.
+     * Used as the `updatedAt` for [PronunciationDictSyncer]'s LWW blob
+     * push — without persisting this across cold starts, a stale local
+     * dict gets re-stamped "now" on every process restart and wins
+     * blanket against newer remotes, silently overwriting cross-device
+     * edits (issue #778).
+     *
+     * Returns 0L when the user has never edited the dictionary on this
+     * device (fresh install). The syncer's `readLocal` treats 0L as
+     * "fall back to `System.currentTimeMillis()`" — the same shape used
+     * by [`SettingsSnapshotSource.lastLocalWriteAt`].
+     *
+     * Named with a `dict` suffix to avoid colliding with the identically-
+     * shaped methods on [`SettingsSnapshotSource`] that the same `:app`
+     * impl also implements — Kotlin can't disambiguate two interface
+     * methods with the same JVM signature on one class.
+     */
+    suspend fun lastDictWriteAt(): Long
+
+    /**
+     * Stamp a fresh local write at [at]. Mutators in this contract
+     * ([add], [update], [delete], [replaceAll]) must call this on every
+     * successful edit so the next sync push carries a strictly-increasing
+     * `updatedAt`. Also called by [PronunciationDictSyncer.writeLocal]
+     * on a remote-pull so the local stamp adopts the merged blob's
+     * `updatedAt` (otherwise a pull → push round-trip would advance the
+     * stamp past the remote and break LWW ordering).
+     */
+    suspend fun stampDictWrite(at: Long = System.currentTimeMillis())
 }

@@ -44,34 +44,36 @@ class PronunciationDictSyncer @Inject constructor(
         )
     }
 
-    /** updatedAt tracking: the repository doesn't carry one today, so we
-     *  derive it from the content hash + last write epoch we remember.
-     *  v1: just stamp every push with `now`. This loses some ordering
-     *  information (a local edit that happened before a remote push
-     *  may still get stamped "later" because we re-push on sync) but
-     *  the conflict outcome is no worse than naive LWW. */
-    private var lastLocalWriteAt: Long = 0L
-
     override val name: String get() = DOMAIN
     override suspend fun push(user: SignedInUser): SyncOutcome = delegate.push(user)
     override suspend fun pull(user: SignedInUser): SyncOutcome = delegate.pull(user)
 
-    /** Call this from the dict repository every time we save. */
-    fun stampLocalWrite(at: Long = System.currentTimeMillis()) {
-        lastLocalWriteAt = at
-    }
-
     private suspend fun readLocal(): Stamped<String>? {
         val dict = repo.current()
         if (dict.entries.isEmpty()) return null
-        val stamp = if (lastLocalWriteAt > 0) lastLocalWriteAt else System.currentTimeMillis()
+        // Issue #778 — the per-write stamp is owned by the repository
+        // and persisted across cold starts. Falling back to "now" when
+        // the user has never edited the dict on this device matches
+        // [SettingsSyncer.readLocal]: a 0L stamp would lose blanket to
+        // every non-zero remote, which is correct for true fresh
+        // installs but wrong for upgrades from a build that didn't
+        // record the stamp yet (the dict already exists locally, just
+        // without a recorded write time). The fallback preserves the
+        // pre-#778 behaviour for that one upgrade boundary.
+        val persisted = repo.lastDictWriteAt()
+        val stamp = if (persisted > 0L) persisted else System.currentTimeMillis()
         return Stamped(value = encodePronunciationDictJson(dict), updatedAt = stamp)
     }
 
     private suspend fun writeLocal(stamped: Stamped<String>) {
         val decoded = decodePronunciationDictJson(stamped.value)
         repo.replaceAll(decoded)
-        lastLocalWriteAt = stamped.updatedAt
+        // [replaceAll] above stamps "now" via the repository, which
+        // would advance our local clock past the remote's `updatedAt`
+        // and make us "win" the next push spuriously. Re-stamp with the
+        // merged-blob's updatedAt so a subsequent pull-then-push cycle
+        // is byte-stable — same shape as [SettingsSyncer.writeLocal].
+        repo.stampDictWrite(stamped.updatedAt)
     }
 
     companion object {

@@ -67,6 +67,20 @@ android {
             java.srcDirs("src/test/kotlin")
         }
     }
+
+    // Issue #778 — `LwwBlobSyncer.reconcile` was instrumented with
+    // `android.util.Log` calls in commit 7b89fe88 (sync FK guard), which
+    // throws `RuntimeException: Method d in android.util.Log not mocked`
+    // under the JVM unit-test runner. Returning default values makes
+    // Log.d a no-op in tests — same shape every other Android module
+    // uses for its unit-test source set. This unblocks both the new
+    // `PronunciationDictSyncerTest` and the pre-existing
+    // `SettingsSyncerTest` that started failing on the same commit.
+    testOptions {
+        unitTests {
+            isReturnDefaultValues = true
+        }
+    }
 }
 
 dependencies {

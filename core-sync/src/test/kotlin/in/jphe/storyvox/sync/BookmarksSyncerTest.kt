@@ -148,6 +148,7 @@ class BookmarksSyncerTest {
             if (charOffset == null) bookmarks.remove(id) else bookmarks[id] = charOffset
         }
         override suspend fun getBookmark(id: String): Int? = bookmarks[id]
+        override suspend fun exists(id: String): Boolean = bookmarks.containsKey(id)
 
         // ---- everything below is "not used by BookmarksSyncer" ----
         override suspend fun allChapters(fictionId: String): List<Chapter> = emptyList()
