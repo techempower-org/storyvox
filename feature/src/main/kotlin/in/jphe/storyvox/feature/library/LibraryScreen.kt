@@ -337,7 +337,7 @@ fun LibraryScreen(
                             state = state,
                             dedupedFictions = dedupedFictions,
                             onResume = viewModel::resume,
-                            onOpenFiction = viewModel::openFiction,
+                            onTapFiction = viewModel::resumeOrOpenFiction,
                             onLongPress = viewModel::openManageShelves,
                             onOpenTechEmpower = onOpenTechEmpower,
                         )
@@ -724,7 +724,13 @@ private fun LibraryGridBody(
     state: LibraryUiState,
     dedupedFictions: List<FictionSummary>,
     onResume: () -> Unit,
-    onOpenFiction: (String) -> Unit,
+    /**
+     * Issue #827 — tap on a grid item. The ViewModel routes the tap
+     * to resume-playback when a saved position exists and to
+     * fiction-detail when it doesn't, so this single callback covers
+     * both "continue listening" and "open a new book" paths.
+     */
+    onTapFiction: (String) -> Unit,
     onLongPress: (FictionSummary) -> Unit,
     onOpenTechEmpower: () -> Unit,
 ) {
@@ -815,12 +821,14 @@ private fun LibraryGridBody(
                     author = fiction.author,
                     sourceFamily = coverSourceFamilyFor(fiction.sourceId),
                     // Long-press → manage-shelves bottom sheet (#116).
-                    // combinedClickable keeps the tap-to-open path
-                    // identical to before; long-press is additive.
+                    // Tap → resume-or-open (#827): when the fiction has
+                    // a saved playback position, tap resumes playback
+                    // like the ResumeCard hero; otherwise it falls
+                    // back to opening fiction detail.
                     modifier = Modifier
                         .fillMaxWidth()
                         .combinedClickable(
-                            onClick = { onOpenFiction(fiction.id) },
+                            onClick = { onTapFiction(fiction.id) },
                             onLongClick = { onLongPress(fiction) },
                         ),
                 )
