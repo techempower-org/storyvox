@@ -55,9 +55,10 @@ class WorkManagerChapterDownloadScheduler @Inject constructor(
             .addTag(ChapterDownloadWorker.TAG)
             .build()
 
+        android.util.Log.i("ChapterDownload", "schedule: chapter=$chapterId fiction=$fictionId unmetered=$requireUnmetered")
         workManager.enqueueUniqueWork(
             ChapterDownloadWorker.uniqueName(chapterId),
-            ExistingWorkPolicy.KEEP,
+            ExistingWorkPolicy.REPLACE,
             request,
         )
     }

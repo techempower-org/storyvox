@@ -988,9 +988,15 @@ internal class RealPlaybackControllerUi(
         scope.launch {
             // Kick off the download (idempotent — WorkManager dedupes by uniqueName).
             // requireUnmetered=false: user just tapped Listen; honour their intent.
+            android.util.Log.i("PlaybackBindings", "startListening: fiction=$fictionId chapter=$chapterId offset=$charOffset autoPlay=$autoPlay")
             chapters.queueChapterDownload(fictionId, chapterId, requireUnmetered = false)
-            // Wait for the first non-null body to land in the DB.
-            chapters.observeChapter(chapterId).filterNotNull().first()
+            val ready = kotlinx.coroutines.withTimeoutOrNull(30_000L) {
+                chapters.observeChapter(chapterId).filterNotNull().first()
+            }
+            if (ready == null) {
+                android.util.Log.e("PlaybackBindings", "startListening: chapter $chapterId body not ready within 30s — aborting")
+                return@launch
+            }
             controller.play(fictionId, chapterId, charOffset = charOffset)
             // #90 smart-resume — when the user explicitly paused the
             // last session, Library's Resume CTA loads the chapter
