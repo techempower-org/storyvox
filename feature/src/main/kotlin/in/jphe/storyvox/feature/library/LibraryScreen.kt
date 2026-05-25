@@ -21,6 +21,7 @@ import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Card
@@ -136,6 +137,16 @@ fun LibraryScreen(
     // open/closed boolean here.
     var syncSheetOpen by androidx.compose.runtime.remember {
         androidx.compose.runtime.mutableStateOf(false)
+    }
+
+    // Issue #828 — confirm-before-remove dialog state for the
+    // "Remove from library" row on ManageShelvesSheet. Holds the
+    // (fictionId, title) the sheet asked to remove; null = no dialog.
+    // Mirrors the FictionDetailScreen #169 pattern (ephemeral state at
+    // the screen level so the dialog dies on configuration change
+    // rather than surviving as a half-rendered modal).
+    var pendingRemoval by androidx.compose.runtime.remember {
+        androidx.compose.runtime.mutableStateOf<Pair<String, String>?>(null)
     }
 
     val dedupedFictions = androidx.compose.runtime.remember(state.fictions) {
@@ -371,8 +382,40 @@ fun LibraryScreen(
     ManageShelvesSheet(
         state = manageShelvesState,
         onToggle = viewModel::toggleShelf,
+        onRemoveRequest = { id, title -> pendingRemoval = id to title },
         onDismiss = viewModel::dismissManageShelves,
     )
+
+    // Issue #828 — destructive removal confirm. Mirrors the #169 dialog
+    // shape on FictionDetailScreen so users see one consistent voice
+    // for "you're about to drop this book." Strings are reused
+    // (fiction_remove_title / fiction_remove_body / fiction_remove /
+    // fiction_cancel) — single source for the warning copy.
+    pendingRemoval?.let { (fictionId, title) ->
+        val resolved = title.ifBlank { stringResource(R.string.fiction_default_title) }
+        AlertDialog(
+            onDismissRequest = { pendingRemoval = null },
+            title = { Text(stringResource(R.string.fiction_remove_title, resolved)) },
+            text = { Text(stringResource(R.string.fiction_remove_body)) },
+            confirmButton = {
+                BrassButton(
+                    label = stringResource(R.string.fiction_remove),
+                    onClick = {
+                        pendingRemoval = null
+                        viewModel.removeFromLibrary(fictionId)
+                    },
+                    variant = BrassButtonVariant.Primary,
+                )
+            },
+            dismissButton = {
+                BrassButton(
+                    label = stringResource(R.string.fiction_cancel),
+                    onClick = { pendingRemoval = null },
+                    variant = BrassButtonVariant.Secondary,
+                )
+            },
+        )
+    }
 
     // Issue #500 — InstantDB sync status sheet. Mounted unconditionally
     // and gated on [syncSheetOpen] to keep the composition stable. The

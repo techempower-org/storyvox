@@ -1,5 +1,6 @@
 package `in`.jphe.storyvox.feature.library
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -7,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Switch
@@ -28,12 +30,21 @@ import `in`.jphe.storyvox.ui.theme.LocalSpacing
  * Display labels come from [Shelf.displayName] — the data-layer owns
  * the user-facing strings so every shelf-aware surface shows the same
  * word (chip row, sheet, future "where is this book?" hint).
+ *
+ * Issue #828 — destructive "Remove from library" row at the bottom,
+ * separated from the shelf toggles by a [HorizontalDivider]. Tapping
+ * it does NOT remove inline — it surfaces [onRemoveRequest] so the
+ * host (LibraryScreen) can gate the action behind an AlertDialog. The
+ * read-progress-loss warning mirrors the existing #169 confirm flow
+ * on [FictionDetailScreen]; we share strings + UX so users see one
+ * voice for "you're about to drop this book."
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ManageShelvesSheet(
     state: ManageShelvesSheetState,
     onToggle: (String, Shelf) -> Unit,
+    onRemoveRequest: (String, String) -> Unit,
     onDismiss: () -> Unit,
 ) {
     if (state !is ManageShelvesSheetState.Open) return
@@ -88,6 +99,28 @@ fun ManageShelvesSheet(
                         onCheckedChange = null,
                     )
                 }
+            }
+
+            // Issue #828 — destructive "Remove from library" action.
+            // Divider sets it apart from the additive shelf toggles so
+            // it doesn't read as just another switch. Tinted with
+            // colorScheme.error to signal destructiveness; host gates
+            // the actual removal behind a confirm dialog.
+            HorizontalDivider(modifier = Modifier.padding(vertical = spacing.sm))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(role = Role.Button) {
+                        onRemoveRequest(state.fictionId, state.fictionTitle)
+                    }
+                    .padding(vertical = spacing.sm),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = "Remove from library",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.error,
+                )
             }
         }
     }

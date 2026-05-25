@@ -367,6 +367,25 @@ class LibraryViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Issue #828 — long-press → "Remove from library" affordance on the
+     * manage-shelves sheet. Routes through [FictionRepositoryUi.follow]
+     * with `follow=false`, the same plumbing the #169 FictionDetail
+     * destructive flow uses, so the underlying tear-down (library row,
+     * download cancellation, FictionLibraryListener fan-out) stays
+     * single-sourced. Caller is responsible for confirming first; this
+     * is the un-gated terminal action.
+     *
+     * Dismisses the sheet on completion so the user lands back on the
+     * library grid with the now-absent row.
+     */
+    fun removeFromLibrary(fictionId: String) {
+        viewModelScope.launch {
+            uiRepo.follow(fictionId, follow = false)
+            _manageShelves.value = ManageShelvesSheetState.Hidden
+        }
+    }
+
     // ─── existing surface (unchanged behaviour) ───────────────────────────
 
     fun openFiction(id: String) {
