@@ -52,7 +52,7 @@ internal class DiscordApi @Inject constructor(
     private val client: OkHttpClient,
     private val config: DiscordConfig,
 ) {
-    private val json = Json { ignoreUnknownKeys = true; isLenient = true }
+    private val json = Json { ignoreUnknownKeys = true; isLenient = true; coerceInputValues = true }
 
     /**
      * List guilds the bot has been invited to. Drives the Settings

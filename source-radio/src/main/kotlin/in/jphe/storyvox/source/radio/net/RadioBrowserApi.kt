@@ -64,7 +64,7 @@ import kotlin.time.Duration.Companion.seconds
 internal class RadioBrowserApi @Inject constructor(
     private val client: OkHttpClient,
 ) {
-    private val json = Json { ignoreUnknownKeys = true; isLenient = true }
+    private val json = Json { ignoreUnknownKeys = true; isLenient = true; coerceInputValues = true }
 
     /**
      * Search stations by name (case-insensitive fuzzy match server-side).

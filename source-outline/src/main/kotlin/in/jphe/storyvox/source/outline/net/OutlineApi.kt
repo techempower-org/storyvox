@@ -34,7 +34,7 @@ internal class OutlineApi @Inject constructor(
     private val client: OkHttpClient,
     private val config: OutlineConfig,
 ) {
-    private val json = Json { ignoreUnknownKeys = true; isLenient = true }
+    private val json = Json { ignoreUnknownKeys = true; isLenient = true; coerceInputValues = true }
 
     suspend fun collections(): FictionResult<List<OutlineCollection>> =
         post<CollectionsResponse>("/api/collections.list", body = """{"limit":100}""")

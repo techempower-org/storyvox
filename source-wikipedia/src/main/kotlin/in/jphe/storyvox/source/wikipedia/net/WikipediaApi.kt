@@ -48,7 +48,7 @@ internal class WikipediaApi @Inject constructor(
     private val client: OkHttpClient,
     private val config: WikipediaConfig,
 ) {
-    private val json = Json { ignoreUnknownKeys = true; isLenient = true }
+    private val json = Json { ignoreUnknownKeys = true; isLenient = true; coerceInputValues = true }
 
     // ─── opensearch ────────────────────────────────────────────────────
 

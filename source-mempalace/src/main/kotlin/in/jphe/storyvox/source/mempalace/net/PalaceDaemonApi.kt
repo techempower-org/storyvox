@@ -291,6 +291,7 @@ open class PalaceDaemonApi @Inject constructor(
         internal val JSON = Json {
             ignoreUnknownKeys = true
             isLenient = true
+            coerceInputValues = true
         }
         private val JSON_MEDIA_TYPE = "application/json".toMediaType()
         /** Case-insensitive match for `http://` or `https://` at start of

@@ -213,6 +213,7 @@ open class DeviceFlowApi @Inject constructor(
         private val JSON: Json = Json {
             ignoreUnknownKeys = true
             explicitNulls = false
+            coerceInputValues = true
         }
     }
 }

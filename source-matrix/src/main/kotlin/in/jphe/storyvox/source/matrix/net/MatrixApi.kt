@@ -68,7 +68,7 @@ internal class MatrixApi @Inject constructor(
     private val client: OkHttpClient,
     private val config: MatrixConfig,
 ) {
-    private val json = Json { ignoreUnknownKeys = true; isLenient = true }
+    private val json = Json { ignoreUnknownKeys = true; isLenient = true; coerceInputValues = true }
 
     /**
      * Verify the access token and resolve `@user:homeserver`.

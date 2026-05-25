@@ -31,7 +31,7 @@ import javax.inject.Singleton
 internal class GutendexApi @Inject constructor(
     private val client: OkHttpClient,
 ) {
-    private val json = Json { ignoreUnknownKeys = true; isLenient = true }
+    private val json = Json { ignoreUnknownKeys = true; isLenient = true; coerceInputValues = true }
 
     /**
      * `GET /books?page=N&sort=popular` — default Gutendex sort is by

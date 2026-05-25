@@ -72,7 +72,7 @@ internal class NotionUnofficialApi @Inject constructor(
     private val client: OkHttpClient,
     private val config: NotionConfig,
 ) {
-    private val json = Json { ignoreUnknownKeys = true; isLenient = true }
+    private val json = Json { ignoreUnknownKeys = true; isLenient = true; coerceInputValues = true }
     private val mediaTypeJson = "application/json".toMediaType()
 
     /**

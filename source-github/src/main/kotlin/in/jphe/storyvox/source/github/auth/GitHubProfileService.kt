@@ -85,6 +85,7 @@ open class GitHubProfileService @Inject constructor(
         val JSON: Json = Json {
             ignoreUnknownKeys = true
             explicitNulls = false
+            coerceInputValues = true
         }
     }
 }

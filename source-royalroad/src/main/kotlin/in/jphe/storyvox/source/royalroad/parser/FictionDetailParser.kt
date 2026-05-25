@@ -29,7 +29,7 @@ import org.jsoup.nodes.Document
  */
 internal object FictionDetailParser {
 
-    private val json = Json { ignoreUnknownKeys = true; isLenient = true }
+    private val json = Json { ignoreUnknownKeys = true; isLenient = true; coerceInputValues = true }
 
     fun parse(html: String, fictionId: String): FictionDetail {
         val doc = Jsoup.parse(html, RoyalRoadIds.BASE_URL)

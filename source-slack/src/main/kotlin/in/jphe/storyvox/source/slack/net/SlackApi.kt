@@ -66,7 +66,7 @@ internal class SlackApi @Inject constructor(
     private val client: OkHttpClient,
     private val config: SlackConfig,
 ) {
-    private val json = Json { ignoreUnknownKeys = true; isLenient = true }
+    private val json = Json { ignoreUnknownKeys = true; isLenient = true; coerceInputValues = true }
 
     /**
      * Verify the bot token + return workspace metadata. Drives the

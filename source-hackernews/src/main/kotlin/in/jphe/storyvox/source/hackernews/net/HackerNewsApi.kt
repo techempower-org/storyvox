@@ -41,7 +41,7 @@ import javax.inject.Singleton
 internal open class HackerNewsApi @Inject constructor(
     private val client: OkHttpClient,
 ) {
-    private val json = Json { ignoreUnknownKeys = true; isLenient = true }
+    private val json = Json { ignoreUnknownKeys = true; isLenient = true; coerceInputValues = true }
 
     /**
      * `GET /v0/topstories.json` — array of ids, highest-ranked first.

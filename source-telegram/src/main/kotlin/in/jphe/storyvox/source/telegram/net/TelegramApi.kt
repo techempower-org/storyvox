@@ -66,7 +66,7 @@ internal class TelegramApi @Inject constructor(
     private val client: OkHttpClient,
     private val config: TelegramConfig,
 ) {
-    private val json = Json { ignoreUnknownKeys = true; isLenient = true }
+    private val json = Json { ignoreUnknownKeys = true; isLenient = true; coerceInputValues = true }
 
     /**
      * Verify the bot token + return the bot identity. Drives the
