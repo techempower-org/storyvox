@@ -127,12 +127,25 @@ internal class OutlineSource @Inject constructor(
 
     override suspend fun search(query: SearchQuery): FictionResult<ListPage<FictionSummary>> {
         val term = query.term.trim().lowercase()
-        if (term.isEmpty()) return popular(1)
         return api.collections().map { cols ->
-            val filtered = cols
-                .filter { it.name.lowercase().contains(term) }
-                .map { it.toSummary() }
-            ListPage(items = filtered, page = 1, hasNext = false)
+            val filtered = if (term.isEmpty()) {
+                cols.map { it.toSummary() }
+            } else {
+                cols.filter { it.name.lowercase().contains(term) }
+                    .map { it.toSummary() }
+            }
+            val sorted = when (query.orderBy) {
+                SearchOrder.TITLE -> filtered.sortedBy { it.title.lowercase() }
+                SearchOrder.LAST_UPDATE ->
+                    // The OutlineCollection API doesn't expose updatedAt
+                    // to this layer (CollectionDto strips it before the
+                    // summary mapper), so the closest stable proxy is
+                    // collection id descending — newest collections in
+                    // Outline get higher monotonic ids.
+                    filtered.sortedByDescending { it.id }
+                else -> filtered
+            }
+            ListPage(items = sorted, page = 1, hasNext = false)
         }
     }
 
