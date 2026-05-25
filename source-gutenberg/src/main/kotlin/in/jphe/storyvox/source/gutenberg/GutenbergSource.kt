@@ -152,16 +152,29 @@ internal class GutenbergSource @Inject constructor(
             )
         }
         state.stringVal("author")?.takeIf { it.isNotBlank() }?.let { author ->
+            // Gutendex's `search` matches title + authors, so appending
+            // the author to the term is the right shape — author-only
+            // searches work because the term collapses to just the
+            // name. (Previously this was the only filter wired through;
+            // keep that contract.)
             val composed = if (q.term.isBlank()) author else "${q.term} $author"
             q = q.copy(term = composed)
         }
         state.stringVal("category")?.takeIf { it.isNotBlank() }?.let { cat ->
-            q = q.copy(genres = q.genres + cat)
+            // Category → Gutendex `topic` (matches subjects + bookshelves).
+            // Stash on `tags` so [search] can pull it back out; the
+            // universal SearchQuery has no dedicated topic slot, and
+            // `genres` was previously dropped on the floor because
+            // [search] only forwarded `term` to the API.
+            q = q.copy(tags = q.tags + cat)
         }
         state.stringVal("language")?.takeIf { it.isNotBlank() }?.let { lang ->
-            val composed = if (q.term.isBlank()) "language:$lang"
-                else "${q.term} language:$lang"
-            q = q.copy(term = composed)
+            // Previously this prepended `language:<code>` to `term`,
+            // which Gutendex's `search` doesn't understand — the literal
+            // string "language:en" poisoned every match. Stash with a
+            // `lang:` prefix in tags so [search] can map it to Gutendex's
+            // real `languages` param.
+            q = q.copy(tags = q.tags + "$LANG_PREFIX$lang")
         }
         return q
     }
@@ -189,10 +202,39 @@ internal class GutenbergSource @Inject constructor(
 
     override suspend fun search(query: SearchQuery): FictionResult<ListPage<FictionSummary>> {
         val term = query.term.trim()
-        if (term.isEmpty()) {
+        // Peel filter state back out of [SearchQuery]. [applyFilters]
+        // stashes language as `lang:<code>` in tags and category as
+        // its plain display name; everything else maps to a real
+        // SearchQuery slot.
+        val languages = query.tags
+            .asSequence()
+            .filter { it.startsWith(LANG_PREFIX) }
+            .map { it.removePrefix(LANG_PREFIX) }
+            .filter { it.isNotBlank() }
+            .toSet()
+        // Category is whichever tag isn't a lang: prefix. Gutendex's
+        // `topic` is single-valued; pick the first non-language tag.
+        val topic = query.tags.firstOrNull { !it.startsWith(LANG_PREFIX) }
+        val sort = when (query.orderBy) {
+            SearchOrder.POPULARITY -> "popular"
+            // Gutendex's `descending` sorts by id desc, which the
+            // [latestUpdates] surface already documents as the right
+            // proxy for "newest additions".
+            SearchOrder.LAST_UPDATE -> "descending"
+            else -> null
+        }
+        val page = query.page.coerceAtLeast(1)
+        val hasAnyFilter = languages.isNotEmpty() || topic != null || sort != null
+        if (term.isEmpty() && !hasAnyFilter) {
             return FictionResult.Success(ListPage(items = emptyList(), page = 1, hasNext = false))
         }
-        return api.search(term, query.page ?: 1).map { it.toListPage(query.page ?: 1) }
+        return api.books(
+            search = term.ifBlank { null },
+            topic = topic,
+            languages = languages,
+            sort = sort,
+            page = page,
+        ).map { it.toListPage(page) }
     }
 
     override suspend fun genres(): FictionResult<List<String>> =
@@ -356,6 +398,20 @@ internal class GutenbergSource @Inject constructor(
     private fun epubFileFor(fictionId: String): File? {
         val id = parseGutenbergId(fictionId) ?: return null
         return File(cacheDir, "$id.epub")
+    }
+
+    companion object {
+        /**
+         * Sentinel prefix used by [applyFilters] to smuggle the
+         * language code through [SearchQuery.tags]. Gutendex's
+         * `languages` param wants ISO 639-1 codes (en, fr, …);
+         * the universal SearchQuery has no language slot, so we
+         * stash the code here and [search] translates it back.
+         * Previously the language was prepended to [SearchQuery.term]
+         * as `language:en` literal — Gutendex's `search` field doesn't
+         * parse that and every match was poisoned.
+         */
+        internal const val LANG_PREFIX = "lang:"
     }
 }
 

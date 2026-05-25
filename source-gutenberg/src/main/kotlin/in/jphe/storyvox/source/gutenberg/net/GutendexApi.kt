@@ -39,7 +39,7 @@ internal class GutendexApi @Inject constructor(
      * tab. 32 results per page is Gutendex's hardcoded page size.
      */
     suspend fun popular(page: Int): FictionResult<GutendexListPage> =
-        get("/books?sort=popular&page=$page")
+        get(booksPath(sort = "popular", page = page))
 
     /**
      * `GET /books?sort=descending` — sorts by Gutenberg id descending,
@@ -49,17 +49,43 @@ internal class GutendexApi @Inject constructor(
      * "what's been added lately".
      */
     suspend fun latestUpdates(page: Int): FictionResult<GutendexListPage> =
-        get("/books?sort=descending&page=$page")
+        get(booksPath(sort = "descending", page = page))
 
     /**
      * `GET /books?search=...` — Gutendex matches against title +
      * authors. The query is URL-encoded so search terms with spaces
      * land verbatim.
      */
-    suspend fun search(term: String, page: Int): FictionResult<GutendexListPage> {
-        val encoded = java.net.URLEncoder.encode(term, Charsets.UTF_8)
-        return get("/books?search=$encoded&page=$page")
-    }
+    suspend fun search(term: String, page: Int): FictionResult<GutendexListPage> =
+        get(booksPath(search = term, page = page))
+
+    /**
+     * Composite `/books` query — wraps every Gutendex filter axis the
+     * storyvox Browse sheet exposes (search, topic, languages, sort).
+     * `null`/blank/empty params drop out of the URL so the legacy
+     * single-axis call shapes (popular / latestUpdates / term-only
+     * search) round-trip identically.
+     *
+     * Gutendex param reference: https://gutendex.com/
+     *  - `search` matches title + authors (free-form)
+     *  - `topic` matches against subjects + bookshelves (free-form)
+     *  - `languages` comma-joined ISO 639-1 codes (e.g. "en,fr")
+     *  - `sort` is one of popular | ascending | descending
+     */
+    suspend fun books(
+        search: String? = null,
+        topic: String? = null,
+        languages: Set<String> = emptySet(),
+        sort: String? = null,
+        page: Int = 1,
+    ): FictionResult<GutendexListPage> =
+        get(booksPath(
+            search = search,
+            topic = topic,
+            languages = languages,
+            sort = sort,
+            page = page,
+        ))
 
     /**
      * `GET /books/{id}` — single-row detail. Returns the same shape
@@ -163,6 +189,37 @@ internal class GutendexApi @Inject constructor(
          * traffic ever looks misbehaved.
          */
         const val USER_AGENT = "storyvox-gutenberg/1.0 (+https://github.com/jphein/storyvox)"
+
+        /**
+         * Build the `/books` query string with whichever params are
+         * non-null/non-blank. Params emit in a deterministic order
+         * (search → topic → languages → sort → page) so URL-shape
+         * tests can pin exact strings without flake. Exposed
+         * package-private for unit-test pinning.
+         */
+        internal fun booksPath(
+            search: String? = null,
+            topic: String? = null,
+            languages: Set<String> = emptySet(),
+            sort: String? = null,
+            page: Int = 1,
+        ): String {
+            val params = mutableListOf<Pair<String, String>>()
+            search?.takeIf { it.isNotBlank() }?.let { params += "search" to it }
+            topic?.takeIf { it.isNotBlank() }?.let { params += "topic" to it }
+            if (languages.isNotEmpty()) {
+                params += "languages" to languages.toSortedSet().joinToString(",")
+            }
+            sort?.takeIf { it.isNotBlank() }?.let { params += "sort" to it }
+            if (page > 1) {
+                params += "page" to page.toString()
+            }
+            if (params.isEmpty()) return "/books"
+            val qs = params.joinToString("&") { (k, v) ->
+                "$k=" + java.net.URLEncoder.encode(v, Charsets.UTF_8)
+            }
+            return "/books?$qs"
+        }
     }
 }
 
