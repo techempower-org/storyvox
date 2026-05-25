@@ -3562,6 +3562,31 @@ class EnginePlayer @AssistedInject constructor(
         }
     }
 
+    suspend fun rewindIntoPreviousChapter(overshootChars: Int) {
+        val current = _observableState.value.currentChapterId ?: return
+        val fiction = _observableState.value.currentFictionId ?: return
+        val prevId = chapterRepo.getPreviousChapterId(current) ?: run {
+            seekToCharOffset(0)
+            return
+        }
+        _observableState.update { it.copy(isBuffering = true) }
+        invalidateState()
+        chapterRepo.queueChapterDownload(fiction, prevId, requireUnmetered = false)
+        val prevChapter = chapterRepo.getChapter(prevId)
+        if (prevChapter == null) {
+            _observableState.update { it.copy(isBuffering = false) }
+            invalidateState()
+            seekToCharOffset(0)
+            return
+        }
+        val targetOffset = (prevChapter.text.length - overshootChars).coerceAtLeast(0)
+        loadAndPlay(fiction, prevId, charOffset = targetOffset, autoPlay = true)
+        kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
+            persistPosition()
+        }
+        _uiEvents.tryEmit(PlaybackUiEvent.ChapterChanged(prevId))
+    }
+
     private suspend fun handleChapterDone() {
         val chapterId = _observableState.value.currentChapterId
         val fictionId = _observableState.value.currentFictionId
