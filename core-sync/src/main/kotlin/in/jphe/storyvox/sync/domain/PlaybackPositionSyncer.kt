@@ -58,16 +58,6 @@ class PlaybackPositionSyncer @Inject constructor(
     override suspend fun pull(user: SignedInUser): SyncOutcome = reconcile(user)
 
     private suspend fun reconcile(user: SignedInUser): SyncOutcome {
-        // Read local. We don't have an "all positions" DAO method yet —
-        // synthesize from the library. The library + follows are the only
-        // contexts a position is meaningful in (a position outside the
-        // library means the user once played a book they didn't add;
-        // we still sync it because losing it on uninstall is what this
-        // whole effort is fixing).
-        // For v1 we use a workaround: walk the library's fictions and
-        // ask the dao per id. This is O(library-size) round-trips on
-        // pull. Acceptable for v1; revisit when we have a hundreds-of-
-        // fictions library on a tablet.
         val localPositions = localSnapshot()
 
         val remote = backend.fetch(user, ENTITY, rowId(user)).getOrElse {
@@ -129,28 +119,25 @@ class PlaybackPositionSyncer @Inject constructor(
         return SyncOutcome.Ok(writes)
     }
 
-    /** Pull every fiction's position into a map. v1 uses no batch DAO
-     *  call; relies on the per-id `playbackDao.get`. */
+    /**
+     * Pull every fiction's position into a map. One Room round-trip via the
+     * slim [PlaybackDao.allPositionsSnapshot] projection — no per-id follow-up
+     * `get()` calls. See issue #777.
+     */
     private suspend fun localSnapshot(): Map<String, Entry> {
-        // The DAO doesn't have an `all()`; use a SQL probe via the recent feed
-        // capped to a high limit. v1 leaves the absence of a proper `all()` as
-        // a documented limitation — see docs/sync.md.
-        val rows = playbackDao.recent(limit = 10_000)
+        val rows = playbackDao.allPositionsSnapshot()
         if (rows.isEmpty()) return emptyMap()
-        val byId = mutableMapOf<String, Entry>()
-        for (r in rows) {
-            val pos = playbackDao.get(r.fictionId) ?: continue
-            byId[pos.fictionId] = Entry(
-                fictionId = pos.fictionId,
-                chapterId = pos.chapterId,
-                charOffset = pos.charOffset,
-                paragraphIndex = pos.paragraphIndex,
-                playbackSpeed = pos.playbackSpeed,
-                durationEstimateMs = pos.durationEstimateMs,
-                updatedAt = pos.updatedAt,
+        return rows.associate { r ->
+            r.fictionId to Entry(
+                fictionId = r.fictionId,
+                chapterId = r.chapterId,
+                charOffset = r.charOffset,
+                paragraphIndex = r.paragraphIndex,
+                playbackSpeed = r.playbackSpeed,
+                durationEstimateMs = r.durationEstimateMs,
+                updatedAt = r.updatedAt,
             )
         }
-        return byId
     }
 
     private fun Entry.toEntity(): PlaybackPosition = PlaybackPosition(

@@ -194,6 +194,42 @@ class PlaybackDaoTest {
     }
 
     @Test
+    fun allPositionsSnapshot_returnsEveryRow_withSyncFields() = runTest {
+        fictionDao.upsert(fiction("f1"))
+        fictionDao.upsert(fiction("f2"))
+        chapterDao.upsert(chapter("c1", "f1"))
+        chapterDao.upsert(chapter("c2", "f2"))
+        dao.upsert(
+            PlaybackPosition(
+                fictionId = "f1",
+                chapterId = "c1",
+                charOffset = 42,
+                paragraphIndex = 3,
+                playbackSpeed = 1.25f,
+                durationEstimateMs = 9_999L,
+                updatedAt = 100L,
+            ),
+        )
+        dao.upsert(PlaybackPosition("f2", "c2", updatedAt = 200L))
+
+        val rows = dao.allPositionsSnapshot().associateBy { it.fictionId }
+        assertEquals(2, rows.size)
+        val r1 = rows.getValue("f1")
+        assertEquals("c1", r1.chapterId)
+        assertEquals(42, r1.charOffset)
+        assertEquals(3, r1.paragraphIndex)
+        assertEquals(1.25f, r1.playbackSpeed, 0.0001f)
+        assertEquals(9_999L, r1.durationEstimateMs)
+        assertEquals(100L, r1.updatedAt)
+        assertEquals("f2", rows.getValue("f2").fictionId)
+    }
+
+    @Test
+    fun allPositionsSnapshot_emptyDb_returnsEmptyList() = runTest {
+        assertEquals(emptyList<PlaybackPositionSnapshotRow>(), dao.allPositionsSnapshot())
+    }
+
+    @Test
     fun upsertThenDelete_isIdempotent() = runTest {
         fictionDao.upsert(fiction("f1"))
         chapterDao.upsert(chapter("c1", "f1"))
