@@ -172,10 +172,27 @@ internal class PlosSource @Inject constructor(
 
     override suspend fun search(query: SearchQuery): FictionResult<ListPage<FictionSummary>> {
         val term = query.term.trim()
-        if (term.isEmpty()) return popular(1)
         val rows = ROWS_PER_PAGE
         val start = (query.page - 1).coerceAtLeast(0) * rows
-        return api.searchQuery(term = term, start = start, rows = rows).map { resp ->
+        val subject = query.genres.firstOrNull()?.takeIf { it.isNotBlank() }
+        val sort = when (query.orderBy) {
+            SearchOrder.LAST_UPDATE, SearchOrder.RELEASE_DATE -> "publication_date desc"
+            SearchOrder.POPULARITY -> "counter_total_all desc"
+            else -> null // Solr default ranking (relevance for non-empty q)
+        }
+        // Empty term AND no facets → fall back to the popular landing
+        // (PLOS ONE recents). Once any filter is active, route through
+        // searchQuery so the sort + subject params reach Solr.
+        if (term.isEmpty() && subject == null && sort == null) {
+            return popular(query.page.coerceAtLeast(1))
+        }
+        return api.searchQuery(
+            term = term,
+            start = start,
+            rows = rows,
+            sort = sort,
+            subjectFilter = subject,
+        ).map { resp ->
             val items = resp.response.docs.mapNotNull { it.toSummary() }
             ListPage(
                 items = items,

@@ -92,20 +92,37 @@ internal class PlosApi @Inject constructor(
      * Free-form search. Term is passed through to Solr's `q` parameter
      * untouched (so Boolean operators like `AND` / `OR` and field-
      * scoped queries like `title:climate` work as documented in the
-     * PLOS Search API spec). Results sort by relevance — caller's
-     * `start`/`rows` paginate.
+     * PLOS Search API spec). Results sort by relevance unless [sort]
+     * overrides; [subjectFilter] adds a `fq=subject:"<name>"` to narrow
+     * to a single PLOS subject taxonomy bucket. Caller's `start`/`rows`
+     * paginate.
      */
     suspend fun searchQuery(
         term: String,
         start: Int = 0,
         rows: Int = 50,
+        sort: String? = null,
+        subjectFilter: String? = null,
     ): FictionResult<PlosSearchResponse> {
-        val url = "$BASE_SEARCH" +
-            "?q=" + URLEncoder.encode(term, "UTF-8") +
-            "&start=$start" +
-            "&rows=$rows" +
-            "&fl=" + URLEncoder.encode(DEFAULT_FIELDS, "UTF-8") +
-            "&wt=json"
+        val params = buildList {
+            // Empty term + subject-only is a legitimate filter-only
+            // browse; Solr accepts `q=*:*` as the "match anything"
+            // primary clause.
+            val q = term.ifBlank { "*:*" }
+            add("q" to q)
+            add("fq" to "doc_type:full")
+            if (!subjectFilter.isNullOrBlank()) {
+                add("fq" to "subject:\"$subjectFilter\"")
+            }
+            if (!sort.isNullOrBlank()) add("sort" to sort)
+            add("start" to start.toString())
+            add("rows" to rows.toString())
+            add("fl" to DEFAULT_FIELDS)
+            add("wt" to "json")
+        }
+        val url = "$BASE_SEARCH?" + params.joinToString("&") { (k, v) ->
+            URLEncoder.encode(k, "UTF-8") + "=" + URLEncoder.encode(v, "UTF-8")
+        }
         return getJson<PlosSearchResponse>(url)
     }
 
