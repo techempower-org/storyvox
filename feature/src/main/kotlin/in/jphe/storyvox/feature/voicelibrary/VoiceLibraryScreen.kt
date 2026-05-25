@@ -44,7 +44,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -80,6 +79,7 @@ import `in`.jphe.storyvox.ui.component.BrassButton
 import `in`.jphe.storyvox.ui.component.BrassButtonVariant
 import `in`.jphe.storyvox.ui.component.BrassProgressBar
 import `in`.jphe.storyvox.ui.component.MagicSkeletonTile
+import `in`.jphe.storyvox.ui.component.MagicTitleBar
 import `in`.jphe.storyvox.ui.component.cascadeReveal
 import `in`.jphe.storyvox.ui.theme.LocalReducedMotion
 import androidx.compose.animation.core.animateFloatAsState
@@ -103,9 +103,8 @@ fun VoiceLibraryScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.voicelibrary_title)) },
-            )
+            // #830 — shared title bar across all primary-nav surfaces.
+            MagicTitleBar(title = stringResource(R.string.voicelibrary_title))
         },
         snackbarHost = { SnackbarHost(snackbar) },
     ) { padding ->

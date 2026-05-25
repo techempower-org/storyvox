@@ -19,8 +19,6 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -39,6 +37,7 @@ import `in`.jphe.storyvox.ui.component.coverSourceFamilyFor
 import `in`.jphe.storyvox.ui.component.FictionCoverThumb
 import `in`.jphe.storyvox.ui.component.fictionMonogram
 import `in`.jphe.storyvox.ui.component.MagicSkeletonTile
+import `in`.jphe.storyvox.ui.component.MagicTitleBar
 import `in`.jphe.storyvox.ui.component.SkeletonBlock
 import `in`.jphe.storyvox.ui.layout.isAtLeastTablet
 import `in`.jphe.storyvox.ui.theme.LocalSpacing
@@ -97,8 +96,9 @@ fun FollowsScreen(
             // surfaces inline below as a TextButton in an aligned-end
             // Row so it remains reachable.
             if (!embedded) {
-                TopAppBar(
-                    title = { Text(stringResource(R.string.follows_title), style = MaterialTheme.typography.titleLarge) },
+                // #830 — shared title bar across all primary-nav surfaces.
+                MagicTitleBar(
+                    title = stringResource(R.string.follows_title),
                     actions = {
                         if (state.isSignedIn && state.follows.isNotEmpty()) {
                             BrassButton(
@@ -108,10 +108,6 @@ fun FollowsScreen(
                             )
                         }
                     },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.surface,
-                        titleContentColor = MaterialTheme.colorScheme.onSurface,
-                    ),
                 )
             } else if (state.isSignedIn && state.follows.isNotEmpty()) {
                 // Embedded fallback for the "Mark all caught up"

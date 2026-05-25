@@ -26,7 +26,6 @@ import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.RecordVoiceOver
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Speed
-import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -44,6 +43,7 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import `in`.jphe.storyvox.feature.settings.components.SectionHeading
+import `in`.jphe.storyvox.ui.component.MagicTitleBar
 import `in`.jphe.storyvox.ui.theme.LocalSpacing
 
 /**
@@ -146,8 +146,9 @@ fun SettingsHubScreen(
     var query by remember { mutableStateOf("") }
     Scaffold(
         topBar = {
-            CenterAlignedTopAppBar(
-                title = { Text("Settings", style = MaterialTheme.typography.titleMedium) },
+            // #830 — shared title bar across all primary-nav surfaces.
+            MagicTitleBar(
+                title = "Settings",
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(

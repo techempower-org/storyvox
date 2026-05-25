@@ -25,7 +25,6 @@ import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
@@ -66,6 +65,7 @@ import `in`.jphe.storyvox.ui.component.coverSourceFamilyFor
 import `in`.jphe.storyvox.ui.component.FictionCoverThumb
 import `in`.jphe.storyvox.ui.component.fictionMonogram
 import `in`.jphe.storyvox.ui.component.MagicSkeletonTile
+import `in`.jphe.storyvox.ui.component.MagicTitleBar
 import `in`.jphe.storyvox.ui.component.cascadeReveal
 import `in`.jphe.storyvox.ui.theme.LocalSpacing
 import androidx.compose.foundation.layout.Spacer
@@ -163,15 +163,13 @@ fun LibraryScreen(
     Scaffold(
         // Issue #255 — Library used to fade straight from the system status
         // bar into a Resume card with no header — no 'Library' title, no
-        // identity. CenterAlignedTopAppBar gives the screen a hard
-        // identifier (matches Material 3 standard for home tabs) and a
-        // place to surface search/sort/filter actions later. For now the
-        // bar is bare title-only; the issue's deeper ask (search +
-        // sort/filter affordances) needs its own follow-up since neither
-        // exists in LibraryViewModel yet.
+        // identity. The shared [MagicTitleBar] (#830) renders a
+        // center-aligned title with a brass sparkle glyph; same widget
+        // is used on every other primary-nav surface so the headers all
+        // belong to one design family.
         topBar = {
-            CenterAlignedTopAppBar(
-                title = { Text(stringResource(R.string.library_title), style = MaterialTheme.typography.titleMedium) },
+            MagicTitleBar(
+                title = stringResource(R.string.library_title),
                 actions = {
                     // Issue #533 — top-bar action icons used to pack
                     // flush together at 0dp gap on the Flip3 (1080dp
