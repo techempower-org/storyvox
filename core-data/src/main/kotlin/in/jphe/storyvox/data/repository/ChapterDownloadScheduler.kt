@@ -9,6 +9,7 @@ import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import dagger.hilt.android.qualifiers.ApplicationContext
+import `in`.jphe.storyvox.data.log.DebugLog
 import `in`.jphe.storyvox.data.work.ChapterDownloadWorker
 import java.time.Duration
 import javax.inject.Inject
@@ -56,6 +57,9 @@ class WorkManagerChapterDownloadScheduler @Inject constructor(
             .build()
 
         android.util.Log.i("ChapterDownload", "schedule: chapter=$chapterId fiction=$fictionId unmetered=$requireUnmetered")
+        DebugLog.i("ChapterDownloadScheduler") {
+            "enqueueUniqueWork chapter=$chapterId fiction=$fictionId policy=REPLACE"
+        }
         workManager.enqueueUniqueWork(
             ChapterDownloadWorker.uniqueName(chapterId),
             ExistingWorkPolicy.REPLACE,

@@ -52,6 +52,21 @@ class DebugViewModel @Inject constructor(
         settings.setShowDebugOverlay(enabled)
     }
 
+    /**
+     * Issue #823 — verbose-logging master switch. Reads from the
+     * settings flow; [StoryvoxApp][in.jphe.storyvox.StoryvoxApp]
+     * propagates the same value into
+     * [DebugLog][in.jphe.storyvox.data.log.DebugLog] on every change.
+     */
+    val debugLoggingEnabled: StateFlow<Boolean> = settings.settings
+        .map { it.debugLogging }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    /** Writes through to DataStore. */
+    fun setDebugLoggingEnabled(enabled: Boolean) = viewModelScope.launch {
+        settings.setDebugLogging(enabled)
+    }
+
     /** Suspending one-shot capture for clipboard export — invoked by the
      *  Debug screen's "Copy snapshot" button. The screen wraps this in
      *  a coroutine so the suspend is invisible. */

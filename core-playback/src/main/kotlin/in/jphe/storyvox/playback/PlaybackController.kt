@@ -1,5 +1,6 @@
 package `in`.jphe.storyvox.playback
 
+import `in`.jphe.storyvox.data.log.DebugLog
 import `in`.jphe.storyvox.playback.diagnostics.AudioOutputMonitor
 import `in`.jphe.storyvox.playback.diagnostics.WaitReason
 import `in`.jphe.storyvox.playback.tts.EnginePlayer
@@ -631,6 +632,7 @@ class DefaultPlaybackController @Inject constructor(
     }
 
     override suspend fun play(fictionId: String, chapterId: String, charOffset: Int) {
+        DebugLog.i("PlaybackController") { "play fiction=$fictionId chapter=$chapterId charOffset=$charOffset" }
         // #90 — record the play intent BEFORE loadAndPlay (which can take
         // 30+s to return on a cold engine load). If the user kills the
         // app mid-load we want resume-on-reopen to autoplay.
@@ -648,6 +650,7 @@ class DefaultPlaybackController @Inject constructor(
     }
 
     override fun pause() {
+        DebugLog.i("PlaybackController") { "pause" }
         // #90 — explicit pause is a user intent. Persist so the next
         // Library Resume CTA respects it (load chapter, stay paused).
         scope.launch { runCatching { resumePolicy.setLastWasPlaying(false) } }
@@ -660,6 +663,7 @@ class DefaultPlaybackController @Inject constructor(
     }
 
     override fun resume() {
+        DebugLog.i("PlaybackController") { "resume" }
         scope.launch { runCatching { resumePolicy.setLastWasPlaying(true) } }
         player?.resume()
     }
@@ -668,7 +672,10 @@ class DefaultPlaybackController @Inject constructor(
         if (state.value.isPlaying) pause() else resume()
     }
 
-    override fun seekTo(charOffset: Int) { player?.seekToCharOffset(charOffset) }
+    override fun seekTo(charOffset: Int) {
+        DebugLog.i("PlaybackController") { "seekTo charOffset=$charOffset" }
+        player?.seekToCharOffset(charOffset)
+    }
 
     override fun seekToPositionMs(positionMs: Long) {
         // #531 / #555 — UI gives us a ms position on the scrubber rail

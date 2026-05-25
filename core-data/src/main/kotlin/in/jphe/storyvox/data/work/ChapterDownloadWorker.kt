@@ -10,6 +10,7 @@ import dagger.assisted.AssistedInject
 import `in`.jphe.storyvox.data.db.dao.ChapterDao
 import `in`.jphe.storyvox.data.db.dao.FictionDao
 import `in`.jphe.storyvox.data.db.entity.ChapterDownloadState
+import `in`.jphe.storyvox.data.log.DebugLog
 import `in`.jphe.storyvox.data.repository.AuthRepository
 import `in`.jphe.storyvox.data.source.FictionSource
 import `in`.jphe.storyvox.data.source.WebViewFetcher
@@ -70,6 +71,7 @@ class ChapterDownloadWorker @AssistedInject constructor(
         val chapterId = inputData.getString(KEY_CHAPTER_ID) ?: return Result.failure(
             Data.Builder().putString(KEY_RESULT, RESULT_BAD_INPUT).build(),
         )
+        DebugLog.i(TAG_LOG) { "doWork enter chapter=$chapterId fiction=$fictionId attempt=$runAttemptCount" }
         // Issue #808 — cap retries so zombie URLs (chapter pulled, source
         // permanently rate-limiting us, etc.) eventually terminate instead
         // of looping forever on exponential backoff. The reaper handles
@@ -110,6 +112,7 @@ class ChapterDownloadWorker @AssistedInject constructor(
                         now = System.currentTimeMillis(),
                         audioUrl = content.audioUrl,
                     )
+                    DebugLog.i(TAG_LOG) { "doWork ok chapter=$chapterId bytes=${content.htmlBody.length}" }
                     Result.success(output(RESULT_OK))
                 }
 
@@ -204,6 +207,9 @@ class ChapterDownloadWorker @AssistedInject constructor(
 
     companion object {
         const val TAG = "download:chapter"
+
+        /** Issue #823 — logcat tag for [DebugLog] breadcrumbs. */
+        const val TAG_LOG = "ChapterDownloadWorker"
 
         const val KEY_FICTION_ID = "fictionId"
         const val KEY_CHAPTER_ID = "chapterId"

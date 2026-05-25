@@ -23,6 +23,7 @@ import com.google.common.util.concurrent.ListenableFuture
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedFactory
 import dagger.assisted.AssistedInject
+import `in`.jphe.storyvox.data.log.DebugLog
 import `in`.jphe.storyvox.data.repository.ChapterRepository
 import `in`.jphe.storyvox.data.repository.HistoryRepository
 import `in`.jphe.storyvox.data.repository.PlaybackPositionRepository
@@ -1212,6 +1213,7 @@ class EnginePlayer @AssistedInject constructor(
         charOffset: Int,
         autoPlay: Boolean = true,
     ) {
+        DebugLog.i("EnginePlayer") { "loadAndPlay fiction=$fictionId chapter=$chapterId charOffset=$charOffset autoPlay=$autoPlay" }
         // PR-6 (#185) — fallback toast dedupe is per-chapter; reset
         // here so the next chapter's first Azure failure can re-fire
         // the toast. Cheap (one volatile write) so we don't gate it
@@ -3387,6 +3389,7 @@ class EnginePlayer @AssistedInject constructor(
     }
 
     suspend fun advanceChapter(direction: Int) {
+        DebugLog.i("EnginePlayer") { "advanceChapter direction=$direction" }
         // Issue #726 — record the direction of the in-flight advance so
         // PlaybackController's buffering-stuck watchdog can mirror it
         // instead of hardcoding +1. Normalize to -1 / +1 so a Previous
