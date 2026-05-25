@@ -769,9 +769,6 @@ private fun StoryvoxNavHostContent(
                     onOpenRoyalRoadSignIn = { navController.navigate(StoryvoxRoutes.authWebView(SourceIds.ROYAL_ROAD)) },
                     // #426 PR2 — AO3 sign-in CTA on the Browse → AO3 chip.
                     onOpenAo3SignIn = { navController.navigate(StoryvoxRoutes.authWebView(SourceIds.AO3)) },
-                    // Still wired for the Notion demo banner's "Connect
-                    // your own workspace" CTA — not a top-bar cog.
-                    onOpenSettings = { navController.navigate(StoryvoxRoutes.SETTINGS_HUB) },
                 )
             }
 

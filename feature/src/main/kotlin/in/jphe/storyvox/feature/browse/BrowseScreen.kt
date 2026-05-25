@@ -125,7 +125,6 @@ fun BrowseScreen(
      *  the only call site that needs the real route is the
      *  StoryvoxNavHost Library branch. */
     onOpenAo3SignIn: () -> Unit = {},
-    onOpenSettings: () -> Unit = {},
     /**
      * Restructure (v0.5.40) — when true, BrowseScreen renders without
      * its own Scaffold + TopAppBar. The Library tab's TopAppBar serves
@@ -328,17 +327,6 @@ fun BrowseScreen(
                 modifier = Modifier.fillMaxWidth().padding(spacing.md),
                 singleLine = true,
             )
-        }
-
-        // Issue #443 — when the Notion chip is active and the user
-        // has no integration token configured, the source falls back
-        // to TechEmpower's public Notion content via the anonymous
-        // reader. Surface that as a labeled demo so users don't see
-        // "Notion" → TechEmpower cards and conclude the source is
-        // broken / mis-wired. JP design (issue comment): keep the
-        // fallback, add a clear demo label + a Settings deep-link.
-        if (state.sourceId == SourceIds.NOTION_TECHEMPOWER && state.notionAnonymousActive) {
-            NotionDemoBanner(onOpenSettings = onOpenSettings)
         }
 
         // #426 PR2 — AO3 sign-in hint when the user has the AO3 chip
@@ -700,69 +688,10 @@ private fun SkeletonGrid() {
 }
 
 /**
- * Issue #443 — demo-content banner for the Notion chip when no
- * integration token is configured. The Notion source falls back to
- * the TechEmpower public Notion content via the anonymous-public
- * reader (#393), which surfaces TechEmpower's Guides / Resources /
- * About / Donate as fictions.
- *
- * Issue #602 (v1.0). The banner used to lead with "Add a Notion
- * integration token to read your own database." — confusing to a
- * brand-new user who hadn't asked for a Notion database in the first
- * place. The anonymous content IS the user's content as far as
- * first-launch is concerned (TechEmpower's free guides), and the
- * "add your own" path is a power-user affordance, not a default
- * call-to-action. v1.0 reframes:
- *
- *   - Headline: "TechEmpower's free guides" (concrete, true)
- *   - Body: positive — what they ARE looking at, not what's missing
- *   - Power-user CTA: smaller, off-message "Have your own Notion
- *     workspace?" affordance that ONLY appears in the long-press /
- *     advanced flow. For v1.0 we keep the button in place but with
- *     softer copy so a brand-new user doesn't read it as a setup
- *     blocker.
- */
-@Composable
-private fun NotionDemoBanner(onOpenSettings: () -> Unit) {
-    val spacing = LocalSpacing.current
-    Card(
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant,
-        ),
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = spacing.md, vertical = spacing.xs),
-    ) {
-        Column(modifier = Modifier.padding(spacing.md)) {
-            // Issue #621 — "Demo content" read as a debug placeholder
-            // ("did the dev forget to wire something up?"). Replace
-            // with a friendly TechEmpower phrasing that names the
-            // collection explicitly so the user reads the cards as
-            // intentional, not stub.
-            Text(
-                "TechEmpower's free guides",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.primary,
-            )
-            Text(
-                "Free, no account needed. Tap any card to listen.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = spacing.xxs),
-            )
-            androidx.compose.material3.TextButton(
-                onClick = onOpenSettings,
-                modifier = Modifier.padding(top = spacing.xs),
-            ) { Text(stringResource(R.string.browse_notion_connect_cta)) }
-        }
-    }
-}
-
-/**
  * #426 PR2 — compact AO3 sign-in banner. Surfaces above the AO3
  * listing when the chip is selected and no AO3 session is captured.
- * Mirrors [NotionDemoBanner]'s shape (Card + headline + body + text
- * button) rather than the full-screen [RoyalRoadSignedOutCta] —
+ * Same shape as [RoyalRoadSignedOutCta] (Card + headline + body + text
+ * button) —
  * AO3's Popular / NewReleases / Search tabs keep working anonymously,
  * so we're only nudging the user toward auth-only surfaces, not
  * blocking the listing entirely.
