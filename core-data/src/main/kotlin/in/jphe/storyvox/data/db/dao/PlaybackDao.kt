@@ -23,6 +23,20 @@ interface PlaybackDao {
     suspend fun delete(fictionId: String)
 
     /**
+     * Slim "all positions" projection used by [PlaybackPositionSyncer] to build
+     * its sync payload in one Room round-trip. Returns only the fields the wire
+     * `Entry` needs; skips bigger columns that aren't part of the sync record.
+     */
+    @Query(
+        """
+        SELECT fictionId, chapterId, charOffset, paragraphIndex,
+               playbackSpeed, durationEstimateMs, updatedAt
+          FROM playback_position
+        """,
+    )
+    suspend fun allPositionsSnapshot(): List<PlaybackPositionSnapshotRow>
+
+    /**
      * Denormalized "recently played" feed for the Auto/Wear menu — flattens
      * fiction title + cover + chapter title into one row so the playback
      * layer doesn't need follow-up queries while building Auto's browse tree.
@@ -129,4 +143,15 @@ data class RecentPlaybackRow(
     val bookTitle: String,
     val chapterTitle: String,
     val coverUrl: String?,
+)
+
+/** Slim projection of [PlaybackPosition] for sync snapshots. */
+data class PlaybackPositionSnapshotRow(
+    val fictionId: String,
+    val chapterId: String,
+    val charOffset: Int,
+    val paragraphIndex: Int,
+    val playbackSpeed: Float,
+    val durationEstimateMs: Long,
+    val updatedAt: Long,
 )
