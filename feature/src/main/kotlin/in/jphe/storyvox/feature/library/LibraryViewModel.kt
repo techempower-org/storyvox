@@ -188,7 +188,7 @@ sealed interface AddByUrlSheetState {
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class LibraryViewModel @Inject constructor(
     fictionRepo: FictionRepository,
-    positionRepo: PlaybackPositionRepository,
+    private val positionRepo: PlaybackPositionRepository,
     private val shelfRepo: ShelfRepository,
     /** Issue #158 — reading history backing the new "History" sub-tab. */
     historyRepo: HistoryRepository,
@@ -391,6 +391,31 @@ class LibraryViewModel @Inject constructor(
                 autoPlay = autoPlay,
             )
             _events.send(LibraryUiEvent.OpenReader(entry.fiction.id, entry.chapter.id))
+        }
+    }
+
+    /**
+     * Issue #827 — tapping a book in the Library grid resumes playback
+     * when a saved position exists for that fiction; falls back to
+     * opening the fiction detail screen otherwise. Mirrors the
+     * smart-resume logic in [resume]: the resume policy decides
+     * whether audio auto-plays so an explicit pre-pause is respected.
+     */
+    fun resumeOrOpenFiction(fictionId: String) {
+        viewModelScope.launch {
+            val saved = positionRepo.load(fictionId)
+            if (saved == null) {
+                _events.send(LibraryUiEvent.OpenFiction(fictionId))
+                return@launch
+            }
+            val autoPlay = resumePolicy.currentLastWasPlaying()
+            playback.startListening(
+                saved.fictionId,
+                saved.chapterId,
+                saved.charOffset,
+                autoPlay = autoPlay,
+            )
+            _events.send(LibraryUiEvent.OpenReader(saved.fictionId, saved.chapterId))
         }
     }
 
