@@ -228,9 +228,35 @@ internal class Ao3Api @Inject constructor(
      * Anonymous — no auth cookie needed. AO3's search is available to
      * logged-out users; the results may exclude Archive-Warning-gated
      * works but that's AO3's standard anonymous behavior.
+     *
+     * Filter params mirror AO3's `/works/search` form:
+     *  - [ratingIds] → `work_search[rating_ids][]` (10/11/12/13)
+     *  - [complete] → `work_search[complete]` ("T"|"F", omit for both)
+     *  - [fandom] → `work_search[fandom_names]`
+     *  - [warningIds] → `work_search[archive_warning_ids][]`
+     *  - [excludedTagNames] → `work_search[excluded_tag_names]` (comma-joined)
+     *  - [sortColumn] → `work_search[sort_column]` ("kudos_count"|"revised_at"|null)
      */
-    suspend fun searchWorks(query: String, page: Int = 1): FictionResult<ListPage<FictionSummary>> {
-        val path = searchPath(query, page)
+    suspend fun searchWorks(
+        query: String,
+        page: Int = 1,
+        ratingIds: Set<Int> = emptySet(),
+        complete: Boolean? = null,
+        fandom: String? = null,
+        warningIds: Set<Int> = emptySet(),
+        excludedTagNames: Set<String> = emptySet(),
+        sortColumn: String? = null,
+    ): FictionResult<ListPage<FictionSummary>> {
+        val path = searchPath(
+            query = query,
+            page = page,
+            ratingIds = ratingIds,
+            complete = complete,
+            fandom = fandom,
+            warningIds = warningIds,
+            excludedTagNames = excludedTagNames,
+            sortColumn = sortColumn,
+        )
         return withContext(Dispatchers.IO) {
             when (val res = requestText(client, path)) {
                 is FictionResult.Success -> {
@@ -338,17 +364,57 @@ internal class Ao3Api @Inject constructor(
          * GitHub Issues are the door.
          */
         /**
-         * `/works/search?work_search[query]=<term>[&page=N]` — AO3's
-         * work search. Exposed package-private for URL-shape pinning
-         * in unit tests.
+         * `/works/search?work_search[...]=...[&page=N]` — AO3's work
+         * search URL builder. Exposed package-private for URL-shape
+         * pinning in unit tests. Params are emitted in a deterministic
+         * order (query → ratings → complete → fandom → warnings →
+         * excluded tags → sort → page) so the test assertions can pin
+         * exact strings without flake.
+         *
+         * Empty / null filter values are skipped — passing no filters
+         * round-trips to the original term-only URL.
          */
-        internal fun searchPath(query: String, page: Int = 1): String {
-            val encoded = java.net.URLEncoder.encode(query, "UTF-8")
-            return if (page <= 1) {
-                "/works/search?work_search%5Bquery%5D=$encoded"
-            } else {
-                "/works/search?work_search%5Bquery%5D=$encoded&page=$page"
+        internal fun searchPath(
+            query: String,
+            page: Int = 1,
+            ratingIds: Set<Int> = emptySet(),
+            complete: Boolean? = null,
+            fandom: String? = null,
+            warningIds: Set<Int> = emptySet(),
+            excludedTagNames: Set<String> = emptySet(),
+            sortColumn: String? = null,
+        ): String {
+            val params = mutableListOf<Pair<String, String>>()
+            params += "work_search[query]" to query
+            // AO3 accepts repeated `rating_ids[]` params for OR semantics;
+            // emit in sorted order so the URL is deterministic.
+            for (id in ratingIds.toSortedSet()) {
+                params += "work_search[rating_ids][]" to id.toString()
             }
+            if (complete != null) {
+                params += "work_search[complete]" to if (complete) "T" else "F"
+            }
+            fandom?.takeIf { it.isNotBlank() }?.let {
+                params += "work_search[fandom_names]" to it
+            }
+            for (id in warningIds.toSortedSet()) {
+                params += "work_search[archive_warning_ids][]" to id.toString()
+            }
+            if (excludedTagNames.isNotEmpty()) {
+                params += "work_search[excluded_tag_names]" to
+                    excludedTagNames.toSortedSet().joinToString(",")
+            }
+            sortColumn?.takeIf { it.isNotBlank() }?.let {
+                params += "work_search[sort_column]" to it
+            }
+            if (page > 1) {
+                params += "page" to page.toString()
+            }
+            val qs = params.joinToString("&") { (k, v) ->
+                java.net.URLEncoder.encode(k, "UTF-8") + "=" +
+                    java.net.URLEncoder.encode(v, "UTF-8")
+            }
+            return "/works/search?$qs"
         }
 
         const val USER_AGENT = "storyvox-ao3/1.0 (+https://github.com/jphein/storyvox)"

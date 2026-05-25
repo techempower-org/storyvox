@@ -183,12 +183,37 @@ internal class Ao3Source @Inject constructor(
             )
         }
         state.stringVal("category")?.takeIf { it.isNotBlank() }?.let { cat ->
-            q = q.copy(tags = q.tags + cat.lowercase())
+            // Category passes through as a fandom name — AO3's
+            // `work_search[fandom_names]` matches against the canonical
+            // fandom tag, so the display label (e.g. "Harry Potter")
+            // works directly. Carried in [SearchQuery.tags] so the
+            // existing field plumbing covers it; [search] picks it
+            // out below.
+            q = q.copy(tags = q.tags + cat)
+        }
+        state.stringVal("rating")?.takeIf { it.isNotBlank() }?.let { label ->
+            // Rating is single-select (General/Teen/Mature/Explicit);
+            // round-trip through FictionStatus is wrong — there's no
+            // shared "Rating" field on SearchQuery, so we re-use
+            // [SearchQuery.tags] with a "rating:" prefix. The [search]
+            // adapter peels these back out and maps them to AO3's
+            // numeric `rating_ids[]`.
+            q = q.copy(tags = q.tags + "rating:$label")
+        }
+        state.stringVal("completion")?.takeIf { it.isNotBlank() }?.let { label ->
+            val status = when (label) {
+                "Complete" -> FictionStatus.COMPLETED
+                "In Progress" -> FictionStatus.ONGOING
+                else -> null
+            }
+            if (status != null) {
+                q = q.copy(statuses = q.statuses + status)
+            }
         }
         state.stringSetVal("warnings")?.let { w ->
             q = q.copy(
-                tags = q.tags + w.included.map { it.lowercase() },
-                excludeTags = q.excludeTags + w.excluded.map { it.lowercase() },
+                tags = q.tags + w.included,
+                excludeTags = q.excludeTags + w.excluded,
             )
         }
         return q
@@ -232,10 +257,65 @@ internal class Ao3Source @Inject constructor(
 
     override suspend fun search(query: SearchQuery): FictionResult<ListPage<FictionSummary>> {
         val term = query.term.trim()
-        if (term.isEmpty()) {
+        // Peel filter state back out of [SearchQuery]. [applyFilters]
+        // stuffs the rating into `tags` with a "rating:" prefix because
+        // SearchQuery has no rating field; everything else maps to a
+        // real SearchQuery slot. Empty filters drop out of the URL via
+        // [Ao3Api.searchPath]'s skip-on-empty contract.
+        val ratings = query.tags
+            .asSequence()
+            .filter { it.startsWith(RATING_PREFIX) }
+            .mapNotNull { ratingIdFor(it.removePrefix(RATING_PREFIX)) }
+            .toSet()
+        val warningIds = query.tags
+            .asSequence()
+            .mapNotNull { warningIdFor(it) }
+            .toSet()
+        // AO3's `excluded_tag_names` is a free-form comma-joined list —
+        // any tag name (warnings, fandoms, freeforms) goes through this
+        // single param. Forward everything in [SearchQuery.excludeTags]
+        // verbatim; the AO3 backend matches against its tag taxonomy.
+        val excludedTagNames = query.excludeTags.toSet()
+        // Category lives in `tags` as the raw fandom display name —
+        // anything that isn't a rating: prefix or a known warning is
+        // treated as a fandom hint. AO3's search accepts a single
+        // fandom_names value, so collapse to the first match.
+        val fandom = query.tags
+            .firstOrNull {
+                !it.startsWith(RATING_PREFIX) && warningIdFor(it) == null
+            }
+        val complete = when {
+            FictionStatus.COMPLETED in query.statuses &&
+                FictionStatus.ONGOING !in query.statuses -> true
+            FictionStatus.ONGOING in query.statuses &&
+                FictionStatus.COMPLETED !in query.statuses -> false
+            else -> null
+        }
+        val sortColumn = when (query.orderBy) {
+            SearchOrder.POPULARITY -> "kudos_count"
+            SearchOrder.LAST_UPDATE -> "revised_at"
+            else -> null
+        }
+        // No-term + no-filter calls return empty rather than firing a
+        // server query — matches the old behavior. A filter without a
+        // term IS allowed: AO3's search accepts a query=empty body
+        // when other filters narrow the result set.
+        val hasAnyFilter = ratings.isNotEmpty() || warningIds.isNotEmpty() ||
+            excludedTagNames.isNotEmpty() || fandom != null ||
+            complete != null || sortColumn != null
+        if (term.isEmpty() && !hasAnyFilter) {
             return FictionResult.Success(ListPage(items = emptyList(), page = 1, hasNext = false))
         }
-        return api.searchWorks(query = term, page = query.page ?: 1)
+        return api.searchWorks(
+            query = term,
+            page = query.page.coerceAtLeast(1),
+            ratingIds = ratings,
+            complete = complete,
+            fandom = fandom,
+            warningIds = warningIds,
+            excludedTagNames = excludedTagNames,
+            sortColumn = sortColumn,
+        )
     }
 
     /**
@@ -535,6 +615,43 @@ internal class Ao3Source @Inject constructor(
          * user pick their own default.
          */
         const val DEFAULT_TAG_ID: Long = 414093L
+
+        /**
+         * Sentinel prefix used by [applyFilters] to smuggle the
+         * single-select rating label through [SearchQuery.tags]. AO3's
+         * search expects numeric `rating_ids[]`; the universal
+         * SearchQuery has no dedicated rating slot, so we stash the
+         * label here and the [search] adapter translates back to ids.
+         */
+        internal const val RATING_PREFIX = "rating:"
+
+        /**
+         * AO3 rating label → numeric `rating_ids[]` value used by the
+         * `/works/search` form. Resolved from the form's HTML option
+         * values — these ids are part of AO3's data schema and don't
+         * change.
+         */
+        internal fun ratingIdFor(label: String): Int? = when (label) {
+            "General" -> 10
+            "Teen" -> 11
+            "Mature" -> 12
+            "Explicit" -> 13
+            else -> null
+        }
+
+        /**
+         * AO3 archive-warning label → numeric `archive_warning_ids[]`
+         * value used by the `/works/search` form. Only the four labels
+         * surfaced by [filterDimensions] are mapped; anything else
+         * returns null and is treated as a regular tag.
+         */
+        internal fun warningIdFor(label: String): Int? = when (label) {
+            "Graphic Depictions Of Violence" -> 17
+            "Major Character Death" -> 18
+            "Underage" -> 19
+            "Rape/Non-Con" -> 20
+            else -> null
+        }
     }
 }
 
