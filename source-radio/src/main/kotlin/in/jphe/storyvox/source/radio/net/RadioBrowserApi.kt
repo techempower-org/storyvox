@@ -107,6 +107,44 @@ internal class RadioBrowserApi @Inject constructor(
             }
     }
 
+    /**
+     * Issue #795 — Radio Browser's advanced search endpoint. Accepts
+     * multiple optional filters in a single call: name (fuzzy), country,
+     * language, tag. Use this when the user has applied any of the
+     * Browse filter chips (country / language / tag) so the result set
+     * narrows server-side instead of pulling all `byName` hits and
+     * filtering them on-device.
+     *
+     * All filters are case-insensitive substring matches per Radio
+     * Browser's docs. Empty arguments are simply omitted from the URL.
+     */
+    suspend fun advancedSearch(
+        name: String? = null,
+        country: String? = null,
+        language: String? = null,
+        tag: String? = null,
+        limit: Int = 50,
+    ): FictionResult<List<RadioStation>> {
+        val builder = "$BASE_URL/json/stations/search"
+            .toHttpUrl().newBuilder()
+            .addQueryParameter("hidebroken", "true")
+            .addQueryParameter("limit", limit.coerceIn(1, 100).toString())
+        name?.trim()?.takeIf { it.isNotEmpty() }?.let { builder.addQueryParameter("name", it) }
+        country?.trim()?.takeIf { it.isNotEmpty() }?.let { builder.addQueryParameter("country", it) }
+        language?.trim()?.takeIf { it.isNotEmpty() }?.let { builder.addQueryParameter("language", it) }
+        tag?.trim()?.takeIf { it.isNotEmpty() }?.let { builder.addQueryParameter("tag", it) }
+        val url = builder.build().toString()
+        return getJson<List<RadioBrowserStation>>(url)
+            .let { result ->
+                when (result) {
+                    is FictionResult.Success -> FictionResult.Success(
+                        result.value.mapNotNull { it.toRadioStation() },
+                    )
+                    is FictionResult.Failure -> result
+                }
+            }
+    }
+
     // ─── transport ────────────────────────────────────────────────────
 
     private inline fun <reified T> getJson(url: String): FictionResult<T> =

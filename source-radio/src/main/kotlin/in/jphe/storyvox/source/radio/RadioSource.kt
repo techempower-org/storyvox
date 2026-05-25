@@ -2,6 +2,8 @@ package `in`.jphe.storyvox.source.radio
 
 import `in`.jphe.storyvox.data.source.FictionSource
 import `in`.jphe.storyvox.data.source.SourceIds
+import `in`.jphe.storyvox.data.source.filter.FilterDimension
+import `in`.jphe.storyvox.data.source.filter.FilterState
 import `in`.jphe.storyvox.data.source.plugin.SourceCategory
 import `in`.jphe.storyvox.data.source.plugin.SourcePlugin
 import `in`.jphe.storyvox.data.source.model.ChapterContent
@@ -78,6 +80,57 @@ internal class RadioSource @Inject constructor(
     override val id: String = SourceIds.RADIO
     override val displayName: String = "Radio"
 
+    /**
+     * Issue #795 — Radio Browser exposes country, language, and tag as
+     * first-class faceted filters on its `/json/stations/search`
+     * endpoint. Free Text dimensions (not Select) because the directory
+     * has thousands of distinct countries / languages / tags — a
+     * dropdown of every possible value would be unusable. Substring
+     * match server-side handles case + partial input naturally.
+     */
+    override fun filterDimensions(): List<FilterDimension> = listOf(
+        FilterDimension.Text(
+            key = "country",
+            label = "Country",
+            placeholder = "e.g. United States",
+        ),
+        FilterDimension.Text(
+            key = "language",
+            label = "Language",
+            placeholder = "e.g. english",
+        ),
+        FilterDimension.Text(
+            key = "tag",
+            label = "Tag",
+            placeholder = "e.g. jazz",
+        ),
+    )
+
+    /**
+     * Encode the filter values onto the SearchQuery so [search] can
+     * pull them back. Uses prefixed entries in `q.tags` because the
+     * SearchQuery contract has no native country/language slots and
+     * piggybacking on `tags` is cheaper than adding fields to the
+     * shared model (this is the only source that needs them). The
+     * decode happens in [search] below — no other consumer reads
+     * these prefixed tags.
+     */
+    override fun applyFilters(base: SearchQuery, state: FilterState): SearchQuery {
+        var q = base
+        val extras = mutableSetOf<String>()
+        state.stringVal("country")?.trim()?.takeIf { it.isNotEmpty() }?.let {
+            extras += "country:$it"
+        }
+        state.stringVal("language")?.trim()?.takeIf { it.isNotEmpty() }?.let {
+            extras += "language:$it"
+        }
+        state.stringVal("tag")?.trim()?.takeIf { it.isNotEmpty() }?.let {
+            extras += "tag:$it"
+        }
+        if (extras.isNotEmpty()) q = q.copy(tags = q.tags + extras)
+        return q
+    }
+
     /** Issue #472 — direct audio-stream URLs (`.mp3`, `.m4a`, `.aac`,
      *  `.ogg`, `.m3u`, `.m3u8` extensions). The radio backend wraps
      *  these as ad-hoc "Custom Station" fictions. Audio MIME-type
@@ -141,29 +194,59 @@ internal class RadioSource @Inject constructor(
 
     override suspend fun search(query: SearchQuery): FictionResult<ListPage<FictionSummary>> {
         val term = query.term.trim()
-        if (term.isEmpty()) {
+        // Issue #795 — pull country/language/tag back out of the prefixed
+        // tags applyFilters above stuffed onto the SearchQuery.
+        val country = query.tags.firstOrNull { it.startsWith("country:") }?.removePrefix("country:")
+        val language = query.tags.firstOrNull { it.startsWith("language:") }?.removePrefix("language:")
+        val tagFilter = query.tags.firstOrNull { it.startsWith("tag:") }?.removePrefix("tag:")
+        val hasFilters = !country.isNullOrBlank() || !language.isNullOrBlank() || !tagFilter.isNullOrBlank()
+
+        if (term.isEmpty() && !hasFilters) {
             // Match the popular() shape for empty-query so the Search
             // tab feels populated rather than blank-on-arrival.
             return popular(page = 1)
         }
         // Local match against the curated set + starred imports first
-        // (zero network, instant) — this is what kept the old
-        // :source-kvmr "search for kvmr" surface fast. Anything beyond
-        // the local matches comes from the Radio Browser API call.
+        // (zero network, instant). Filter by term + any facets that
+        // were set. Skips the local pass entirely when we have facets
+        // but no term — the local set is small and unlikely to overlap
+        // with a country/language/tag query in a useful way.
         val lowered = term.lowercase()
-        val localMatches = (RadioStations.curated + config.snapshot())
-            .filter { station ->
-                station.displayName.lowercase().contains(lowered) ||
-                    station.tags.any { it.lowercase().contains(lowered) } ||
-                    station.country.lowercase().contains(lowered)
-            }
-            .map { it.toSummary() }
+        val localMatches = if (term.isNotEmpty()) {
+            (RadioStations.curated + config.snapshot())
+                .filter { station ->
+                    val termHit = station.displayName.lowercase().contains(lowered) ||
+                        station.tags.any { it.lowercase().contains(lowered) } ||
+                        station.country.lowercase().contains(lowered)
+                    val countryHit = country.isNullOrBlank() ||
+                        station.country.lowercase().contains(country.lowercase())
+                    val tagHit = tagFilter.isNullOrBlank() ||
+                        station.tags.any { it.lowercase().contains(tagFilter.lowercase()) }
+                    // Local stations don't carry a language field, so the
+                    // language facet can only narrow remote hits.
+                    termHit && countryHit && tagHit
+                }
+                .map { it.toSummary() }
+        } else {
+            emptyList()
+        }
 
         // Hit Radio Browser for the long-tail. Failures here don't sink
         // the whole search — local matches still come back even if the
-        // network call fails.
-        val remoteMatches = when (val result = api.byName(term)) {
-            is FictionResult.Success -> result.value.map { it.toSummary() }
+        // network call fails. Use advancedSearch when any facet was set;
+        // fall back to byName for the term-only fast path.
+        val remoteResult = if (hasFilters) {
+            api.advancedSearch(
+                name = term.takeIf { it.isNotEmpty() },
+                country = country,
+                language = language,
+                tag = tagFilter,
+            )
+        } else {
+            api.byName(term)
+        }
+        val remoteMatches = when (remoteResult) {
+            is FictionResult.Success -> remoteResult.value.map { it.toSummary() }
             is FictionResult.Failure -> emptyList()
         }
 
