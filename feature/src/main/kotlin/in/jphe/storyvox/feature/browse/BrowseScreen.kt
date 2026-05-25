@@ -31,7 +31,6 @@ import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -78,6 +77,7 @@ import `in`.jphe.storyvox.ui.component.FictionCoverThumb
 import `in`.jphe.storyvox.ui.component.fictionMonogram
 import `in`.jphe.storyvox.ui.component.MagicSkeletonTile
 import `in`.jphe.storyvox.ui.component.MagicSpinner
+import `in`.jphe.storyvox.ui.component.MagicTitleBar
 import `in`.jphe.storyvox.ui.theme.LocalSpacing
 
 /**
@@ -99,9 +99,8 @@ private fun BrowseScaffoldOrFrame(
     } else {
         Scaffold(
             topBar = {
-                CenterAlignedTopAppBar(
-                    title = { Text(stringResource(R.string.browse_title), style = MaterialTheme.typography.titleMedium) },
-                )
+                // #830 — shared title bar across all primary-nav surfaces.
+                MagicTitleBar(title = stringResource(R.string.browse_title))
             },
         ) { scaffoldPadding ->
             Box(modifier = Modifier.fillMaxSize().padding(scaffoldPadding)) {
