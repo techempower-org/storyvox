@@ -93,6 +93,56 @@ internal class WikipediaApi @Inject constructor(
         }
     }
 
+    // ─── full-text search (sortable) ──────────────────────────────────
+
+    /**
+     * MediaWiki `list=search` (full-text) — supports the [srsort]
+     * parameter (`relevance`, `last_edit_desc`, `last_edit_asc`,
+     * `create_timestamp_desc`, etc.) that `opensearch` does not.
+     *
+     * Used by the source when the user picked a non-relevance sort
+     * via the Browse filter sheet (#809). `opensearch` is cheaper for
+     * the relevance default — it returns the same article titles as
+     * full-text search but with title-completion shape — so we keep
+     * it as the no-filter fast path.
+     *
+     * Restricted to mainspace (`srnamespace=0`) so user/talk pages
+     * don't pollute the result list.
+     */
+    suspend fun fullTextSearch(
+        term: String,
+        sort: String = "relevance",
+        limit: Int = 20,
+    ): FictionResult<List<WikipediaSearchHit>> {
+        val q = term.trim()
+        if (q.isEmpty()) return FictionResult.Success(emptyList())
+        val state = config.state.first()
+        val url = state.baseUrl +
+            "/w/api.php?action=query" +
+            "&list=search" +
+            "&srsearch=" + URLEncoder.encode(q, "UTF-8") +
+            "&srnamespace=0" +
+            "&srlimit=$limit" +
+            "&srsort=$sort" +
+            "&format=json"
+        return getJson<WikipediaSearchQueryResponse>(url).let { res ->
+            when (res) {
+                is FictionResult.Success ->
+                    FictionResult.Success(
+                        res.value.query?.search.orEmpty().map { hit ->
+                            WikipediaSearchHit(
+                                title = hit.title,
+                                // strip MediaWiki's <span class="searchmatch"> highlighting
+                                description = hit.snippet.replace(Regex("<[^>]+>"), "").trim(),
+                                url = "",
+                            )
+                        },
+                    )
+                is FictionResult.Failure -> res
+            }
+        }
+    }
+
     // ─── featured / popular ───────────────────────────────────────────
 
     /**
@@ -281,4 +331,20 @@ internal data class WikipediaSummary(
     val extract: String? = null,
     val thumbnail: WikipediaThumbnail? = null,
     val titles: WikipediaFeaturedTitles? = null,
+)
+
+@Serializable
+internal data class WikipediaSearchQueryResponse(
+    val query: WikipediaSearchQuery? = null,
+)
+
+@Serializable
+internal data class WikipediaSearchQuery(
+    val search: List<WikipediaFullTextHit> = emptyList(),
+)
+
+@Serializable
+internal data class WikipediaFullTextHit(
+    val title: String,
+    val snippet: String = "",
 )

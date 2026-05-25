@@ -94,22 +94,44 @@ internal class WikisourceSource @Inject constructor(
         )
     }
 
+    /**
+     * Issue #809 — the prior `language` Select dimension stuffed
+     * `language:<code>` into the search term, which became literal
+     * search text (MediaWiki has no `language:` keyword). Wikisource
+     * has no app-side language-switching infra anyway — it's hard-coded
+     * to en.wikisource.org via [WikisourceApi.BASE_URL]. Replaced with
+     * a real sort dimension since MediaWiki full-text search supports
+     * `srsort` (relevance, newest, oldest).
+     */
     override fun filterDimensions(): List<FilterDimension> = listOf(
-        FilterDimension.Select(
-            key = "language",
-            label = "Language",
-            options = listOf("en", "es", "fr", "de", "it", "pt"),
+        FilterDimension.Sort(
+            options = listOf(
+                FilterDimension.SortOption("relevance", "Most relevant"),
+                FilterDimension.SortOption("newest", "Newest"),
+                FilterDimension.SortOption("oldest", "Oldest"),
+            ),
         ),
     )
 
+    /**
+     * Translate the Sort filter into [SearchQuery.orderBy] / [direction].
+     * The [search] method reads them below to thread `srsort` through
+     * to the MediaWiki search API. Term is left untouched — pre-fix
+     * this was the bug.
+     */
     override fun applyFilters(base: SearchQuery, state: FilterState): SearchQuery {
-        var q = base
-        state.stringVal("language")?.takeIf { it.isNotBlank() }?.let { lang ->
-            val composed = if (q.term.isBlank()) "language:$lang"
-                else "${q.term} language:$lang"
-            q = q.copy(term = composed)
+        val sort = state.stringVal("sort") ?: return base
+        return when (sort) {
+            "newest" -> base.copy(
+                orderBy = `in`.jphe.storyvox.data.source.model.SearchOrder.LAST_UPDATE,
+                direction = `in`.jphe.storyvox.data.source.model.SortDirection.DESC,
+            )
+            "oldest" -> base.copy(
+                orderBy = `in`.jphe.storyvox.data.source.model.SearchOrder.LAST_UPDATE,
+                direction = `in`.jphe.storyvox.data.source.model.SortDirection.ASC,
+            )
+            else -> base // relevance is the default
         }
-        return q
     }
 
     // ─── browse ────────────────────────────────────────────────────────
@@ -153,7 +175,20 @@ internal class WikisourceSource @Inject constructor(
     override suspend fun search(query: SearchQuery): FictionResult<ListPage<FictionSummary>> {
         val term = query.term.trim()
         if (term.isEmpty()) return popular(1)
-        return when (val r = api.search(term)) {
+        // Translate orderBy → MediaWiki srsort value. Only LAST_UPDATE
+        // varies the default (relevance) — every other SearchOrder
+        // collapses back to relevance because Wikisource search has no
+        // FOLLOWERS / VIEWS / RATING concept.
+        val sort = when (query.orderBy) {
+            `in`.jphe.storyvox.data.source.model.SearchOrder.LAST_UPDATE ->
+                if (query.direction == `in`.jphe.storyvox.data.source.model.SortDirection.ASC) {
+                    "last_edit_asc"
+                } else {
+                    "last_edit_desc"
+                }
+            else -> "relevance"
+        }
+        return when (val r = api.search(term, sort = sort)) {
             is FictionResult.Success ->
                 FictionResult.Success(
                     ListPage(

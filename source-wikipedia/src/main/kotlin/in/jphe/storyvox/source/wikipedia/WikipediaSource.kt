@@ -92,24 +92,45 @@ internal class WikipediaSource @Inject constructor(
         )
     }
 
+    /**
+     * Issue #809 — the prior `language` Select dimension stuffed
+     * `language:<code>` into the search term, which became literal
+     * search text (MediaWiki has no `language:` keyword). Wikipedia's
+     * per-language host is set via [WikipediaConfig] (Settings →
+     * Wikipedia language), not the Browse filter, so the dimension was
+     * always going to be cosmetic. Replaced with a real sort dimension
+     * since the MediaWiki full-text search API supports `srsort`
+     * (relevance, newest, oldest).
+     */
     override fun filterDimensions(): List<FilterDimension> = listOf(
-        FilterDimension.Select(
-            key = "language",
-            label = "Language",
-            options = listOf("en", "es", "fr", "de", "it", "ja", "zh", "ru", "pt", "ar"),
+        FilterDimension.Sort(
+            options = listOf(
+                FilterDimension.SortOption("relevance", "Most relevant"),
+                FilterDimension.SortOption("newest", "Newest"),
+                FilterDimension.SortOption("oldest", "Oldest"),
+            ),
         ),
     )
 
+    /**
+     * Translate the Sort filter into [SearchQuery.orderBy]. The
+     * [search] method reads orderBy below to pick `opensearch` (cheap
+     * title-completion, no sort) vs `fullTextSearch` (slower, `srsort`-
+     * aware). Term is left untouched — pre-fix this was the bug.
+     */
     override fun applyFilters(base: SearchQuery, state: FilterState): SearchQuery {
-        // Language is silently stored on the SearchQuery term so it
-        // survives the round-trip; host switching is a follow-up.
-        var q = base
-        state.stringVal("language")?.takeIf { it.isNotBlank() }?.let { lang ->
-            val composed = if (q.term.isBlank()) "language:$lang"
-                else "${q.term} language:$lang"
-            q = q.copy(term = composed)
+        val sort = state.stringVal("sort") ?: return base
+        return when (sort) {
+            "newest" -> base.copy(
+                orderBy = `in`.jphe.storyvox.data.source.model.SearchOrder.LAST_UPDATE,
+                direction = `in`.jphe.storyvox.data.source.model.SortDirection.DESC,
+            )
+            "oldest" -> base.copy(
+                orderBy = `in`.jphe.storyvox.data.source.model.SearchOrder.LAST_UPDATE,
+                direction = `in`.jphe.storyvox.data.source.model.SortDirection.ASC,
+            )
+            else -> base // relevance is the default
         }
-        return q
     }
 
     // ─── browse ────────────────────────────────────────────────────────
@@ -158,9 +179,23 @@ internal class WikipediaSource @Inject constructor(
     override suspend fun search(query: SearchQuery): FictionResult<ListPage<FictionSummary>> {
         val term = query.term.trim()
         if (term.isEmpty()) return popular(1)
-        return api.openSearch(term).map { hits ->
-            val items = hits.map { it.toSummary() }
-            ListPage(items = items, page = 1, hasNext = false)
+        // Use cheap title-completion for the default RELEVANCE sort —
+        // openSearch matches against article titles, which is what the
+        // user typically wants. For LAST_UPDATE switch to the full-text
+        // search endpoint which is the only one that supports `srsort`.
+        val needsSrsort = query.orderBy == `in`.jphe.storyvox.data.source.model.SearchOrder.LAST_UPDATE
+        return if (needsSrsort) {
+            val sort = when (query.direction) {
+                `in`.jphe.storyvox.data.source.model.SortDirection.ASC -> "last_edit_asc"
+                `in`.jphe.storyvox.data.source.model.SortDirection.DESC -> "last_edit_desc"
+            }
+            api.fullTextSearch(term, sort = sort).map { hits ->
+                ListPage(items = hits.map { it.toSummary() }, page = 1, hasNext = false)
+            }
+        } else {
+            api.openSearch(term).map { hits ->
+                ListPage(items = hits.map { it.toSummary() }, page = 1, hasNext = false)
+            }
         }
     }
 

@@ -90,7 +90,11 @@ internal class WikisourceApi @Inject constructor(
      * with image references). Restricting to ns0 gives us the parent
      * work pages users actually want to listen to.
      */
-    suspend fun search(term: String, limit: Int = 20): FictionResult<List<WikisourceSearchHit>> {
+    suspend fun search(
+        term: String,
+        sort: String = "relevance",
+        limit: Int = 20,
+    ): FictionResult<List<WikisourceSearchHit>> {
         val q = term.trim()
         if (q.isEmpty()) return FictionResult.Success(emptyList())
         val url = BASE_URL +
@@ -99,6 +103,7 @@ internal class WikisourceApi @Inject constructor(
             "&srsearch=" + URLEncoder.encode(q, "UTF-8") +
             "&srnamespace=0" +
             "&srlimit=$limit" +
+            "&srsort=$sort" +
             "&format=json"
         return getJson<WikisourceSearchQueryResponse>(url).let { res ->
             when (res) {
