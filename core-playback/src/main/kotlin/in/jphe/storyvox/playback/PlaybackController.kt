@@ -730,9 +730,12 @@ class DefaultPlaybackController @Inject constructor(
         val seconds = cachedSkipDistanceSec.toFloat()
         val anchorMs = playbackPositionMs.value
         val anchorChars = positionMsToCharOffset(anchorMs, state.value.speed)
-        val target = (anchorChars - skipDeltaChars(seconds, state.value.speed))
-            .coerceAtLeast(0)
-        player?.seekToCharOffset(target)
+        val target = anchorChars - skipDeltaChars(seconds, state.value.speed)
+        if (target < 0) {
+            scope.launch { player?.rewindIntoPreviousChapter(-target) }
+        } else {
+            player?.seekToCharOffset(target)
+        }
     }
 
     override fun prewarmEngine() {

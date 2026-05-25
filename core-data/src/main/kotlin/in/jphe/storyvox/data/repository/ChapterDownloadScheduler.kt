@@ -40,8 +40,6 @@ class WorkManagerChapterDownloadScheduler @Inject constructor(
     override fun schedule(fictionId: String, chapterId: String, requireUnmetered: Boolean) {
         val constraints = Constraints.Builder()
             .setRequiredNetworkType(if (requireUnmetered) NetworkType.UNMETERED else NetworkType.CONNECTED)
-            .setRequiresBatteryNotLow(true)
-            .setRequiresStorageNotLow(true)
             .build()
 
         val input = Data.Builder()
