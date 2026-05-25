@@ -3848,13 +3848,36 @@ class EnginePlayer @AssistedInject constructor(
         // does NOT abandon (we want to hold focus while paused so a
         // subsequent resume doesn't have to re-acquire).
         runCatching { audioFocus.abandon() }
+        // #792 — handleStop must clear the chapter pointer + metadata, not
+        // just the transport flags. Pre-#792 we left currentChapterId,
+        // bookTitle, chapterTitle set; after stopping a radio chapter the
+        // pre-conditions for resume() became:
+        //   isLiveAudioChapter = false (just cleared)
+        //   currentChapterId   != null (stale)
+        //   sentences          empty   (loadAndPlayAudioStream zeroed it)
+        // A subsequent transport Play → handleSetPlayWhenReady(true) →
+        // resume() → `if (sentences.isEmpty()) return` silently dropped on
+        // the floor with no audio and no error surfaced. Mirror the chapter-
+        // fetch-failed cleanup path (line ~1233) so post-stop state is the
+        // same shape as cold-boot Idle.
         _observableState.update {
             it.copy(
+                currentChapterId = null,
+                charOffset = 0,
                 isPlaying = false,
+                bookTitle = null,
+                chapterTitle = null,
+                coverUri = null,
                 currentSentenceRange = null,
+                durationEstimateMs = 0L,
                 isLiveAudioChapter = false,
             )
         }
+        // Drop the in-memory TTS chapter buffer too — leaving the
+        // sentence list around after a stop would let a stale resume
+        // path latch onto the old chapter's text.
+        sentences = emptyList()
+        currentSentenceIndex = 0
         return Futures.immediateVoidFuture()
     }
 
@@ -3870,7 +3893,19 @@ class EnginePlayer @AssistedInject constructor(
     }
 
     fun releaseEngine() {
-        kotlinx.coroutines.runBlocking { persistPosition() }
+        // #790 — releaseEngine is invoked from StoryvoxPlaybackService.onDestroy
+        // on the main thread. persistPosition does a Room @Upsert; a naked
+        // runBlocking here either janks the main thread or trips Android's
+        // StrictMode disk-IO-on-main detector. Launch the write fire-and-
+        // forget on the scope (already Dispatchers.Main + the suspend body
+        // hops to IO inside Room), then park the main thread for at most
+        // 500ms waiting for it. If the join times out the write keeps
+        // running until scope.cancel() below drops it — the worst case is
+        // a missed position checkpoint, not a lost user gesture.
+        val persistJob = scope.launch { persistPosition() }
+        kotlinx.coroutines.runBlocking {
+            kotlinx.coroutines.withTimeoutOrNull(500L) { persistJob.join() }
+        }
         stopRecapPipeline()
         stopPlaybackPipeline()
         stopAudioStreamPlayer()
@@ -3968,10 +4003,18 @@ class EnginePlayer @AssistedInject constructor(
         }
         invalidateState()
 
-        ensureAudioStreamPlayer().run {
-            setMediaItem(androidx.media3.common.MediaItem.fromUri(url))
-            prepare()
-            playWhenReady = true
+        // #791 — ExoPlayer is pinned to the main Looper; this suspend
+        // function can be called from any dispatcher (loadAndPlay's caller
+        // path includes Dispatchers.Default workers). Hop to Main.immediate
+        // so the player surface is constructed and driven on the looper
+        // that ExoPlayer expects. .immediate dispatches inline when already
+        // on Main, so this is free on the common path.
+        withContext(Dispatchers.Main.immediate) {
+            ensureAudioStreamPlayer().run {
+                setMediaItem(androidx.media3.common.MediaItem.fromUri(url))
+                prepare()
+                playWhenReady = true
+            }
         }
     }
 
@@ -3982,7 +4025,16 @@ class EnginePlayer @AssistedInject constructor(
      *  isPlaying value when the stream buffers or stalls. */
     private fun ensureAudioStreamPlayer(): androidx.media3.exoplayer.ExoPlayer {
         audioStreamPlayer?.let { return it }
+        // #791 — Builder defaults the application Looper to whatever thread
+        // calls .build(). loadAndPlayAudioStream() runs on a Default-pool
+        // worker via Dispatchers.Default; without an explicit setLooper the
+        // ExoPlayer instance gets bound to a non-Looper worker thread and
+        // every subsequent access throws "Player is accessed on the wrong
+        // thread". Pin to the main looper here; the suspend caller in
+        // loadAndPlayAudioStream wraps the actual setMediaItem/prepare/
+        // playWhenReady calls in withContext(Dispatchers.Main.immediate).
         val player = androidx.media3.exoplayer.ExoPlayer.Builder(context)
+            .setLooper(Looper.getMainLooper())
             .setAudioAttributes(
                 AudioAttributes.Builder()
                     .setUsage(C.USAGE_MEDIA)
