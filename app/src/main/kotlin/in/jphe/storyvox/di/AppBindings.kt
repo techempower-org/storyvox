@@ -570,6 +570,18 @@ private class RealFictionRepositoryUi(
         runCatching { repo.refreshRemoteFollows() }
     }
 
+    override suspend fun retryDetail(id: String) {
+        // Issue #806 — Retry button on the FictionDetail error states.
+        // Mirror the first-subscription refresh that [fictionById] runs:
+        // call refreshDetail and update the per-id error state. The
+        // value flow is already a Room observer on the same row, so a
+        // successful refresh will surface automatically.
+        when (val result = repo.refreshDetail(id)) {
+            is FictionResult.Success -> errorState(id).value = null
+            is FictionResult.Failure -> errorState(id).value = result.message
+        }
+    }
+
     override suspend fun addByUrl(
         url: String,
         preferredSourceId: String?,

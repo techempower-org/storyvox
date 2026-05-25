@@ -41,6 +41,7 @@ class WorkManagerChapterDownloadScheduler @Inject constructor(
         val constraints = Constraints.Builder()
             .setRequiredNetworkType(if (requireUnmetered) NetworkType.UNMETERED else NetworkType.CONNECTED)
             .setRequiresBatteryNotLow(true)
+            .setRequiresStorageNotLow(true)
             .build()
 
         val input = Data.Builder()

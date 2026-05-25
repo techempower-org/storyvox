@@ -268,6 +268,17 @@ class FictionDetailViewModel @Inject constructor(
     }
 
     /**
+     * Issue #806 — re-fire the same first-subscription refresh that
+     * loads this fiction's detail. Wired to the Retry button on the
+     * full-screen "Couldn't load this fiction" error and the inline
+     * "Couldn't refresh" banner. Failures update the load-error flow
+     * the screen is already observing; success clears it.
+     */
+    fun retryRefresh() {
+        viewModelScope.launch { repo.retryDetail(fictionId) }
+    }
+
+    /**
      * Issue #211 — push a follow/unfollow to Royal Road's account
      * (distinct from [toggleFollow], which is local library Add/Remove).
      *

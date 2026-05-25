@@ -177,6 +177,16 @@ interface FictionRepositoryUi {
     suspend fun refreshFollows()
 
     /**
+     * Issue #806 — re-trigger the same refresh that [fictionById]'s
+     * first-subscription kick-off runs, so screens can wire a Retry
+     * affordance after a network/Cloudflare error. Updates the
+     * [fictionLoadError] state in place; the value [fictionById] Flow
+     * emits whatever cached row exists (if any). Best-effort: returns
+     * without throwing on failure.
+     */
+    suspend fun retryDetail(id: String) {}
+
+    /**
      * Resolve a pasted URL (or short form) to a fiction, persist it, and
      * fetch detail. Implementation routes through `UrlResolver` + the
      * multi-source map. Returns enough information for the sheet to

@@ -349,17 +349,15 @@ fun FictionDetailScreen(
     ) { scaffoldPadding ->
     Box(modifier = Modifier.fillMaxSize().padding(scaffoldPadding)) {
         if (fiction == null && state.error != null) {
-            // First-load failure with no cached fiction. Issue #169 —
-            // this path used to be a dead-end (no Back, no Retry, only
-            // OS back). Now wires onBack so the user always has a way
-            // out without leaning on the OS gesture. Still no Retry —
-            // the underlying refreshDetail re-fires when the user
-            // re-enters the screen via Back + re-tap, so a Retry CTA
-            // here would just blink the same error.
+            // First-load failure with no cached fiction. Issue #169 wired
+            // onBack so the user always has a way out without leaning on
+            // the OS gesture. Issue #806 added the Retry CTA — re-fires
+            // the same refreshDetail the screen ran on first subscription
+            // (was a dead-end requiring Back + re-tap).
             ErrorBlock(
                 title = "Couldn't load this fiction",
                 message = friendlyErrorMessage(state.error),
-                onRetry = null,
+                onRetry = viewModel::retryRefresh,
                 onBack = onBack,
                 placement = ErrorPlacement.FullScreen,
             )
@@ -384,7 +382,7 @@ fun FictionDetailScreen(
                         ErrorBlock(
                             title = "Couldn't refresh",
                             message = friendlyErrorMessage(state.error),
-                            onRetry = null,
+                            onRetry = viewModel::retryRefresh,
                             placement = ErrorPlacement.Banner,
                         )
                     }
@@ -455,7 +453,7 @@ fun FictionDetailScreen(
                         ErrorBlock(
                             title = "Couldn't refresh",
                             message = friendlyErrorMessage(state.error),
-                            onRetry = null,
+                            onRetry = viewModel::retryRefresh,
                             placement = ErrorPlacement.Banner,
                         )
                     }

@@ -70,6 +70,19 @@ class ChapterDownloadWorker @AssistedInject constructor(
         val chapterId = inputData.getString(KEY_CHAPTER_ID) ?: return Result.failure(
             Data.Builder().putString(KEY_RESULT, RESULT_BAD_INPUT).build(),
         )
+        // Issue #808 — cap retries so zombie URLs (chapter pulled, source
+        // permanently rate-limiting us, etc.) eventually terminate instead
+        // of looping forever on exponential backoff. The reaper handles
+        // the DOWNLOADING-state side; this handles the worker side.
+        if (runAttemptCount > MAX_RUN_ATTEMPTS) {
+            chapterDao.setDownloadState(
+                chapterId,
+                ChapterDownloadState.FAILED,
+                System.currentTimeMillis(),
+                "retry-exhausted",
+            )
+            return Result.failure(output(RESULT_RETRY_EXHAUSTED))
+        }
         val now = System.currentTimeMillis()
         val source = sourceFor(fictionDao.get(fictionId)?.sourceId)
 
@@ -202,6 +215,10 @@ class ChapterDownloadWorker @AssistedInject constructor(
         const val RESULT_NOT_FOUND = "404"
         const val RESULT_AUTH = "auth"
         const val RESULT_BAD_INPUT = "bad-input"
+        const val RESULT_RETRY_EXHAUSTED = "retry-exhausted"
+
+        /** Issue #808 — terminate after this many WorkManager retry attempts. */
+        const val MAX_RUN_ATTEMPTS: Int = 5
 
         /**
          * Issue #705 — DOWNLOADING rows older than this are flipped back
