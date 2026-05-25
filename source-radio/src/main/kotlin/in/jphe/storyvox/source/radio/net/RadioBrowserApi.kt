@@ -107,6 +107,54 @@ internal class RadioBrowserApi @Inject constructor(
             }
     }
 
+    /**
+     * Multi-facet search against `/json/stations/search`. Any of
+     * [name], [country], [language], [tag] may be blank/null; the
+     * server applies AND semantics across the non-blank params. This
+     * is the surface that powers the Browse → Radio filter chips
+     * (country / language / tags) declared in [RadioSource.filterDimensions].
+     *
+     * Same HTTPS-only / lastcheckok / ssl_error filtering as [byName]
+     * via the shared [RadioBrowserStation.toRadioStation] mapper.
+     */
+    suspend fun search(
+        name: String? = null,
+        country: String? = null,
+        language: String? = null,
+        tag: String? = null,
+        limit: Int = 50,
+    ): FictionResult<List<RadioStation>> {
+        val url = "$BASE_URL/json/stations/search"
+            .toHttpUrl().newBuilder()
+            .apply {
+                name?.trim()?.takeIf { it.isNotBlank() }?.let {
+                    addQueryParameter("name", it)
+                }
+                country?.trim()?.takeIf { it.isNotBlank() }?.let {
+                    addQueryParameter("country", it)
+                }
+                language?.trim()?.takeIf { it.isNotBlank() }?.let {
+                    addQueryParameter("language", it)
+                }
+                tag?.trim()?.takeIf { it.isNotBlank() }?.let {
+                    addQueryParameter("tag", it)
+                }
+                addQueryParameter("hidebroken", "true")
+                addQueryParameter("limit", limit.coerceIn(1, 100).toString())
+            }
+            .build()
+            .toString()
+        return getJson<List<RadioBrowserStation>>(url)
+            .let { result ->
+                when (result) {
+                    is FictionResult.Success -> FictionResult.Success(
+                        result.value.mapNotNull { it.toRadioStation() },
+                    )
+                    is FictionResult.Failure -> result
+                }
+            }
+    }
+
     // ─── transport ────────────────────────────────────────────────────
 
     private inline fun <reified T> getJson(url: String): FictionResult<T> =

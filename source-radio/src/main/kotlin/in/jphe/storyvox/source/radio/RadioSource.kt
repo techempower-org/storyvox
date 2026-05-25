@@ -2,6 +2,8 @@ package `in`.jphe.storyvox.source.radio
 
 import `in`.jphe.storyvox.data.source.FictionSource
 import `in`.jphe.storyvox.data.source.SourceIds
+import `in`.jphe.storyvox.data.source.filter.FilterDimension
+import `in`.jphe.storyvox.data.source.filter.FilterState
 import `in`.jphe.storyvox.data.source.plugin.SourceCategory
 import `in`.jphe.storyvox.data.source.plugin.SourcePlugin
 import `in`.jphe.storyvox.data.source.model.ChapterContent
@@ -101,6 +103,59 @@ internal class RadioSource @Inject constructor(
         )
     }
 
+    // ─── filters ──────────────────────────────────────────────────────
+
+    /**
+     * Issue #795 — surface Radio Browser's facet axes (country,
+     * language, tags) as Browse → Radio filter chips. Radio Browser's
+     * `/json/stations/search` accepts all three simultaneously with AND
+     * semantics, so a user can ask for e.g. "all French jazz stations"
+     * and the network call narrows server-side.
+     *
+     * Free-text inputs rather than a select picker because Radio
+     * Browser's facet taxonomies are enormous and free-form (country
+     * strings include phrases like "The United States Of America",
+     * tags are user-added). Bake an autocomplete picker as a v2.
+     */
+    override fun filterDimensions(): List<FilterDimension> = listOf(
+        FilterDimension.Text(
+            key = "country",
+            label = "Country",
+            placeholder = "e.g. France, Germany, United States",
+        ),
+        FilterDimension.Text(
+            key = "language",
+            label = "Language",
+            placeholder = "e.g. english, french, spanish",
+        ),
+        FilterDimension.Text(
+            key = "tags",
+            label = "Tag",
+            placeholder = "e.g. jazz, classical, news",
+        ),
+    )
+
+    /**
+     * Stash filter state in [SearchQuery] using sentinel prefixes in
+     * `tags`. The universal SearchQuery has no dedicated country /
+     * language / station-tag slots, so [search] picks the values back
+     * out by prefix. Mirrors the same pattern the AO3 / Gutenberg
+     * sources use for their per-source axes.
+     */
+    override fun applyFilters(base: SearchQuery, state: FilterState): SearchQuery {
+        var q = base
+        state.stringVal("country")?.takeIf { it.isNotBlank() }?.let { c ->
+            q = q.copy(tags = q.tags + "$COUNTRY_PREFIX$c")
+        }
+        state.stringVal("language")?.takeIf { it.isNotBlank() }?.let { l ->
+            q = q.copy(tags = q.tags + "$LANGUAGE_PREFIX$l")
+        }
+        state.stringVal("tags")?.takeIf { it.isNotBlank() }?.let { t ->
+            q = q.copy(tags = q.tags + "$TAG_PREFIX$t")
+        }
+        return q
+    }
+
     // ─── browse ────────────────────────────────────────────────────────
 
     override suspend fun popular(page: Int): FictionResult<ListPage<FictionSummary>> {
@@ -141,7 +196,23 @@ internal class RadioSource @Inject constructor(
 
     override suspend fun search(query: SearchQuery): FictionResult<ListPage<FictionSummary>> {
         val term = query.term.trim()
-        if (term.isEmpty()) {
+        // Peel filter state back out of [SearchQuery]. [applyFilters]
+        // stashes country / language / tag under sentinel prefixes in
+        // tags.
+        val countryFilter = query.tags
+            .firstOrNull { it.startsWith(COUNTRY_PREFIX) }
+            ?.removePrefix(COUNTRY_PREFIX)
+        val languageFilter = query.tags
+            .firstOrNull { it.startsWith(LANGUAGE_PREFIX) }
+            ?.removePrefix(LANGUAGE_PREFIX)
+        val tagFilter = query.tags
+            .firstOrNull { it.startsWith(TAG_PREFIX) }
+            ?.removePrefix(TAG_PREFIX)
+        val hasFilters = !countryFilter.isNullOrBlank() ||
+            !languageFilter.isNullOrBlank() ||
+            !tagFilter.isNullOrBlank()
+
+        if (term.isEmpty() && !hasFilters) {
             // Match the popular() shape for empty-query so the Search
             // tab feels populated rather than blank-on-arrival.
             return popular(page = 1)
@@ -150,19 +221,50 @@ internal class RadioSource @Inject constructor(
         // (zero network, instant) — this is what kept the old
         // :source-kvmr "search for kvmr" surface fast. Anything beyond
         // the local matches comes from the Radio Browser API call.
+        // With filters active, narrow the local match using the same
+        // axes the remote call applies so the merged list stays
+        // coherent (don't show a US curated station when the filter
+        // says "country = France").
         val lowered = term.lowercase()
         val localMatches = (RadioStations.curated + config.snapshot())
+            .asSequence()
             .filter { station ->
-                station.displayName.lowercase().contains(lowered) ||
+                term.isEmpty() ||
+                    station.displayName.lowercase().contains(lowered) ||
                     station.tags.any { it.lowercase().contains(lowered) } ||
                     station.country.lowercase().contains(lowered)
             }
+            .filter { station ->
+                countryFilter.isNullOrBlank() ||
+                    station.country.contains(countryFilter, ignoreCase = true)
+            }
+            .filter { station ->
+                languageFilter.isNullOrBlank() ||
+                    station.language.contains(languageFilter, ignoreCase = true)
+            }
+            .filter { station ->
+                tagFilter.isNullOrBlank() ||
+                    station.tags.any { it.contains(tagFilter, ignoreCase = true) }
+            }
             .map { it.toSummary() }
+            .toList()
 
-        // Hit Radio Browser for the long-tail. Failures here don't sink
-        // the whole search — local matches still come back even if the
-        // network call fails.
-        val remoteMatches = when (val result = api.byName(term)) {
+        // Hit Radio Browser for the long-tail. Use the multi-facet
+        // `/search` endpoint when any filter is active, otherwise the
+        // original `byname` endpoint (preserves the legacy URL shape
+        // for term-only searches). Failures don't sink the whole
+        // result — local matches still come back even if the network
+        // call fails.
+        val remoteMatches = when (val result = if (hasFilters) {
+            api.search(
+                name = term.ifBlank { null },
+                country = countryFilter,
+                language = languageFilter,
+                tag = tagFilter,
+            )
+        } else {
+            api.byName(term)
+        }) {
             is FictionResult.Success -> result.value.map { it.toSummary() }
             is FictionResult.Failure -> emptyList()
         }
@@ -312,5 +414,16 @@ internal class RadioSource @Inject constructor(
 
         const val USER_AGENT: String =
             "storyvox-radio/0.5.32 (+https://github.com/techempower-org/storyvox)"
+
+        /**
+         * Sentinel prefixes used by [applyFilters] to smuggle the
+         * country / language / tag filters through [SearchQuery.tags].
+         * The universal SearchQuery has no per-source slots for these
+         * Radio Browser facet axes; [search] picks the values back out
+         * by prefix and routes them to the multi-facet API call.
+         */
+        internal const val COUNTRY_PREFIX = "country:"
+        internal const val LANGUAGE_PREFIX = "language:"
+        internal const val TAG_PREFIX = "tag:"
     }
 }
