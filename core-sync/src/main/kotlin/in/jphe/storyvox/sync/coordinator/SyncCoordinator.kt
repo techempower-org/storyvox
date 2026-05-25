@@ -58,19 +58,26 @@ class SyncCoordinator @Inject constructor(
 
     /** Called at app start once Hilt has wired everything. */
     fun initialize() {
-        val user = session.current() ?: return
+        val user = session.current() ?: run {
+            android.util.Log.d(TAG, "initialize: no signed-in user, skipping")
+            return
+        }
+        android.util.Log.i(TAG, "initialize: verifying token for user=${user.userId.take(8)}…")
         scope.launch {
             // Validate the token first — if it's no longer good, treat
             // as signed-out and let the user re-auth before we attempt
             // any push/pull (which would 401 in a loop).
             val verify = client.verifyRefreshToken(user.refreshToken)
             if (verify is SyncAuthResult.Err) {
+                android.util.Log.w(TAG, "initialize: token invalid, clearing session")
                 session.clear()
                 return@launch
             }
+            android.util.Log.i(TAG, "initialize: token valid, starting pullAll (${syncers.size} syncers)")
             // Best-effort pull — if it fails the next push will fix the
             // server up. Don't block the launch on a flaky network.
             pullAll(user)
+            android.util.Log.i(TAG, "initialize: pullAll complete")
         }
     }
 
@@ -92,9 +99,14 @@ class SyncCoordinator @Inject constructor(
 
     /** Manual sync trigger from Settings → Account. Pull then push. */
     fun syncNow() {
-        val user = session.current() ?: return
+        val user = session.current() ?: run {
+            android.util.Log.w(TAG, "syncNow: no signed-in user")
+            return
+        }
+        android.util.Log.i(TAG, "syncNow: starting pull+push for user=${user.userId.take(8)}…")
         scope.launch {
             pullAll(user)
+            android.util.Log.i(TAG, "syncNow: pullAll done, starting pushAll")
             requestPushAll()
         }
     }
@@ -109,10 +121,16 @@ class SyncCoordinator @Inject constructor(
         @Suppress("UNUSED_EXPRESSION") user // tame static analyser
     }
 
-    /** Called by [initialize] after token verification. */
+    /** Called by [initialize] after token verification.
+     *
+     *  Ordering matters: library + follows create Fiction placeholder rows
+     *  that other syncers (positions, bookmarks) depend on via FK. We run
+     *  those first, then everything else. */
     private suspend fun pullAll(user: SignedInUser) {
-        syncers.forEach { syncer ->
-            val mutex = locks[syncer.name] ?: return@forEach
+        val ordered = syncers.sortedBy { if (it.name in FK_ROOT_DOMAINS) 0 else 1 }
+        ordered.forEachIndexed { i, syncer ->
+            android.util.Log.d(TAG, "pullAll: [${i+1}/${ordered.size}] ${syncer.name}")
+            val mutex = locks[syncer.name] ?: return@forEachIndexed
             mutex.withLock { runWithStatus(syncer) { it.pull(user) } }
         }
     }
@@ -120,14 +138,33 @@ class SyncCoordinator @Inject constructor(
     /** Wrapper that publishes status transitions for the UI. */
     private suspend fun runWithStatus(syncer: Syncer, block: suspend (Syncer) -> SyncOutcome) {
         publish(syncer.name, SyncStatus.Running)
+        val t0 = System.currentTimeMillis()
         val outcome = runCatching { block(syncer) }
-            .getOrElse { SyncOutcome.Transient(it.message ?: it::class.simpleName ?: "error") }
+            .getOrElse { e ->
+                android.util.Log.e(TAG, "runWithStatus: ${syncer.name} threw", e)
+                SyncOutcome.Transient(e.message ?: e::class.simpleName ?: "error")
+            }
+        val elapsed = System.currentTimeMillis() - t0
         val status = when (outcome) {
-            is SyncOutcome.Ok -> SyncStatus.OkAt(System.currentTimeMillis(), outcome.recordsAffected)
-            is SyncOutcome.Transient -> SyncStatus.Transient(outcome.message)
-            is SyncOutcome.Permanent -> SyncStatus.Permanent(outcome.message)
+            is SyncOutcome.Ok -> {
+                android.util.Log.i(TAG, "${syncer.name}: OK (${outcome.recordsAffected} records, ${elapsed}ms)")
+                SyncStatus.OkAt(System.currentTimeMillis(), outcome.recordsAffected)
+            }
+            is SyncOutcome.Transient -> {
+                android.util.Log.w(TAG, "${syncer.name}: TRANSIENT — ${outcome.message} (${elapsed}ms)")
+                SyncStatus.Transient(outcome.message)
+            }
+            is SyncOutcome.Permanent -> {
+                android.util.Log.e(TAG, "${syncer.name}: PERMANENT — ${outcome.message} (${elapsed}ms)")
+                SyncStatus.Permanent(outcome.message)
+            }
         }
         publish(syncer.name, status)
+    }
+
+    private companion object {
+        private const val TAG = "SyncCoordinator"
+        private val FK_ROOT_DOMAINS = setOf("library", "follows")
     }
 
     private fun publish(domain: String, status: SyncStatus) {

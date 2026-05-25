@@ -32,6 +32,8 @@ import kotlinx.serialization.json.Json
 class PlaybackPositionSyncer @Inject constructor(
     private val playbackDao: PlaybackDao,
     private val backend: InstantBackend,
+    private val fictionDao: `in`.jphe.storyvox.data.db.dao.FictionDao,
+    private val chapterDao: `in`.jphe.storyvox.data.db.dao.ChapterDao,
 ) : Syncer {
 
     override val name: String get() = DOMAIN
@@ -89,14 +91,28 @@ class PlaybackPositionSyncer @Inject constructor(
 
         // Apply remote-only entries to local (those that didn't exist locally
         // and entries whose remote updatedAt won).
+        // Guard: PlaybackPosition has FK constraints on both fiction and
+        // chapter tables. After app data clear + re-sync, parent rows may
+        // not exist yet — skip those entries rather than crashing on FK
+        // violation. The position will be written on the next sync round
+        // once library sync has created the parent rows.
         var writes = 0
+        var skipped = 0
         for ((id, merged) in mergedByFiction) {
             val local = localPositions[id]
             if (local == null || merged.updatedAt > local.updatedAt) {
+                val fictionExists = fictionDao.get(merged.fictionId) != null
+                val chapterExists = chapterDao.exists(merged.chapterId)
+                if (!fictionExists || !chapterExists) {
+                    android.util.Log.d(TAG, "skipping position for ${merged.fictionId}: fiction=$fictionExists chapter=$chapterExists")
+                    skipped++
+                    continue
+                }
                 playbackDao.upsert(merged.toEntity())
                 writes++
             }
         }
+        if (skipped > 0) android.util.Log.i(TAG, "skipped $skipped positions (missing parent rows)")
 
         // Push the merged payload back.
         val pushPayload = Payload(entries = mergedByFiction.values.sortedBy { it.fictionId })
@@ -152,5 +168,6 @@ class PlaybackPositionSyncer @Inject constructor(
     companion object {
         const val DOMAIN: String = "positions"
         private const val ENTITY = "positions"
+        private const val TAG = "PositionSyncer"
     }
 }

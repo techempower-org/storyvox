@@ -106,6 +106,7 @@ class HttpInstantBackend(
         id: String,
     ): Result<RowSnapshot?> = runCatching {
         if (!isConfigured) error(NOT_CONFIGURED)
+        android.util.Log.d(TAG, "fetch: entity=$entity id=${id.take(12)}…")
         val body = json.encodeToString(
             JsonObject.serializer(),
             buildJsonObject {
@@ -126,7 +127,11 @@ class HttpInstantBackend(
             jsonBody = body,
             headers = adminHeaders(user.refreshToken),
         )
-        if (!res.isSuccessful) error(parseError(res, "query"))
+        if (!res.isSuccessful) {
+            android.util.Log.w(TAG, "fetch: HTTP ${res.code} for $entity/${id.take(12)}…")
+            error(parseError(res, "query"))
+        }
+        android.util.Log.d(TAG, "fetch: HTTP ${res.code}, body=${res.body.length} chars")
 
         // Response shape: `{ "<entity>": [ {id, payload, updatedAt, ...} ] }`.
         // Empty array (or missing key) means the row doesn't exist yet.
@@ -151,6 +156,7 @@ class HttpInstantBackend(
         updatedAt: Long,
     ): Result<Unit> = runCatching {
         if (!isConfigured) error(NOT_CONFIGURED)
+        android.util.Log.d(TAG, "upsert: entity=$entity id=${id.take(12)}… payload=${payload.length} chars")
         val body = json.encodeToString(
             JsonObject.serializer(),
             buildJsonObject {
@@ -173,7 +179,11 @@ class HttpInstantBackend(
             jsonBody = body,
             headers = adminHeaders(user.refreshToken),
         )
-        if (!res.isSuccessful) error(parseError(res, "transact"))
+        if (!res.isSuccessful) {
+            android.util.Log.w(TAG, "upsert: HTTP ${res.code} for $entity/${id.take(12)}…")
+            error(parseError(res, "transact"))
+        }
+        android.util.Log.d(TAG, "upsert: HTTP ${res.code} OK")
         Unit
     }
 
@@ -201,6 +211,7 @@ class HttpInstantBackend(
     companion object {
         const val PLACEHOLDER_APP_ID: String = "PLACEHOLDER"
         private const val NOT_CONFIGURED = "Sync backend not configured"
+        private const val TAG = "InstantBackend"
     }
 }
 

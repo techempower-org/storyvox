@@ -35,32 +35,42 @@ class LwwBlobSyncer(
     override suspend fun pull(user: SignedInUser): SyncOutcome = reconcile(user)
 
     private suspend fun reconcile(user: SignedInUser): SyncOutcome {
+        val tag = "LwwSyncer[$name]"
         val local = runCatching { localRead() }
             .getOrElse { return SyncOutcome.Transient("local read: ${it.message}") }
         val remoteVal = remote.fetch(user).getOrElse {
             return SyncOutcome.Transient("remote fetch: ${it.message}")
         }
+        android.util.Log.d(tag, "local=${if (local != null) "${local.value.length}chars@${local.updatedAt}" else "null"} remote=${if (remoteVal != null) "${remoteVal.value.length}chars@${remoteVal.updatedAt}" else "null"}")
 
         val merged = when {
-            local == null && remoteVal == null -> return SyncOutcome.Ok(0)
+            local == null && remoteVal == null -> {
+                android.util.Log.d(tag, "both null, nothing to sync")
+                return SyncOutcome.Ok(0)
+            }
             local == null -> {
-                runCatching { localWrite(remoteVal!!) }
+                android.util.Log.i(tag, "local empty, applying remote (${remoteVal!!.value.length} chars)")
+                runCatching { localWrite(remoteVal) }
                     .onFailure { return SyncOutcome.Transient("localWrite: ${it.message}") }
                 return SyncOutcome.Ok(1)
             }
             remoteVal == null -> {
+                android.util.Log.i(tag, "remote empty, pushing local (${local.value.length} chars)")
                 val push = remote.push(user, local)
                 if (push.isFailure) return SyncOutcome.Transient("remote push: ${push.exceptionOrNull()?.message}")
                 return SyncOutcome.Ok(1)
             }
             else -> ConflictPolicies.lastWriteWins(local, remoteVal)
         }
+        android.util.Log.d(tag, "merged: winner=${if (merged.updatedAt == local.updatedAt) "local" else "remote"}")
 
         if (merged.updatedAt != local.updatedAt || merged.value != local.value) {
+            android.util.Log.d(tag, "writing merged to local")
             runCatching { localWrite(merged) }
                 .onFailure { return SyncOutcome.Transient("localWrite: ${it.message}") }
         }
         if (merged.updatedAt != remoteVal!!.updatedAt || merged.value != remoteVal.value) {
+            android.util.Log.d(tag, "pushing merged to remote")
             val push = remote.push(user, merged)
             if (push.isFailure) return SyncOutcome.Transient("remote push: ${push.exceptionOrNull()?.message}")
         }

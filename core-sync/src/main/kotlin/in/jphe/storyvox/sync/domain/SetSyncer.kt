@@ -56,16 +56,19 @@ class SetSyncer(
      * is purely semantic — they bot end with both sides identical.
      */
     private suspend fun pushImpl(user: SignedInUser): SyncOutcome {
+        val tag = "SetSyncer[$name]"
         val now = System.currentTimeMillis()
         val local = runCatching { localSnapshot() }
             .getOrElse { return SyncOutcome.Transient("local snapshot: ${it.message}") }
         val localTombs = runCatching { tombstones.snapshotWithStamps(name) }
             .getOrElse { return SyncOutcome.Transient("tombstones: ${it.message}") }
+        android.util.Log.d(tag, "local: ${local.size} members, ${localTombs.size} tombstones")
 
         val remoteResult = remote.fetch(user)
         val remoteSet = remoteResult.getOrElse {
             return SyncOutcome.Transient("remote fetch: ${it.message}")
         }
+        android.util.Log.d(tag, "remote: ${remoteSet.members.size} members, ${remoteSet.tombstones.size} tombstones")
 
         // Issue #360 finding 3: combine tombstone maps, taking the
         // newer stamp on conflict so a freshly-recorded tombstone on
@@ -80,17 +83,21 @@ class SetSyncer(
             tombstones = combinedTombs,
             now = now,
         )
+        android.util.Log.d(tag, "merged: ${mergedMembers.size} members (${combinedTombs.size} combined tombstones)")
 
         // Reconcile local — apply remote-only adds, drop remote tombs.
         val toAddLocally = mergedMembers - local
         val toRemoveLocally = (local - mergedMembers)
-        for (id in toAddLocally) {
+        android.util.Log.i(tag, "diff: +${toAddLocally.size} adds, -${toRemoveLocally.size} removes")
+        for ((i, id) in toAddLocally.withIndex()) {
             runCatching { localAdd(id) }
                 .getOrElse { return SyncOutcome.Transient("localAdd($id): ${it.message}") }
+            if ((i + 1) % 10 == 0) android.util.Log.d(tag, "localAdd progress: ${i+1}/${toAddLocally.size}")
         }
-        for (id in toRemoveLocally) {
+        for ((i, id) in toRemoveLocally.withIndex()) {
             runCatching { localRemove(id) }
                 .getOrElse { return SyncOutcome.Transient("localRemove($id): ${it.message}") }
+            if ((i + 1) % 10 == 0) android.util.Log.d(tag, "localRemove progress: ${i+1}/${toRemoveLocally.size}")
         }
 
         // Push the canonical state back so the server matches. Note
@@ -98,6 +105,7 @@ class SetSyncer(
         // ones, until garbage-collected by [forget] on the next
         // round) so other devices see the same horizon we just
         // computed against.
+        android.util.Log.d(tag, "pushing ${mergedMembers.size} members to remote")
         val push = remote.push(user, mergedMembers, combinedTombs)
         if (push.isFailure) {
             return SyncOutcome.Transient("remote push: ${push.exceptionOrNull()?.message}")
@@ -115,6 +123,7 @@ class SetSyncer(
         for (id in expired) {
             runCatching { tombstones.forget(name, id) }
         }
+        android.util.Log.i(tag, "complete: ${toAddLocally.size + toRemoveLocally.size} records affected")
         return SyncOutcome.Ok(recordsAffected = toAddLocally.size + toRemoveLocally.size)
     }
 

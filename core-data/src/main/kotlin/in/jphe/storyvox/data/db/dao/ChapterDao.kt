@@ -42,6 +42,9 @@ interface ChapterDao {
     @Query("SELECT * FROM chapter WHERE id = :id")
     suspend fun get(id: String): Chapter?
 
+    @Query("SELECT EXISTS(SELECT 1 FROM chapter WHERE id = :id)")
+    suspend fun exists(id: String): Boolean
+
     /**
      * Issue #117 — full row dump including htmlBody/plainBody/notes, used
      * by the EPUB export use case to assemble a complete book file in one
