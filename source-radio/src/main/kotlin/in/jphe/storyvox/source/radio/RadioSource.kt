@@ -2,6 +2,8 @@ package `in`.jphe.storyvox.source.radio
 
 import `in`.jphe.storyvox.data.source.FictionSource
 import `in`.jphe.storyvox.data.source.SourceIds
+import `in`.jphe.storyvox.data.source.filter.FilterDimension
+import `in`.jphe.storyvox.data.source.filter.FilterState
 import `in`.jphe.storyvox.data.source.plugin.SourceCategory
 import `in`.jphe.storyvox.data.source.plugin.SourcePlugin
 import `in`.jphe.storyvox.data.source.model.ChapterContent
@@ -101,6 +103,63 @@ internal class RadioSource @Inject constructor(
         )
     }
 
+    // ─── filters ───────────────────────────────────────────────────────
+
+    /**
+     * Issue #795 — Radio Browser's `/json/stations/search` endpoint
+     * supports country, language, and tag facets that the v1 source
+     * was discarding. The filter sheet now surfaces them as free-text
+     * Text dimensions (the directory's value space is too large to
+     * enumerate as Select chips — JP's "german jazz" search is one
+     * combination among thousands of country×language×tag triples).
+     */
+    override fun filterDimensions(): List<FilterDimension> = listOf(
+        FilterDimension.Text(
+            key = "country",
+            label = "Country",
+            placeholder = "e.g. The United States Of America",
+        ),
+        FilterDimension.Text(
+            key = "countryCode",
+            label = "Country code",
+            placeholder = "e.g. US, DE, GB",
+        ),
+        FilterDimension.Text(
+            key = "language",
+            label = "Language",
+            placeholder = "e.g. english, spanish",
+        ),
+        FilterDimension.Text(
+            key = "tag",
+            label = "Tag",
+            placeholder = "e.g. jazz, classical, news",
+        ),
+    )
+
+    /**
+     * Persists Radio Browser facets onto the SearchQuery via sentinel
+     * tags (`country:`, `countryCode:`, `language:`, `tag:`) so [search]
+     * can pull them back out without growing new SearchQuery fields.
+     * The sentinels are namespaced to this source's tag space; they
+     * never leak past [RadioSource.search].
+     */
+    override fun applyFilters(base: SearchQuery, state: FilterState): SearchQuery {
+        var q = base
+        state.stringVal("country")?.takeIf { it.isNotBlank() }?.let {
+            q = q.copy(tags = q.tags + "country:${it.trim()}")
+        }
+        state.stringVal("countryCode")?.takeIf { it.isNotBlank() }?.let {
+            q = q.copy(tags = q.tags + "countryCode:${it.trim()}")
+        }
+        state.stringVal("language")?.takeIf { it.isNotBlank() }?.let {
+            q = q.copy(tags = q.tags + "language:${it.trim()}")
+        }
+        state.stringVal("tag")?.takeIf { it.isNotBlank() }?.let {
+            q = q.copy(tags = q.tags + "tag:${it.trim()}")
+        }
+        return q
+    }
+
     // ─── browse ────────────────────────────────────────────────────────
 
     override suspend fun popular(page: Int): FictionResult<ListPage<FictionSummary>> {
@@ -141,28 +200,56 @@ internal class RadioSource @Inject constructor(
 
     override suspend fun search(query: SearchQuery): FictionResult<ListPage<FictionSummary>> {
         val term = query.term.trim()
-        if (term.isEmpty()) {
+        // Pull the Radio Browser facets back off the tag sentinels
+        // [applyFilters] writes.
+        val country = query.tags.firstOrNull { it.startsWith("country:") }
+            ?.removePrefix("country:")?.takeIf { it.isNotBlank() }
+        val countryCode = query.tags.firstOrNull { it.startsWith("countryCode:") }
+            ?.removePrefix("countryCode:")?.takeIf { it.isNotBlank() }
+        val language = query.tags.firstOrNull { it.startsWith("language:") }
+            ?.removePrefix("language:")?.takeIf { it.isNotBlank() }
+        val tag = query.tags.firstOrNull { it.startsWith("tag:") }
+            ?.removePrefix("tag:")?.takeIf { it.isNotBlank() }
+        val anyFacet = country != null || countryCode != null ||
+            language != null || tag != null
+
+        if (term.isEmpty() && !anyFacet) {
             // Match the popular() shape for empty-query so the Search
             // tab feels populated rather than blank-on-arrival.
             return popular(page = 1)
         }
+
         // Local match against the curated set + starred imports first
         // (zero network, instant) — this is what kept the old
         // :source-kvmr "search for kvmr" surface fast. Anything beyond
         // the local matches comes from the Radio Browser API call.
+        // Local search only applies a name term — country/language/tag
+        // facets always route to the remote API for proper coverage.
         val lowered = term.lowercase()
-        val localMatches = (RadioStations.curated + config.snapshot())
-            .filter { station ->
-                station.displayName.lowercase().contains(lowered) ||
-                    station.tags.any { it.lowercase().contains(lowered) } ||
-                    station.country.lowercase().contains(lowered)
-            }
-            .map { it.toSummary() }
+        val localMatches = if (term.isNotEmpty()) {
+            (RadioStations.curated + config.snapshot())
+                .filter { station ->
+                    station.displayName.lowercase().contains(lowered) ||
+                        station.tags.any { it.lowercase().contains(lowered) } ||
+                        station.country.lowercase().contains(lowered)
+                }
+                .map { it.toSummary() }
+        } else {
+            emptyList()
+        }
 
         // Hit Radio Browser for the long-tail. Failures here don't sink
         // the whole search — local matches still come back even if the
         // network call fails.
-        val remoteMatches = when (val result = api.byName(term)) {
+        val remoteMatches = when (
+            val result = api.search(
+                name = term.takeIf { it.isNotEmpty() },
+                country = country,
+                countryCode = countryCode,
+                language = language,
+                tag = tag,
+            )
+        ) {
             is FictionResult.Success -> result.value.map { it.toSummary() }
             is FictionResult.Failure -> emptyList()
         }

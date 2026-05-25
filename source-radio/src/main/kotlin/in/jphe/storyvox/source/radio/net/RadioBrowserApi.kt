@@ -82,21 +82,59 @@ internal class RadioBrowserApi @Inject constructor(
     suspend fun byName(
         query: String,
         limit: Int = 50,
+    ): FictionResult<List<RadioStation>> =
+        search(name = query.takeIf { it.isNotBlank() }, limit = limit)
+
+    /**
+     * Multi-facet search using Radio Browser's `/json/stations/search`
+     * endpoint. Every facet is optional; when none are provided we
+     * return an empty list rather than the full ~30k catalog (the
+     * caller — [RadioSource.search] — keeps the curated/starred fast
+     * path for the no-facet case).
+     *
+     * Facets we expose:
+     *  - [name] — fuzzy substring match on the station name
+     *  - [country] — exact match against Radio Browser's country field
+     *    (e.g. "The United States Of America"); use [countryCode]
+     *    instead for ISO-3166 short codes
+     *  - [countryCode] — two-letter ISO code (e.g. "us", "gb", "de")
+     *  - [language] — fuzzy match (e.g. "english", "spanish")
+     *  - [tag] — single-tag fuzzy match (Radio Browser also accepts
+     *    `tagList=t1,t2` for AND semantics; v1 stays single-tag)
+     *
+     * Radio Browser's search endpoint applies all params as AND, so a
+     * country+language combination narrows correctly.
+     */
+    suspend fun search(
+        name: String? = null,
+        country: String? = null,
+        countryCode: String? = null,
+        language: String? = null,
+        tag: String? = null,
+        limit: Int = 50,
     ): FictionResult<List<RadioStation>> {
-        val trimmed = query.trim()
-        if (trimmed.isEmpty()) {
-            return FictionResult.Success(emptyList())
-        }
-        val url = "$BASE_URL/json/stations/byname/$trimmed"
+        // Refuse to fan out the full catalog — Radio Browser's
+        // /search endpoint returns ALL stations when called with no
+        // filters and we'd flood the UI list.
+        val hasAnyFacet = !name.isNullOrBlank() || !country.isNullOrBlank() ||
+            !countryCode.isNullOrBlank() || !language.isNullOrBlank() ||
+            !tag.isNullOrBlank()
+        if (!hasAnyFacet) return FictionResult.Success(emptyList())
+        val builder = "$BASE_URL/json/stations/search"
             .toHttpUrl().newBuilder()
             // `hidebroken=true` filters out stations Radio Browser's
             // own uptime checker has marked as broken — saves the user
             // from tapping "Play" on a dead URL.
             .addQueryParameter("hidebroken", "true")
             .addQueryParameter("limit", limit.coerceIn(1, 100).toString())
-            .build()
-            .toString()
-        return getJson<List<RadioBrowserStation>>(url)
+        if (!name.isNullOrBlank()) builder.addQueryParameter("name", name.trim())
+        if (!country.isNullOrBlank()) builder.addQueryParameter("country", country.trim())
+        if (!countryCode.isNullOrBlank()) {
+            builder.addQueryParameter("countrycode", countryCode.trim().uppercase())
+        }
+        if (!language.isNullOrBlank()) builder.addQueryParameter("language", language.trim())
+        if (!tag.isNullOrBlank()) builder.addQueryParameter("tag", tag.trim())
+        return getJson<List<RadioBrowserStation>>(builder.build().toString())
             .let { result ->
                 when (result) {
                     is FictionResult.Success -> FictionResult.Success(
