@@ -54,7 +54,7 @@ coroutines = "1.11.0"
 kotlinx-serialization = "1.10.0"
 
 # Image loading
-coil = "2.7.0"
+coil = "3.4.0"
 
 # Legacy media (MediaBrowserServiceCompat for Auto)
 androidx-media = "1.7.0"
@@ -165,7 +165,8 @@ kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-t
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinx-serialization" }
 
 # Coil
-coil-compose = { module = "io.coil-kt:coil-compose", version.ref = "coil" }
+coil-compose = { module = "io.coil-kt.coil3:coil-compose", version.ref = "coil" }
+coil-network-okhttp = { module = "io.coil-kt.coil3:coil-network-okhttp", version.ref = "coil" }
 
 # Wear
 androidx-wear-compose-material = { module = "androidx.wear.compose:compose-material", version.ref = "wear-compose" }

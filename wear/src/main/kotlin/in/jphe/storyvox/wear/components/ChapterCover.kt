@@ -13,7 +13,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import androidx.wear.compose.material.MaterialTheme
 import androidx.wear.compose.material.Text
-import coil.compose.AsyncImage
+import coil3.compose.AsyncImage
 import `in`.jphe.storyvox.ui.component.fictionMonogram
 import `in`.jphe.storyvox.wear.theme.BrassMuted
 import `in`.jphe.storyvox.wear.theme.BrassPrimary

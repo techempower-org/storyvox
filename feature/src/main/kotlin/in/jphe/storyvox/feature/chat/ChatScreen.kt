@@ -273,7 +273,7 @@ private fun TurnBubble(
                 // width sits comfortably inside the 320dp bubble
                 // even on the narrowest phone widths.
                 turn.imageUri?.let { uri ->
-                    coil.compose.AsyncImage(
+                    coil3.compose.AsyncImage(
                         model = uri,
                         contentDescription = stringResource(R.string.chat_attached_image_cd),
                         modifier = Modifier
@@ -686,7 +686,7 @@ private fun ChatInput(
                         .clip(RoundedCornerShape(8.dp))
                         .background(MaterialTheme.colorScheme.surfaceVariant),
                 ) {
-                    coil.compose.AsyncImage(
+                    coil3.compose.AsyncImage(
                         model = img.uri,
                         contentDescription = stringResource(R.string.chat_attached_image_preview_cd),
                         modifier = Modifier.fillMaxSize(),

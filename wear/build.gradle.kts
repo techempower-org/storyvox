@@ -82,6 +82,7 @@ dependencies {
     // version as the phone/tablet so a cover image already cached on the phone
     // doesn't need a fresh decode on the watch.
     implementation(libs.coil.compose)
+    implementation(libs.coil.network.okhttp)
     debugImplementation(libs.androidx.compose.ui.tooling)
 
     // Wear Compose

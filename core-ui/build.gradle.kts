@@ -43,6 +43,7 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.tooling)
 
     implementation(libs.coil.compose)
+    implementation(libs.coil.network.okhttp)
 
     // PR-H (#86) — `ChapterCacheBadge` consumes the `ChapterCacheState`
     // enum that lives next to `CacheStateInspector` in `:core-playback`.
