@@ -49,7 +49,9 @@ import `in`.jphe.storyvox.playback.cache.EngineMutex
 import `in`.jphe.storyvox.playback.cache.PcmAppender
 import `in`.jphe.storyvox.playback.cache.PcmCache
 import `in`.jphe.storyvox.playback.cache.PcmCacheKey
+import `in`.jphe.storyvox.playback.cache.PcmIndex
 import `in`.jphe.storyvox.playback.cache.PrerenderTriggers
+import `in`.jphe.storyvox.playback.cache.pcmCacheJson
 import `in`.jphe.storyvox.playback.tts.source.CacheFileSource
 import `in`.jphe.storyvox.playback.tts.source.EngineStreamingSource
 import `in`.jphe.storyvox.playback.tts.source.PcmSource
@@ -210,7 +212,7 @@ class EnginePlayer @AssistedInject constructor(
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
     private var sentences: List<Sentence> = emptyList()
-    private var currentSentenceIndex: Int = 0
+    @Volatile private var currentSentenceIndex: Int = 0
     private var currentSpeed: Float = 1.0f
     private var currentPitch: Float = 1.0f
 
@@ -757,10 +759,10 @@ class EnginePlayer @AssistedInject constructor(
     @Volatile private var totalFramesWritten: Long = 0L
 
     /** Inter-chunk gap measurement (Tab A7 Lite TTS perf lane). Off by
-     *  default — reads a marker file at every chunkStart so a developer
-     *  can `adb shell touch /data/data/in.jphe.storyvox/files/chunk-gap-log`
-     *  and start collecting numbers without a build flip. See [ChunkGapLogger]. */
-    private val chunkGapLogger = ChunkGapLogger(context)
+     *  default — gated on [DebugLog.isEnabled] (Settings → Developer →
+     *  "Verbose logging"), so it works on release builds without root.
+     *  See [ChunkGapLogger]. */
+    private val chunkGapLogger = ChunkGapLogger()
 
     /** Dedicated playback thread. The agent that gets URGENT_AUDIO and never
      *  yields back to a coroutine pool — see the comment on [startPlaybackPipeline]
@@ -1932,7 +1934,7 @@ class EnginePlayer @AssistedInject constructor(
         // post-loadModel callsite below already populated it with the
         // engine's actual rate, so this is a lock-free read on every
         // pipeline rebuild after the first.
-        val sampleRate = when (engineType) {
+        val engineSampleRate = when (engineType) {
             is EngineType.Kokoro -> EngineSampleRateCache.kokoroRate()
             // Issue #119 — Kitten native sample rate is 24 kHz (same as
             // Kokoro) but the runtime accessor is the source of truth.
@@ -1951,6 +1953,63 @@ class EnginePlayer @AssistedInject constructor(
                 ?: SystemTtsEngine.DEFAULT_SAMPLE_RATE
             else -> EngineSampleRateCache.piperRate()
         }.takeIf { it > 0 } ?: DEFAULT_SAMPLE_RATE
+
+        // Issue #858 — sample-rate authority on the cache-hit path.
+        // The AudioTrack is configured ONCE per pipeline; the consumer
+        // computes trailing-silence bytes off the source's sample rate
+        // (`silenceBytesFor(trailingSilenceMs, sampleRate)`). If the
+        // AudioTrack's rate (engine cache) and the cached source's
+        // rate (on-disk index) diverge — say the engine cache was
+        // warmed at 22.05 kHz but the on-disk cache entry was
+        // rendered at 24 kHz by a previous model variant — every
+        // cached chapter plays back at the wrong pitch AND the
+        // trailing-silence write lands the wrong byte count between
+        // sentences (audible gaps). PR-E's CHUNKER_VERSION /
+        // dictHash key only partitions by *configuration*, not by
+        // *engine variant*, so an in-place model update can produce
+        // this skew.
+        //
+        // Resolution: peek the on-disk index sample rate BEFORE
+        // constructing the AudioTrack. If it matches the engine's
+        // current rate, the cache is usable as-is and AudioTrack is
+        // sized to that rate. If it diverges, invalidate the entry
+        // synchronously (delete .pcm + .idx.json + .meta.json) so
+        // the cache-hit branch below falls through to the streaming
+        // path and re-renders at the engine's current rate. Either
+        // way, the AudioTrack sample rate, the cached PCM bytes,
+        // and `silenceBytesFor` all agree.
+        val cachedIndexSampleRate: Int? = run {
+            val chapId = _observableState.value.currentChapterId
+            val voiceId = loadedVoiceId
+            if (chapId == null || voiceId == null) return@run null
+            val probeKey = PcmCacheKey(
+                chapterId = chapId,
+                voiceId = voiceId,
+                speedHundredths = PcmCacheKey.quantize(currentSpeed),
+                pitchHundredths = PcmCacheKey.quantize(currentPitch),
+                chunkerVersion = CHUNKER_VERSION,
+                pronunciationDictHash = cachedPronunciationDict.contentHash,
+            )
+            if (!pcmCache.isComplete(probeKey)) return@run null
+            val onDiskRate = runCatching {
+                pcmCacheJson.decodeFromString(
+                    PcmIndex.serializer(),
+                    pcmCache.indexFileFor(probeKey).readText(),
+                ).sampleRate
+            }.getOrNull() ?: return@run null
+            if (onDiskRate != engineSampleRate) {
+                android.util.Log.w(
+                    "EnginePlayer",
+                    "#858 pcm-cache sample-rate mismatch — engine=$engineSampleRate " +
+                        "on-disk=$onDiskRate base=${probeKey.fileBaseName().take(12)}; " +
+                        "invalidating cache entry and re-rendering",
+                )
+                runBlocking { pcmCache.delete(probeKey) }
+                return@run null
+            }
+            onDiskRate
+        }
+        val sampleRate = cachedIndexSampleRate ?: engineSampleRate
         val track = createAudioTrack(sampleRate)
         audioTrack = track
 
@@ -2393,6 +2452,74 @@ class EnginePlayer @AssistedInject constructor(
                     }
 
                     if (firstSentence) {
+                        // Issue #862 — pre-buffer gate. The first chunk is
+                        // already in our hand; if we start the AudioTrack
+                        // immediately, the producer has to render chunk #1
+                        // (and chunk #2, etc.) faster than chunk #0 plays
+                        // out, or there's an audible gap before the second
+                        // sentence. On a cold engine + slow voice (Piper-
+                        // high on a Helio P22T tablet, or just the warmup
+                        // pass of any model), the first inter-chunk render
+                        // overruns the first chunk's duration and the
+                        // listener hears a gap immediately after sentence
+                        // one. At 0.75× speed the trailing silence is 33%
+                        // longer, which is exactly why the user reported
+                        // 0.75× is gapless while 1× is not.
+                        //
+                        // The existing catch-up pause (#79) only fires when
+                        // headroom drops below BUFFER_UNDERRUN_THRESHOLD_MS
+                        // = 7 s — it does nothing for the startup case
+                        // because headroom *starts* low. Wait until the
+                        // producer has rendered PREBUFFER_TARGET_CHUNKS-1
+                        // additional chunks behind the one we hold (so a
+                        // target of 3 means we hold chunk #0 + the queue
+                        // holds chunks #1 and #2), or PREBUFFER_TIMEOUT_MS
+                        // elapses — whichever first.
+                        //
+                        // Skip the gate entirely when there is no producer
+                        // queue (CacheFileSource reports
+                        // producerQueueCapacity == 0; chunks come from a
+                        // mmap'd file and inter-chunk gap risk is nil).
+                        // Skip on streaming sources too — they emit tiny
+                        // ~165 ms chunks where the depth count is a poor
+                        // proxy for "is there enough audio buffered to
+                        // outlast the next render", and Azure's first-
+                        // chunk latency is the dominant cost we don't want
+                        // to extend further.
+                        //
+                        // Honour pipelineRunning + userPaused inside the
+                        // wait so a teardown / pause tap during the gate
+                        // exits promptly (50 ms polling matches the
+                        // userPaused park above).
+                        if (source.producerQueueCapacity() > 0 && !source.isStreaming) {
+                            val deadlineNanos =
+                                System.nanoTime() + PREBUFFER_TIMEOUT_MS * 1_000_000L
+                            val target = PREBUFFER_TARGET_CHUNKS - 1
+                            while (pipelineRunning.get() &&
+                                !userPaused.get() &&
+                                source.producerQueueDepth() < target &&
+                                !source.producedAllSentences &&
+                                System.nanoTime() < deadlineNanos) {
+                                try {
+                                    Thread.sleep(25L)
+                                } catch (_: InterruptedException) {
+                                    Thread.currentThread().interrupt()
+                                    break
+                                }
+                            }
+                            runCatching {
+                                android.util.Log.i(
+                                    "EnginePlayer",
+                                    "#862 prebuffer-gate: depth=${source.producerQueueDepth()} " +
+                                        "target=$target producedAll=${source.producedAllSentences} " +
+                                        "elapsedMs=${
+                                            (System.nanoTime() - (deadlineNanos -
+                                                PREBUFFER_TIMEOUT_MS * 1_000_000L)) / 1_000_000L
+                                        }",
+                                )
+                            }
+                        }
+
                         val v = volumeRamp.current
                         runCatching { track.setVolume(v) }
                         lastVol = v
@@ -2512,8 +2639,9 @@ class EnginePlayer @AssistedInject constructor(
                     // the perf lane log gap_ms = startN - endNm1, which is
                     // the audible silence between adjacent chunks (modulo
                     // the constant ~130 ms minBuffer latency, see
-                    // ChunkGapLogger doc). No-op unless the marker file is
-                    // present, so this is free in normal operation.
+                    // ChunkGapLogger doc). No-op unless verbose logging is
+                    // enabled (Settings → Developer), so this is free in
+                    // normal operation.
                     val gapVoiceId = loadedVoiceId ?: "unknown"
                     chunkGapLogger.chunkStart(gapVoiceId, chunk.sentenceIndex)
 
@@ -3813,18 +3941,22 @@ class EnginePlayer @AssistedInject constructor(
      */
     fun setPunctuationPauseMultiplier(multiplier: Float) {
         currentPunctuationPauseMultiplier = multiplier.coerceIn(0f, 4f)
-        // #196 — push the new scale into the Kokoro engine immediately
-        // so within-sentence comma pauses take effect on the next
-        // generated sentence. The setter triggers an OfflineTts
-        // rebuild via _reloadIfActive (VoxSherpa v2.7.6+); the active
-        // sentence finishes with the old scale, the next one picks up
-        // the new value. No-op on Piper voices — VoiceEngine doesn't
-        // expose silenceScale because the issue is Kokoro-specific.
-        KokoroEngine.getInstance().setSilenceScale(
-            KOKORO_SILENCE_SCALE_BASELINE * currentPunctuationPauseMultiplier,
-        )
-        if (_observableState.value.isPlaying) startPlaybackPipeline()
-        invalidateState()
+        // Issue #870 — setSilenceScale triggers an OfflineTts rebuild
+        // via _reloadIfActive (VoxSherpa v2.7.6+). Without engineMutex
+        // the rebuild can race a concurrent generateAudioPCM on the
+        // producer thread, freeing a native pointer mid-use (SIGSEGV).
+        // Dispatch to IO + mutex, same shape as applyVoiceTuning.
+        scope.launch {
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                engineMutex.withLock {
+                    KokoroEngine.getInstance().setSilenceScale(
+                        KOKORO_SILENCE_SCALE_BASELINE * currentPunctuationPauseMultiplier,
+                    )
+                }
+            }
+            if (_observableState.value.isPlaying) startPlaybackPipeline()
+            invalidateState()
+        }
     }
 
     fun setTtsVolume(v: Float) {
@@ -3949,6 +4081,17 @@ class EnginePlayer @AssistedInject constructor(
         systemTtsEngine = null
         loadedSystemTtsEngineName = null
         loadedSystemTtsVoiceName = null
+        // Issue #863 — destroy secondary engines that the type-swap
+        // branches allocated. Without this, a clean process shutdown
+        // via onDestroy → releaseEngine leaks the JNI OrtSessions
+        // (Piper ~150MB, Kokoro ~325MB, Kitten ~60-80MB each). GC
+        // finalization is unreliable for JNI pointers.
+        secondaryPiperEngines.forEach { runCatching { it.destroy() } }
+        secondaryPiperEngines = emptyList()
+        secondaryKokoroEngines.forEach { runCatching { it.destroy() } }
+        secondaryKokoroEngines = emptyList()
+        secondaryKittenEngines.forEach { runCatching { it.destroy() } }
+        secondaryKittenEngines = emptyList()
         // Issue #560 — release audio focus so other media apps can
         // resume playback when storyvox is dismissed. The transport-
         // level pause/resume doesn't abandon focus (we keep it for the
@@ -4593,6 +4736,32 @@ class EnginePlayer @AssistedInject constructor(
          *  realtime engines and produced audible gaps with all
          *  Performance & Buffering toggles ON at buffer=3000. */
         const val BUFFER_RESUME_THRESHOLD_MS = 10_000L
+
+        /** Issue #862 — target total chunks in flight before the first
+         *  [android.media.AudioTrack.play] call: 1 in the consumer's hand
+         *  plus (TARGET - 1) queued behind it. Sized so the producer has
+         *  a head start equal to two extra sentences before playback
+         *  begins, which on a cold Piper-high render (~2 s sentence ÷
+         *  0.285× realtime ≈ 7 s CPU) is enough to bridge the gap
+         *  between chunk 0's audio duration and chunk 1's render time
+         *  in the worst case we ship for. Tuned conservatively — the
+         *  startup gate is bounded by [PREBUFFER_TIMEOUT_MS] so short
+         *  content (a single sentence) doesn't pay the full wait. */
+        const val PREBUFFER_TARGET_CHUNKS = 3
+
+        /** Issue #862 — hard cap on the wait the pre-buffer gate is
+         *  allowed to add to user-perceived play latency. The gate
+         *  exits early on producedAllSentences (no second chunk is
+         *  coming — single-sentence content), userPaused, or
+         *  pipelineRunning=false, but otherwise sits up to this long.
+         *
+         *  500 ms is below the perceptual threshold for "tap → audio"
+         *  on Android (~700 ms baseline tolerance per Material motion
+         *  guidance) and well under the 7 s underrun threshold, so a
+         *  full timeout never starves the catch-up pause logic. Tune
+         *  lower if startup latency complaints surface; tune higher
+         *  if cold-engine gaps still occur on the slowest devices. */
+        const val PREBUFFER_TIMEOUT_MS = 500L
 
         /** Shared zero-filled buffer the consumer writes from to spool
          *  inter-sentence silence. Sized for one chunk @ 24 kHz mono 16-bit

@@ -1,9 +1,8 @@
 package `in`.jphe.storyvox.playback.tts
 
-import android.content.Context
 import android.os.SystemClock
 import android.util.Log
-import java.io.File
+import `in`.jphe.storyvox.data.log.DebugLog
 
 /**
  * Inter-chunk gap instrumentation for the EnginePlayer consumer thread.
@@ -14,14 +13,20 @@ import java.io.File
  * Tab A7 Lite with Piper-high or Kokoro voices, this gap is the bug
  * Aurelia is hunting; this class is the measuring stick.
  *
- * # Why a marker file, not BuildConfig
- * Storyvox ships a single AGP build type (see app/build.gradle.kts —
- * "no separate release flavor being shipped"), so a `BuildConfig.DEBUG`
- * gate would either always log or never log. The marker-file pattern
- * (`/data/data/in.jphe.storyvox/files/chunk-gap-log`) mirrors the
- * AudioTrack.Builder A/B toggle in EnginePlayer.createAudioTrack:
- * `adb shell touch ...` to flip on, `adb shell rm ...` to flip off,
- * effective on the next pipeline rebuild. No app restart required.
+ * # Gate: DebugLog.isEnabled
+ * Issue #861 — the original marker-file gate
+ * (`/data/data/in.jphe.storyvox/files/chunk-gap-log`) was unreachable on
+ * release builds: `run-as` is blocked and the data dir is inaccessible
+ * without root, making the most useful playback diagnostic completely
+ * inaccessible to users hitting the bug. The toggle is now bound to
+ * [DebugLog.isEnabled], the same process-wide flag driven by Settings →
+ * Developer → "Verbose logging" (issue #823). Flip the setting, the next
+ * chunk boundary starts emitting; flip it off, the next chunk boundary
+ * stops. No marker file, no `adb`, no root.
+ *
+ * Hot-path cost: `DebugLog.isEnabled()` is a single volatile read
+ * ([java.util.concurrent.atomic.AtomicBoolean.get]), cheaper than the
+ * previous `File.exists()` stat() call.
  *
  * # Why we don't measure "audio actually emitted from speaker"
  * The truthful answer would require AAudio's underrun callback or a mic
@@ -45,13 +50,8 @@ import java.io.File
  * "previous end" anchor to -1 so the first chunk of a pipeline run
  * doesn't get a misleading multi-second "gap" attributed to user
  * pause time.
- *
- * @param context used once at construction to check the marker file.
- *  We re-check on every `start()` so a `touch` on the marker takes
- *  effect on the next chunk without requiring a pipeline rebuild.
- *  Marker check is a stat() call — cheap.
  */
-class ChunkGapLogger(private val context: Context) {
+class ChunkGapLogger {
 
     private var prevChunkEndMs: Long = -1L
     private var currentChunkStartMs: Long = -1L
@@ -70,11 +70,11 @@ class ChunkGapLogger(private val context: Context) {
     /**
      * Record the start-of-write timestamp for chunk [chunkIndex] played
      * with [voiceId]. If the previous chunk's end timestamp is set,
-     * emits the gap in ms via Log.i. Returns immediately if the marker
-     * file is not present.
+     * emits the gap in ms via Log.i. Returns immediately if verbose
+     * logging is disabled.
      */
     fun chunkStart(voiceId: String, chunkIndex: Int) {
-        if (!isEnabled()) return
+        if (!DebugLog.isEnabled()) return
         currentChunkStartMs = SystemClock.elapsedRealtime()
         val prev = prevChunkEndMs
         if (prev > 0) {
@@ -101,7 +101,7 @@ class ChunkGapLogger(private val context: Context) {
      * AudioTrack write loop didn't itself stall.
      */
     fun chunkEnd(voiceId: String, chunkIndex: Int) {
-        if (!isEnabled()) return
+        if (!DebugLog.isEnabled()) return
         val end = SystemClock.elapsedRealtime()
         val start = currentChunkStartMs
         prevChunkEndMs = end
@@ -113,18 +113,7 @@ class ChunkGapLogger(private val context: Context) {
         }
     }
 
-    private fun isEnabled(): Boolean = try {
-        File(context.filesDir, MARKER_FILE).exists()
-    } catch (_: Throwable) {
-        false
-    }
-
     private companion object {
         const val TAG = "ChunkGap"
-
-        /** Touch this file on-device to enable gap logging:
-         *  `adb shell touch /data/data/in.jphe.storyvox/files/chunk-gap-log`
-         *  Remove to disable; takes effect on the next chunk. */
-        const val MARKER_FILE = "chunk-gap-log"
     }
 }
