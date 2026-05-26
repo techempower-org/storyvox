@@ -126,7 +126,9 @@ fun ChatScreen(
         if (total > 0) listState.animateScrollToItem(total - 1)
     }
 
-    val barTitle = state.fictionTitle?.let { "Ask the AI · $it" } ?: "Ask the AI"
+    val barTitle = state.fictionTitle
+        ?.let { stringResource(R.string.chat_title_with_fiction, it) }
+        ?: stringResource(R.string.chat_title)
 
     Scaffold(
         topBar = {
@@ -141,7 +143,7 @@ fun ChatScreen(
                     IconButton(onClick = onBack) {
                         Icon(
                             Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back",
+                            contentDescription = stringResource(R.string.chat_back_button_cd),
                         )
                     }
                 },
@@ -273,7 +275,7 @@ private fun TurnBubble(
                 turn.imageUri?.let { uri ->
                     coil.compose.AsyncImage(
                         model = uri,
-                        contentDescription = "Attached image",
+                        contentDescription = stringResource(R.string.chat_attached_image_cd),
                         modifier = Modifier
                             .widthIn(max = 200.dp)
                             .heightIn(max = 200.dp)
@@ -321,8 +323,16 @@ private fun ReadAloudButton(
     // tappable — pressing Play on bubble B while bubble A reads will
     // stop A and start B, which matches user intent ("read THAT one").
     val (icon, label, onClick) = when {
-        isReadingThis -> Triple(Icons.Outlined.Stop, "Stop reading", onStopReadAloud)
-        else -> Triple(Icons.Outlined.VolumeUp, "Read aloud", onReadAloud)
+        isReadingThis -> Triple(
+            Icons.Outlined.Stop,
+            stringResource(R.string.chat_read_aloud_stop),
+            onStopReadAloud,
+        )
+        else -> Triple(
+            Icons.Outlined.VolumeUp,
+            stringResource(R.string.chat_read_aloud_play),
+            onReadAloud,
+        )
     }
     val tint = if (isReadingThis) {
         MaterialTheme.colorScheme.primary
@@ -473,13 +483,14 @@ private fun ToolCallCard(event: ToolCallEvent) {
 /** Short, present-progressive copy used while a tool handler is
  *  in flight. Matches the [StoryvoxToolSpecs] name set; unknown names
  *  fall back to the generic verb. */
+@Composable
 private fun describeInFlight(name: String): String = when (name) {
-    "add_to_shelf" -> "Adding to shelf…"
-    "queue_chapter" -> "Queueing chapter…"
-    "mark_chapter_read" -> "Marking as read…"
-    "set_speed" -> "Setting playback speed…"
-    "open_voice_library" -> "Opening voice library…"
-    else -> "Running $name…"
+    "add_to_shelf" -> stringResource(R.string.chat_tool_in_flight_add_to_shelf)
+    "queue_chapter" -> stringResource(R.string.chat_tool_in_flight_queue_chapter)
+    "mark_chapter_read" -> stringResource(R.string.chat_tool_in_flight_mark_chapter_read)
+    "set_speed" -> stringResource(R.string.chat_tool_in_flight_set_speed)
+    "open_voice_library" -> stringResource(R.string.chat_tool_in_flight_open_voice_library)
+    else -> stringResource(R.string.chat_tool_in_flight_generic, name)
 }
 
 // ── Empty states ───────────────────────────────────────────────────
@@ -501,13 +512,13 @@ private fun EmptyStateNoProvider(
             tint = MaterialTheme.colorScheme.primary,
         )
         Text(
-            text = "Pick a provider in Settings → AI to start chatting.",
+            text = stringResource(R.string.chat_empty_no_provider_body),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
         )
         BrassButton(
-            label = "Open Settings",
+            label = stringResource(R.string.chat_empty_open_settings),
             onClick = onOpenSettings,
             variant = BrassButtonVariant.Primary,
         )
@@ -532,11 +543,9 @@ private fun EmptyStatePrompt(
         )
         Text(
             text = if (fictionTitle != null) {
-                "Ask anything about \"$fictionTitle\" — plot, characters, " +
-                    "pacing, craft. The librarian won't spoil what's ahead."
+                stringResource(R.string.chat_empty_prompt_with_fiction, fictionTitle)
             } else {
-                "Ask anything about this fiction. The librarian won't " +
-                    "spoil what's ahead."
+                stringResource(R.string.chat_empty_prompt_generic)
             },
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -554,12 +563,13 @@ private fun EmptyStatePrompt(
  *
  *  Order is touch-frequency: 'What did I miss?' is the dominant ask
  *  for resumed listening; 'Who is X?' is character lookup; the rest
- *  catch the long tail. Localized labels are a future follow-up. */
-private val QuickActionPrompts: List<String> = listOf(
-    "What did I miss?",
-    "Who is this character?",
-    "Explain that",
-    "Where are we?",
+ *  catch the long tail. */
+@Composable
+private fun rememberQuickActionPrompts(): List<String> = listOf(
+    stringResource(R.string.chat_quick_what_did_i_miss),
+    stringResource(R.string.chat_quick_who_is_this_character),
+    stringResource(R.string.chat_quick_explain_that),
+    stringResource(R.string.chat_quick_where_are_we),
 )
 
 @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
@@ -591,6 +601,7 @@ private fun ChatInput(
     val spacing = LocalSpacing.current
     val context = androidx.compose.ui.platform.LocalContext.current
     val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val quickActionPrompts = rememberQuickActionPrompts()
     var text by remember { mutableStateOf("") }
     var picking by remember { mutableStateOf(false) }
 
@@ -650,7 +661,7 @@ private fun ChatInput(
                 horizontalArrangement = Arrangement.spacedBy(spacing.xs),
                 verticalArrangement = Arrangement.spacedBy(spacing.xs),
             ) {
-                QuickActionPrompts.forEach { prompt ->
+                quickActionPrompts.forEach { prompt ->
                     androidx.compose.material3.SuggestionChip(
                         onClick = { text = prompt },
                         label = { Text(prompt, style = MaterialTheme.typography.labelMedium) },
@@ -677,7 +688,7 @@ private fun ChatInput(
                 ) {
                     coil.compose.AsyncImage(
                         model = img.uri,
-                        contentDescription = "Attached image preview",
+                        contentDescription = stringResource(R.string.chat_attached_image_preview_cd),
                         modifier = Modifier.fillMaxSize(),
                         contentScale = androidx.compose.ui.layout.ContentScale.Crop,
                     )
@@ -692,12 +703,15 @@ private fun ChatInput(
                                 CircleShape,
                             )
                             // a11y (#481): Role.Button for the clear-image x.
-                            .clickable(role = Role.Button, onClickLabel = "Remove image") { onClearImage() },
+                            .clickable(
+                                role = Role.Button,
+                                onClickLabel = stringResource(R.string.chat_remove_image_cd),
+                            ) { onClearImage() },
                         contentAlignment = Alignment.Center,
                     ) {
                         Icon(
                             Icons.Outlined.Close,
-                            contentDescription = "Remove image",
+                            contentDescription = stringResource(R.string.chat_remove_image_cd),
                             modifier = Modifier.size(14.dp),
                             tint = MaterialTheme.colorScheme.onSurface,
                         )
@@ -705,7 +719,7 @@ private fun ChatInput(
                 }
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "Image attached",
+                        text = stringResource(R.string.chat_image_attached_label),
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurface,
                     )
@@ -737,7 +751,7 @@ private fun ChatInput(
                 ) {
                     Icon(
                         imageVector = Icons.Outlined.AddPhotoAlternate,
-                        contentDescription = "Attach image",
+                        contentDescription = stringResource(R.string.chat_attach_image_cd),
                         tint = if (enabled && !picking && pendingImage == null) {
                             MaterialTheme.colorScheme.primary
                         } else {
@@ -770,7 +784,7 @@ private fun ChatInput(
                 val sendEnabled = enabled && (text.isNotBlank() || pendingImage != null)
                 Icon(
                     Icons.AutoMirrored.Filled.Send,
-                    contentDescription = "Send",
+                    contentDescription = stringResource(R.string.chat_send_button_cd),
                     tint = if (sendEnabled) {
                         MaterialTheme.colorScheme.primary
                     } else {
@@ -803,8 +817,7 @@ private fun ImageDroppedBanner(onDismiss: () -> Unit) {
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Text(
-            text = "Image input not supported on this provider — " +
-                "ignoring attached image, sending text only.",
+            text = stringResource(R.string.chat_image_dropped_banner),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.weight(1f),
@@ -812,7 +825,7 @@ private fun ImageDroppedBanner(onDismiss: () -> Unit) {
         IconButton(onClick = onDismiss) {
             Icon(
                 Icons.Outlined.Close,
-                contentDescription = "Dismiss",
+                contentDescription = stringResource(R.string.chat_dismiss_cd),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
@@ -844,7 +857,7 @@ private fun ErrorBanner(
         )
         if (showSettings) {
             BrassButton(
-                label = "Settings",
+                label = stringResource(R.string.chat_error_open_settings),
                 onClick = onOpenSettings,
                 variant = BrassButtonVariant.Text,
             )
@@ -852,7 +865,7 @@ private fun ErrorBanner(
         IconButton(onClick = onDismiss) {
             Icon(
                 Icons.Outlined.Close,
-                contentDescription = "Dismiss",
+                contentDescription = stringResource(R.string.chat_dismiss_cd),
                 tint = MaterialTheme.colorScheme.onErrorContainer,
             )
         }

@@ -305,6 +305,41 @@
 
     <!-- Chat -->
     <string name="chat_ask_question_placeholder">Ask a question…</string>
+    <!-- Chat · top bar -->
+    <string name="chat_title">Ask the AI</string>
+    <string name="chat_title_with_fiction">Ask the AI · %1$s</string>
+    <string name="chat_back_button_cd">Back</string>
+    <!-- Chat · bubbles & read-aloud -->
+    <string name="chat_attached_image_cd">Attached image</string>
+    <string name="chat_read_aloud_stop">Stop reading</string>
+    <string name="chat_read_aloud_play">Read aloud</string>
+    <!-- Chat · tool-call in-flight copy (#216) -->
+    <string name="chat_tool_in_flight_add_to_shelf">Adding to shelf…</string>
+    <string name="chat_tool_in_flight_queue_chapter">Queueing chapter…</string>
+    <string name="chat_tool_in_flight_mark_chapter_read">Marking as read…</string>
+    <string name="chat_tool_in_flight_set_speed">Setting playback speed…</string>
+    <string name="chat_tool_in_flight_open_voice_library">Opening voice library…</string>
+    <string name="chat_tool_in_flight_generic">Running %1$s…</string>
+    <!-- Chat · empty states -->
+    <string name="chat_empty_no_provider_body">Pick a provider in Settings → AI to start chatting.</string>
+    <string name="chat_empty_open_settings">Open Settings</string>
+    <string name="chat_empty_prompt_with_fiction">Ask anything about \"%1$s\" — plot, characters, pacing, craft. The librarian won\'t spoil what\'s ahead.</string>
+    <string name="chat_empty_prompt_generic">Ask anything about this fiction. The librarian won\'t spoil what\'s ahead.</string>
+    <!-- Chat · quick-action prompt chips (#213) -->
+    <string name="chat_quick_what_did_i_miss">What did I miss?</string>
+    <string name="chat_quick_who_is_this_character">Who is this character?</string>
+    <string name="chat_quick_explain_that">Explain that</string>
+    <string name="chat_quick_where_are_we">Where are we?</string>
+    <!-- Chat · image attachment composer (#215) -->
+    <string name="chat_attached_image_preview_cd">Attached image preview</string>
+    <string name="chat_remove_image_cd">Remove image</string>
+    <string name="chat_image_attached_label">Image attached</string>
+    <string name="chat_attach_image_cd">Attach image</string>
+    <string name="chat_send_button_cd">Send</string>
+    <!-- Chat · banners -->
+    <string name="chat_image_dropped_banner">Image input not supported on this provider — ignoring attached image, sending text only.</string>
+    <string name="chat_dismiss_cd">Dismiss</string>
+    <string name="chat_error_open_settings">Settings</string>
 
     <!-- TechEmpower intents -->
     <string name="techempower_copy">Copy</string>
