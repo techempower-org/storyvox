@@ -115,7 +115,7 @@ val hasPlayPublisherCredentials: Boolean = playPublisherCredentialsPath != null 
 
 android {
     namespace = "in.jphe.storyvox"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "in.jphe.storyvox"
