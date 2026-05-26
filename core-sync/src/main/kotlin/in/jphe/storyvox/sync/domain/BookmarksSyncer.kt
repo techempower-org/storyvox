@@ -74,9 +74,23 @@ class BookmarksSyncer @Inject constructor(
         // Apply merged to local: write every chapterId in [merged] that
         // diverges from local, and clear chapters present in remote
         // with null offset.
+        //
+        // Guard (#885): `setBookmark` is an UPDATE … WHERE id = :id, a
+        // silent no-op when the chapter row doesn't exist locally yet
+        // (library/chapter sync runs separately and chapter rows are
+        // repopulated lazily on detail-page open). Skip the local write
+        // for missing chapters but KEEP the entry in [merged] so the
+        // push payload below retains it — a later sync round writes it
+        // locally once the chapter row arrives. Mirrors the FK guard in
+        // PlaybackPositionSyncer.
         var writes = 0
+        var skipped = 0
         for ((id, offset) in merged) {
             if (localMap[id] != offset) {
+                if (!chapterDao.exists(id)) {
+                    skipped++
+                    continue
+                }
                 chapterDao.setBookmark(id, offset)
                 writes++
             }
@@ -87,6 +101,9 @@ class BookmarksSyncer @Inject constructor(
                 chapterDao.setBookmark(id, null)
                 writes++
             }
+        }
+        if (skipped > 0) {
+            android.util.Log.i(TAG, "skipped $skipped bookmarks (missing chapter rows); retained on wire")
         }
 
         val now = System.currentTimeMillis()
@@ -126,5 +143,6 @@ class BookmarksSyncer @Inject constructor(
         const val DOMAIN: String = "bookmarks"
         private const val ENTITY = "blobs"
         private const val LAST_SYNC_KEY = "instantdb.bookmarks_synced_at"
+        private const val TAG = "BookmarksSyncer"
     }
 }
