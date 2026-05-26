@@ -189,12 +189,43 @@ interface ChapterDao {
     @Query("DELETE FROM chapter WHERE fictionId = :fictionId")
     suspend fun deleteByFictionId(fictionId: String)
 
+    @Query("SELECT id FROM chapter WHERE fictionId = :fictionId")
+    suspend fun chapterIdsForFiction(fictionId: String): List<String>
+
+    @Query("DELETE FROM chapter WHERE id IN (:ids)")
+    suspend fun deleteByIds(ids: List<String>)
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(chapters: List<Chapter>)
 
     /**
-     * Atomic chapter-list replacement: delete all existing rows for
-     * [fictionId], then insert the fresh batch.
+     * Atomic chapter-list replacement that preserves FK-dependent rows
+     * (`playback_position`, `chapter_history`) for chapters that survive
+     * across refreshes.
+     *
+     * # Why not DELETE-then-INSERT?
+     *
+     * Issue #879 — both `playback_position.chapterId` and
+     * `chapter_history.chapterId` declare `ON DELETE CASCADE`.
+     * A blanket `DELETE FROM chapter WHERE fictionId = ?` nukes the
+     * user's resume position and reading-history rows for the fiction,
+     * even though the same chapter rows are immediately re-inserted
+     * with the same PKs. The FK CASCADE fires at DELETE statement
+     * time (not deferred to COMMIT), so the damage is done before
+     * the INSERT re-creates the parent rows.
+     *
+     * # Approach: park → upsert → prune
+     *
+     * 1. **Park** existing indexes into a reserved range above
+     *    [PARK_OFFSET] so the `(fictionId, index)` UNIQUE constraint
+     *    can't trip on mid-batch index swaps (RSS reorder, #349).
+     * 2. **Upsert** the incoming batch via Room's `@Upsert` — this does
+     *    `INSERT … ON CONFLICT(id) DO UPDATE SET …`, which does NOT
+     *    delete the row and therefore does NOT fire CASCADE.
+     * 3. **Prune** chapters whose IDs are no longer in the incoming
+     *    batch (genuinely removed by the source). CASCADE correctly
+     *    fires here, deleting orphaned position/history rows for
+     *    chapters that no longer exist.
      *
      * # History
      *
@@ -257,23 +288,24 @@ interface ChapterDao {
      * flag and branch in the repository layer rather than burdening
      * every refresh with the parking gymnastics.
      *
-     * # If you find this firing
+     * # FK-dependent tables (updated #879)
      *
-     * The next likely failure mode is an unrelated FK from another
-     * table pointing at chapter.id (e.g. playback position, history,
-     * bookmark sync). Today the schema has:
-     *  - `playback_position` PK = chapter id (not an FK; orphan rows
-     *    are tolerated, they just won't resolve)
-     *  - `chapter_history` joins by id on read, no FK
-     *  - InstantDB sync layer reads chapter rows directly
-     * so DELETE here is safe. If you add a new table with a real FK
-     * onto chapter.id, decide whether dropped chapters should cascade
-     * or whether the DAO needs a soft-delete column.
+     *  - `playback_position.chapterId → chapter.id ON DELETE CASCADE`
+     *  - `chapter_history.chapterId → chapter.id ON DELETE CASCADE`
+     *
+     * Both declare FK CASCADE. Deleting a chapter row immediately
+     * cascade-deletes the user's resume position and reading history
+     * for that chapter. The park→upsert→prune approach only deletes
+     * chapters that genuinely disappeared from the source.
      */
     @Transaction
     suspend fun upsertChaptersForFiction(fictionId: String, chapters: List<Chapter>) {
-        deleteByFictionId(fictionId)
-        insertAll(chapters)
+        val existingIds = chapterIdsForFiction(fictionId).toSet()
+        val incomingIds = chapters.map { it.id }.toSet()
+        val staleIds = existingIds - incomingIds
+        parkChapterIndexesFor(fictionId)
+        upsertAll(chapters)
+        if (staleIds.isNotEmpty()) deleteByIds(staleIds.toList())
     }
 
     @Query(
