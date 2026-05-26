@@ -17,8 +17,15 @@ import javax.inject.Singleton
  * `(startChar, endChar)` pair on real input. If unsure, write a quick
  * test with a representative chapter and diff the resulting [Sentence]
  * lists.
+ *
+ * Version history:
+ *  - v1: initial release.
+ *  - v2 (#859): invalidate caches accumulated before the silence-detection
+ *    and chunking algorithm evolved past the original v1 boundaries. The
+ *    constant had been stuck at 1 across multiple semantic changes, so
+ *    bumping once here forces a one-time cache rebuild on first launch.
  */
-const val CHUNKER_VERSION: Int = 1
+const val CHUNKER_VERSION: Int = 2
 
 data class Sentence(
     val index: Int,
