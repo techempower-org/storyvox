@@ -371,6 +371,9 @@
     <string name="craigslist_subscribe">Subscribe</string>
     <string name="craigslist_subscribed_confirmation">Subscribed: %1$s. See it under Browse → RSS.</string>
 
+    <!-- Onboarding · step indicator (#787) — rendered above every onboarding screen via OnboardingScaffold. -->
+    <string name="onboarding_step_n_of_m">Step %1$d of %2$d</string>
+
     <!-- Onboarding · WelcomeScreen -->
     <string name="onboarding_welcome_headline">Stories, read aloud.</string>
     <string name="onboarding_welcome_body">storyvox reads books, guides, and articles to you with calming voices. Free, forever, no ads.</string>

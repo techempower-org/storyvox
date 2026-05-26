@@ -109,56 +109,65 @@ fun OnboardingHost(
                     transitionSpec = { fadeIn() togetherWith fadeOut() },
                     label = "onboarding-step",
                 ) { current ->
-                    when (current) {
-                        OnboardingStep.Welcome -> WelcomeScreen(
-                            onGetStarted = { step = OnboardingStep.VoicePick },
-                            onSkip = {
-                                viewModel.markCompleted()
-                            },
-                        )
-                        OnboardingStep.VoicePick -> VoicePickerOnboarding(
-                            onContinue = { step = OnboardingStep.FirstFiction },
-                            onSkip = { step = OnboardingStep.FirstFiction },
-                            onMoreVoices = {
-                                viewModel.markCompleted()
-                                onOpenVoiceLibrary()
-                            },
-                        )
-                        OnboardingStep.FirstFiction -> FirstFictionPicker(
-                            // Issues #644 + #647 (v1.0) — bypass the
-                            // TechEmpower Home hub AND the Guides
-                            // fiction-detail stop. The viewmodel
-                            // resolves the first chapter of the
-                            // `notion:guides` fiction, queues it on
-                            // the playback controller with
-                            // `autoPlay=true`, then [onOpenGuidesAndPlay]
-                            // navigates the user to the Playing
-                            // surface so they land on the transport
-                            // UI as the chapter warms. Net: two taps
-                            // (the hub stop + the Guides-cover stop)
-                            // disappear from the first-launch flow.
-                            //
-                            // Fallback path: if chapter resolution
-                            // fails (network down, source unreachable,
-                            // anonymous Notion 404), the viewmodel
-                            // invokes [onOpenTechEmpower] instead so
-                            // the user lands on the hub with the same
-                            // four-card affordance they would have
-                            // seen pre-fix — never a dead end.
-                            onBrowseTechEmpower = {
-                                viewModel.openGuidesAndAutoPlay(
-                                    onPlaying = onOpenGuidesAndPlay,
-                                    onFallbackToHub = onOpenTechEmpower,
-                                )
-                            },
-                            onAddFromWebsite = { clip ->
-                                viewModel.markCompleted()
-                                onAddFromWebsite(clip)
-                            },
-                            onSkip = {
-                                viewModel.markCompleted()
-                            },
-                        )
+                    // Issue #787 — wrap each screen in the shared
+                    // scaffold so the dot row + "Step X of 3" indicator
+                    // is rendered once at the host level, not
+                    // duplicated into each screen. The scaffold layers
+                    // the indicator over the screen's own scroll
+                    // content; each screen's existing padding keeps the
+                    // headline clear of the indicator row.
+                    OnboardingScaffold(stepIndex = current.ordinal) {
+                        when (current) {
+                            OnboardingStep.Welcome -> WelcomeScreen(
+                                onGetStarted = { step = OnboardingStep.VoicePick },
+                                onSkip = {
+                                    viewModel.markCompleted()
+                                },
+                            )
+                            OnboardingStep.VoicePick -> VoicePickerOnboarding(
+                                onContinue = { step = OnboardingStep.FirstFiction },
+                                onSkip = { step = OnboardingStep.FirstFiction },
+                                onMoreVoices = {
+                                    viewModel.markCompleted()
+                                    onOpenVoiceLibrary()
+                                },
+                            )
+                            OnboardingStep.FirstFiction -> FirstFictionPicker(
+                                // Issues #644 + #647 (v1.0) — bypass the
+                                // TechEmpower Home hub AND the Guides
+                                // fiction-detail stop. The viewmodel
+                                // resolves the first chapter of the
+                                // `notion:guides` fiction, queues it on
+                                // the playback controller with
+                                // `autoPlay=true`, then [onOpenGuidesAndPlay]
+                                // navigates the user to the Playing
+                                // surface so they land on the transport
+                                // UI as the chapter warms. Net: two taps
+                                // (the hub stop + the Guides-cover stop)
+                                // disappear from the first-launch flow.
+                                //
+                                // Fallback path: if chapter resolution
+                                // fails (network down, source unreachable,
+                                // anonymous Notion 404), the viewmodel
+                                // invokes [onOpenTechEmpower] instead so
+                                // the user lands on the hub with the same
+                                // four-card affordance they would have
+                                // seen pre-fix — never a dead end.
+                                onBrowseTechEmpower = {
+                                    viewModel.openGuidesAndAutoPlay(
+                                        onPlaying = onOpenGuidesAndPlay,
+                                        onFallbackToHub = onOpenTechEmpower,
+                                    )
+                                },
+                                onAddFromWebsite = { clip ->
+                                    viewModel.markCompleted()
+                                    onAddFromWebsite(clip)
+                                },
+                                onSkip = {
+                                    viewModel.markCompleted()
+                                },
+                            )
+                        }
                     }
                 }
             }
