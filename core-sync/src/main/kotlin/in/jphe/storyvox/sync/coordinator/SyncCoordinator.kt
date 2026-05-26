@@ -9,6 +9,7 @@ import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -135,27 +136,48 @@ class SyncCoordinator @Inject constructor(
         }
     }
 
-    /** Wrapper that publishes status transitions for the UI. */
+    /**
+     * Wrapper that publishes status transitions for the UI.
+     *
+     * Issue #779 — `SyncOutcome.Transient` documents that the coordinator
+     * retries on transient failures (see [SyncOutcome.Transient] kdoc and
+     * [Syncer.push] kdoc that promises idempotency under coordinator
+     * retry). Before this change the block was called exactly once and a
+     * Transient outcome was published verbatim, so a cold-start `pullAll`
+     * on a flaky network left every domain stuck until the user manually
+     * hit "Sync now."
+     *
+     * Retry policy: bounded in-coroutine retry with exponential backoff
+     * — up to [RETRY_BACKOFFS_MS]`.size + 1` attempts (1 initial + N
+     * retries), with the per-attempt sleep coming from
+     * [RETRY_BACKOFFS_MS]. We only retry on `Transient` (or thrown
+     * exception, which we map to `Transient`); `Permanent` and `Ok`
+     * short-circuit immediately. The whole loop runs inside the
+     * per-domain mutex (same as before), so per-domain serialisation is
+     * preserved — concurrent local writes on the same domain queue
+     * behind the retry, which is exactly the idempotency contract the
+     * syncer kdoc already requires.
+     *
+     * This handles the "device woke up on a flaky connection" case; the
+     * "device was offline for an hour" case is left for a future
+     * WorkManager-backed scheduler (option 2 in #779).
+     */
     private suspend fun runWithStatus(syncer: Syncer, block: suspend (Syncer) -> SyncOutcome) {
         publish(syncer.name, SyncStatus.Running)
         val t0 = System.currentTimeMillis()
-        val outcome = runCatching { block(syncer) }
-            .getOrElse { e ->
-                android.util.Log.e(TAG, "runWithStatus: ${syncer.name} threw", e)
-                SyncOutcome.Transient(e.message ?: e::class.simpleName ?: "error")
-            }
+        val result = runWithRetry(syncer.name, RETRY_BACKOFFS_MS) { block(syncer) }
         val elapsed = System.currentTimeMillis() - t0
-        val status = when (outcome) {
+        val status = when (val outcome = result.outcome) {
             is SyncOutcome.Ok -> {
-                android.util.Log.i(TAG, "${syncer.name}: OK (${outcome.recordsAffected} records, ${elapsed}ms)")
+                android.util.Log.i(TAG, "${syncer.name}: OK (${outcome.recordsAffected} records, ${elapsed}ms, attempts=${result.attempts})")
                 SyncStatus.OkAt(System.currentTimeMillis(), outcome.recordsAffected)
             }
             is SyncOutcome.Transient -> {
-                android.util.Log.w(TAG, "${syncer.name}: TRANSIENT — ${outcome.message} (${elapsed}ms)")
+                android.util.Log.w(TAG, "${syncer.name}: TRANSIENT — ${outcome.message} (${elapsed}ms, attempts=${result.attempts})")
                 SyncStatus.Transient(outcome.message)
             }
             is SyncOutcome.Permanent -> {
-                android.util.Log.e(TAG, "${syncer.name}: PERMANENT — ${outcome.message} (${elapsed}ms)")
+                android.util.Log.e(TAG, "${syncer.name}: PERMANENT — ${outcome.message} (${elapsed}ms, attempts=${result.attempts})")
                 SyncStatus.Permanent(outcome.message)
             }
         }
@@ -165,6 +187,14 @@ class SyncCoordinator @Inject constructor(
     private companion object {
         private const val TAG = "SyncCoordinator"
         private val FK_ROOT_DOMAINS = setOf("library", "follows")
+
+        /**
+         * Retry backoff schedule (ms) for [SyncOutcome.Transient] failures.
+         * Length = max retries. Total worst-case wall time = sum of entries
+         * (~13s) plus per-attempt work. Picked to ride out a typical DNS
+         * blip / TLS handshake retry without making cold-start feel hung.
+         */
+        private val RETRY_BACKOFFS_MS = longArrayOf(1_000L, 3_000L, 9_000L)
     }
 
     private fun publish(domain: String, status: SyncStatus) {
@@ -183,3 +213,50 @@ sealed interface SyncStatus {
     data class Transient(val message: String) : SyncStatus
     data class Permanent(val message: String) : SyncStatus
 }
+
+/** Return value of [runWithRetry]: the final [SyncOutcome] plus how many
+ *  total attempts (1 initial + N retries) were actually executed. */
+internal data class RetryResult(val outcome: SyncOutcome, val attempts: Int)
+
+/**
+ * Bounded-retry wrapper for a single syncer call. Issue #779.
+ *
+ * - One initial attempt, then up to `backoffsMs.size` retries.
+ * - Retries fire only on [SyncOutcome.Transient] or thrown exceptions
+ *   (mapped to Transient with the exception message).
+ * - [SyncOutcome.Ok] and [SyncOutcome.Permanent] short-circuit the loop.
+ * - Between attempts, `delay(backoffsMs[i])` is called — under
+ *   `kotlinx.coroutines.test.runTest` virtual time this auto-advances,
+ *   so tests don't wait real seconds.
+ *
+ * Top-level + `internal` rather than a method on [SyncCoordinator] so the
+ * loop is unit-testable without needing to stand up the coordinator's
+ * Hilt-injected deps (InstantClient, InstantSession, SharedPreferences).
+ * The [name] parameter is just for log breadcrumbs.
+ */
+internal suspend fun runWithRetry(
+    name: String,
+    backoffsMs: LongArray,
+    block: suspend () -> SyncOutcome,
+): RetryResult {
+    var outcome: SyncOutcome = runAttempt(name, block)
+    var attempts = 1
+    while (outcome is SyncOutcome.Transient && attempts <= backoffsMs.size) {
+        val backoff = backoffsMs[attempts - 1]
+        android.util.Log.w(
+            "SyncCoordinator",
+            "$name: transient (\"${outcome.message}\"), retry $attempts/${backoffsMs.size} in ${backoff}ms",
+        )
+        delay(backoff)
+        outcome = runAttempt(name, block)
+        attempts++
+    }
+    return RetryResult(outcome, attempts)
+}
+
+private suspend fun runAttempt(name: String, block: suspend () -> SyncOutcome): SyncOutcome =
+    runCatching { block() }
+        .getOrElse { e ->
+            android.util.Log.e("SyncCoordinator", "runAttempt: $name threw", e)
+            SyncOutcome.Transient(e.message ?: e::class.simpleName ?: "error")
+        }
