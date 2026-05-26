@@ -8,6 +8,7 @@ import dagger.Lazy
 import dagger.hilt.android.HiltAndroidApp
 import `in`.jphe.storyvox.BuildConfig
 import `in`.jphe.storyvox.data.PrerenderModeWatcher
+import `in`.jphe.storyvox.data.VersionUpgradeHandler
 import `in`.jphe.storyvox.data.auth.SessionHydrator
 import `in`.jphe.storyvox.data.db.StoryvoxDatabase
 import `in`.jphe.storyvox.data.log.DebugLog
@@ -109,6 +110,15 @@ class StoryvoxApp : Application(), Configuration.Provider {
     @Inject lateinit var tagSyncScheduler: Lazy<`in`.jphe.storyvox.source.royalroad.tagsync.RoyalRoadTagSyncScheduler>
     @Inject lateinit var tagSyncCoordinator: Lazy<`in`.jphe.storyvox.source.royalroad.tagsync.RoyalRoadTagSyncCoordinator>
 
+    /**
+     * Issue #860 — compares the persisted versionCode against
+     * [BuildConfig.VERSION_CODE] on cold start and wipes the PCM
+     * cache on any mismatch. Lazy so the Hilt graph + DataStore +
+     * PcmCache construction stays off the cold-launch main thread
+     * (Issue #409 — same posture as the other init handlers above).
+     */
+    @Inject lateinit var versionUpgradeHandler: Lazy<VersionUpgradeHandler>
+
     override val workManagerConfiguration: Configuration
         get() = Configuration.Builder()
             .setWorkerFactory(workerFactory)
@@ -154,6 +164,14 @@ class StoryvoxApp : Application(), Configuration.Provider {
         // pulls cached instances instead of doing a first-time
         // Room.databaseBuilder().build() on the main thread.
         warmDataLayer()
+        // Issue #860 — wipe the PCM cache on any versionCode change.
+        // Runs on IO before anything that could touch the cache; the
+        // first cache read is downstream of user interaction (tap a
+        // chapter) so a short DataStore read + File.delete sweep here
+        // is always done well before the cache is needed.
+        initScope.launch {
+            versionUpgradeHandler.get().runIfUpgraded()
+        }
         initScope.launch {
             // ensurePeriodicWorkScheduled hits SQLite via WorkManager's
             // internal database; on the Helio P22T that's ~150-300ms of
