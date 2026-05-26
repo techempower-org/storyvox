@@ -118,6 +118,13 @@ class SystemTtsEngine(
      */
     suspend fun loadModel(): Boolean = withContext(Dispatchers.IO) {
         if (ready) return@withContext true
+        // #903 — sweep any systemtts-*.wav that survived a previous
+        // process death between synthesizeToFile and the per-utterance
+        // finally-delete. cacheDir has no guaranteed eviction interval
+        // and PcmCache.evictToQuota doesn't know about these files, so
+        // without this they'd accumulate until the user manually clears
+        // the app cache.
+        cleanupStaleTempFiles(context)
         val initDeferred = CompletableDeferred<Int>()
         val instance = try {
             if (engineName.isNullOrBlank()) {
@@ -198,7 +205,7 @@ class SystemTtsEngine(
         val deferred = CompletableDeferred<Boolean>()
         pending[utteranceId] = deferred
 
-        val outFile = File(context.cacheDir, "systemtts-$utteranceId.wav")
+        val outFile = File(context.cacheDir, "$TEMP_WAV_PREFIX$utteranceId$TEMP_WAV_SUFFIX")
         // Defensive cleanup if a previous run with the same UUID
         // somehow left a leftover file (UUID collision odds are
         // astronomical, but mkdir-ing into a stale handle would be
@@ -219,30 +226,30 @@ class SystemTtsEngine(
             return@withContext null
         }
 
-        // #716 — bound the await so an engine that swallows the
-        // utterance (no onDone, no onError — observed on stock Samsung
-        // TTS firmware after a mid-synth engine-package crash) can't
-        // park this coroutine forever. A healthy sentence synthesizes
-        // in <500 ms even on slow phones; SYNTH_TIMEOUT_MS (10 s) is
-        // well outside the healthy band and matches the buffering
-        // watchdog window in PlaybackController so upstream's
-        // AudioOutputStuck recovery kicks in at the same horizon.
-        val ok = try {
-            withTimeoutOrNull(SYNTH_TIMEOUT_MS) { deferred.await() }
-        } finally {
-            pending.remove(utteranceId)
-        }
-        if (ok == null) {
-            Log.w(TAG, "synth timed out after ${SYNTH_TIMEOUT_MS}ms text.len=${text.length}")
-            runCatching { outFile.delete() }
-            return@withContext null
-        }
-        if (!ok) {
-            runCatching { outFile.delete() }
-            return@withContext null
-        }
-
+        // #903 — once synthesizeToFile has accepted the request, the temp
+        // WAV exists on disk and MUST be cleaned up on every exit path
+        // (timeout, engine error, truncated output, success, or an
+        // unexpected throw). A single try/finally around the whole
+        // post-accept lifecycle is the only way to guarantee that; the
+        // earlier scattered per-branch deletes missed the truncated-output
+        // early returns and leaked header-only WAVs into cacheDir.
         try {
+            // #716 — bound the await so an engine that swallows the
+            // utterance (no onDone, no onError — observed on stock Samsung
+            // TTS firmware after a mid-synth engine-package crash) can't
+            // park this coroutine forever. A healthy sentence synthesizes
+            // in <500 ms even on slow phones; SYNTH_TIMEOUT_MS (10 s) is
+            // well outside the healthy band and matches the buffering
+            // watchdog window in PlaybackController so upstream's
+            // AudioOutputStuck recovery kicks in at the same horizon.
+            val ok = withTimeoutOrNull(SYNTH_TIMEOUT_MS) { deferred.await() }
+            if (ok == null) {
+                Log.w(TAG, "synth timed out after ${SYNTH_TIMEOUT_MS}ms text.len=${text.length}")
+                return@withContext null
+            }
+            if (!ok) {
+                return@withContext null
+            }
             if (!outFile.exists() || outFile.length() <= WAV_HEADER_BYTES) {
                 Log.w(TAG, "synthesizeToFile produced no audio body file=${outFile.length()}b")
                 return@withContext null
@@ -264,6 +271,7 @@ class SystemTtsEngine(
             // matching the contract Piper/Kokoro/Kitten/Azure all return.
             bytes.copyOfRange(WAV_HEADER_BYTES, bytes.size)
         } finally {
+            pending.remove(utteranceId)
             runCatching { outFile.delete() }
         }
     }
@@ -292,6 +300,25 @@ class SystemTtsEngine(
 
     companion object {
         private const val TAG = "SystemTtsEngine"
+
+        /** Filename prefix for the per-utterance temp WAVs in cacheDir. */
+        private const val TEMP_WAV_PREFIX = "systemtts-"
+        private const val TEMP_WAV_SUFFIX = ".wav"
+
+        /**
+         * #903 — delete any leftover `systemtts-*.wav` temp files in
+         * cacheDir. Called from [loadModel] to reclaim files orphaned by
+         * a previous process death between synth and the finally-delete.
+         */
+        private fun cleanupStaleTempFiles(context: Context) {
+            runCatching {
+                context.cacheDir
+                    .listFiles { f ->
+                        f.name.startsWith(TEMP_WAV_PREFIX) && f.name.endsWith(TEMP_WAV_SUFFIX)
+                    }
+                    ?.forEach { runCatching { it.delete() } }
+            }
+        }
 
         /**
          * Default sample rate used until the first WAV header parse
