@@ -10,6 +10,7 @@ import `in`.jphe.storyvox.BuildConfig
 import `in`.jphe.storyvox.data.PrerenderModeWatcher
 import `in`.jphe.storyvox.data.auth.SessionHydrator
 import `in`.jphe.storyvox.data.db.StoryvoxDatabase
+import `in`.jphe.storyvox.data.log.DebugLog
 import `in`.jphe.storyvox.data.repository.AuthRepository
 import `in`.jphe.storyvox.data.repository.FictionRepository
 import `in`.jphe.storyvox.data.repository.PlaybackPositionRepository
@@ -23,7 +24,9 @@ import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -158,6 +161,17 @@ class StoryvoxApp : Application(), Configuration.Provider {
             workScheduler.get().ensurePeriodicWorkScheduled()
         }
         rehydrateRoyalRoadCookies()
+        // Issue #823 — propagate the persisted "verbose logging" toggle
+        // into DebugLog so the playback / download pipeline starts
+        // emitting Info-level breadcrumbs on next event. distinctUntilChanged
+        // keeps the AtomicBoolean writes quiet when the flow re-emits
+        // the same value (DataStore replay-on-subscribe behaviour).
+        initScope.launch {
+            settingsRepo.get().settings
+                .map { it.debugLogging }
+                .distinctUntilChanged()
+                .collect { DebugLog.setEnabled(it) }
+        }
         // Voice-engine seed calls intentionally NOT invoked here — see
         // [seedVoiceEngineFromSettings] kdoc. MainActivity drives the
         // post-first-frame hand-off so the .so dlopen lands well after

@@ -1082,6 +1082,19 @@ data class UiSettings(
      */
     val showDebugOverlay: Boolean = false,
     /**
+     * Issue #823 — verbose-logging master switch. Default `false`.
+     * When `true`, the playback + chapter-download subsystems
+     * (PlaybackController, EnginePlayer, ChapterDownloadScheduler,
+     * ChapterDownloadWorker) emit Info-level breadcrumbs through
+     * [DebugLog][in.jphe.storyvox.data.log.DebugLog] for on-device
+     * diagnostics via `adb logcat`. Errors and critical events log
+     * regardless of this flag.
+     *
+     * Per-device pref (NOT synced) — only relevant to whichever
+     * device the user is currently diagnosing.
+     */
+    val debugLogging: Boolean = false,
+    /**
      * Issue #383 — per-source Inbox notification toggles. When false,
      * the corresponding backend's update emitter skips writing events
      * to the cross-source Inbox feed (and skips the optional system
@@ -2023,6 +2036,18 @@ interface SettingsRepositoryUi {
      * that *do* care about the overlay's persistence can override.
      */
     suspend fun setShowDebugOverlay(enabled: Boolean) {
+        // default no-op for test fakes; SettingsRepositoryUiImpl overrides.
+    }
+
+    /**
+     * Issue #823 — toggle the verbose-logging master switch
+     * ([UiSettings.debugLogging]). Default impl is a no-op so existing
+     * test fakes don't need to be touched; the real DataStore impl
+     * persists the value and [StoryvoxApp][in.jphe.storyvox.StoryvoxApp]
+     * propagates emissions to
+     * [DebugLog][in.jphe.storyvox.data.log.DebugLog].
+     */
+    suspend fun setDebugLogging(enabled: Boolean) {
         // default no-op for test fakes; SettingsRepositoryUiImpl overrides.
     }
 

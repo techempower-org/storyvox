@@ -658,6 +658,12 @@ private object Keys {
      *  /debug screen is reachable regardless of this toggle. */
     val SHOW_DEBUG_OVERLAY = booleanPreferencesKey("pref_show_debug_overlay")
 
+    /** Issue #823 — verbose-logging master switch. Default false;
+     *  flips DebugLog.isEnabled() so the playback / download pipeline
+     *  starts emitting Info-level breadcrumbs. Per-device (NOT synced)
+     *  — only useful on the device JP is currently diagnosing. */
+    val DEBUG_LOGGING_ENABLED = booleanPreferencesKey("pref_debug_logging_enabled")
+
     // ── Azure offline-fallback (issue #185, PR-6) ──────────────────
     val AZURE_FALLBACK_ENABLED = booleanPreferencesKey("pref_azure_fallback_enabled")
     val AZURE_FALLBACK_VOICE_ID = stringPreferencesKey("pref_azure_fallback_voice_id")
@@ -1209,6 +1215,7 @@ class SettingsRepositoryUiImpl(
             notionRootPageId = notion.rootPageId,
             sleepShakeToExtendEnabled = prefs[Keys.SLEEP_SHAKE_TO_EXTEND_ENABLED] ?: true,
             showDebugOverlay = prefs[Keys.SHOW_DEBUG_OVERLAY] ?: false,
+            debugLogging = prefs[Keys.DEBUG_LOGGING_ENABLED] ?: false,
             azure = run {
                 // #182 — read the encrypted snapshot imperatively each
                 // emission. The azureTick flow above guarantees a fresh
@@ -2187,6 +2194,10 @@ class SettingsRepositoryUiImpl(
 
     override suspend fun setShowDebugOverlay(enabled: Boolean) {
         store.edit { it[Keys.SHOW_DEBUG_OVERLAY] = enabled }
+    }
+
+    override suspend fun setDebugLogging(enabled: Boolean) {
+        store.edit { it[Keys.DEBUG_LOGGING_ENABLED] = enabled }
     }
 
     // ── Accessibility scaffold (Phase 1, v0.5.42) ──────────────────

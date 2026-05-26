@@ -101,6 +101,7 @@ fun DebugScreen(
 ) {
     val snapshot by viewModel.snapshot.collectAsStateWithLifecycle()
     val overlayEnabled by viewModel.overlayEnabled.collectAsStateWithLifecycle()
+    val debugLoggingEnabled by viewModel.debugLoggingEnabled.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var copyFlashAt by remember { mutableStateOf(0L) }
@@ -108,9 +109,11 @@ fun DebugScreen(
     DebugScreenContent(
         snapshot = snapshot,
         overlayEnabled = overlayEnabled,
+        debugLoggingEnabled = debugLoggingEnabled,
         copyFlashAt = copyFlashAt,
         onBack = onBack,
         onToggleOverlay = viewModel::setOverlayEnabled,
+        onToggleDebugLogging = viewModel::setDebugLoggingEnabled,
         onCopy = {
             scope.launch {
                 val snap = viewModel.captureForExport()
@@ -126,9 +129,11 @@ fun DebugScreen(
 internal fun DebugScreenContent(
     snapshot: DebugSnapshot,
     overlayEnabled: Boolean,
+    debugLoggingEnabled: Boolean,
     copyFlashAt: Long,
     onBack: () -> Unit,
     onToggleOverlay: (Boolean) -> Unit,
+    onToggleDebugLogging: (Boolean) -> Unit,
     onCopy: () -> Unit,
 ) {
     val spacing = LocalSpacing.current
@@ -188,6 +193,15 @@ internal fun DebugScreenContent(
             OverlayToggleCard(
                 enabled = overlayEnabled,
                 onToggle = onToggleOverlay,
+            )
+
+            // Issue #823 — verbose-logging master switch. Flips
+            // DebugLog.isEnabled() so PlaybackController / EnginePlayer /
+            // ChapterDownloadScheduler / ChapterDownloadWorker emit
+            // Info-level breadcrumbs to logcat for on-device diagnostics.
+            VerboseLoggingToggleCard(
+                enabled = debugLoggingEnabled,
+                onToggle = onToggleDebugLogging,
             )
 
             DebugSection(title = "Pipeline") {
@@ -419,6 +433,63 @@ private fun OverlayToggleCard(enabled: Boolean, onToggle: (Boolean) -> Unit) {
     }
 }
 
+/**
+ * Issue #823 — sibling of [OverlayToggleCard] for the verbose-logging
+ * master switch. When on, the playback + chapter-download subsystems
+ * (PlaybackController, EnginePlayer, ChapterDownloadScheduler,
+ * ChapterDownloadWorker) emit Info-level breadcrumbs through
+ * [DebugLog][in.jphe.storyvox.data.log.DebugLog] for on-device
+ * diagnostics via `adb logcat`. Errors keep going to logcat regardless.
+ */
+@Composable
+private fun VerboseLoggingToggleCard(enabled: Boolean, onToggle: (Boolean) -> Unit) {
+    val brassColors = SwitchDefaults.colors(
+        checkedThumbColor = MaterialTheme.colorScheme.primary,
+        checkedTrackColor = MaterialTheme.colorScheme.primaryContainer,
+        checkedBorderColor = MaterialTheme.colorScheme.primary,
+        uncheckedThumbColor = MaterialTheme.colorScheme.outline,
+    )
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        ),
+        shape = MaterialTheme.shapes.large,
+    ) {
+        // a11y (#478): toggleable Row so TalkBack announces a single
+        // Role.Switch node with the label.
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .toggleable(
+                    value = enabled,
+                    role = Role.Switch,
+                    onValueChange = onToggle,
+                )
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Verbose logging",
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+                Text(
+                    text = "Emit Info-level breadcrumbs from playback + chapter-download to logcat. Errors log regardless.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Switch(
+                checked = enabled,
+                onCheckedChange = null,
+                colors = brassColors,
+            )
+        }
+    }
+}
+
 @Composable
 private fun DebugSection(
     title: String,
@@ -585,9 +656,11 @@ private fun PreviewDebugScreenIdle() = LibraryNocturneTheme(darkTheme = true) {
             snapshotAtMs = System.currentTimeMillis(),
         ),
         overlayEnabled = false,
+        debugLoggingEnabled = false,
         copyFlashAt = 0L,
         onBack = {},
         onToggleOverlay = {},
+        onToggleDebugLogging = {},
         onCopy = {},
     )
 }
@@ -630,9 +703,11 @@ private fun PreviewDebugScreenPlaying() = LibraryNocturneTheme(darkTheme = true)
             snapshotAtMs = System.currentTimeMillis(),
         ),
         overlayEnabled = true,
+        debugLoggingEnabled = true,
         copyFlashAt = 0L,
         onBack = {},
         onToggleOverlay = {},
+        onToggleDebugLogging = {},
         onCopy = {},
     )
 }
