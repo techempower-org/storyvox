@@ -49,7 +49,9 @@ import `in`.jphe.storyvox.playback.cache.EngineMutex
 import `in`.jphe.storyvox.playback.cache.PcmAppender
 import `in`.jphe.storyvox.playback.cache.PcmCache
 import `in`.jphe.storyvox.playback.cache.PcmCacheKey
+import `in`.jphe.storyvox.playback.cache.PcmIndex
 import `in`.jphe.storyvox.playback.cache.PrerenderTriggers
+import `in`.jphe.storyvox.playback.cache.pcmCacheJson
 import `in`.jphe.storyvox.playback.tts.source.CacheFileSource
 import `in`.jphe.storyvox.playback.tts.source.EngineStreamingSource
 import `in`.jphe.storyvox.playback.tts.source.PcmSource
@@ -1932,7 +1934,7 @@ class EnginePlayer @AssistedInject constructor(
         // post-loadModel callsite below already populated it with the
         // engine's actual rate, so this is a lock-free read on every
         // pipeline rebuild after the first.
-        val sampleRate = when (engineType) {
+        val engineSampleRate = when (engineType) {
             is EngineType.Kokoro -> EngineSampleRateCache.kokoroRate()
             // Issue #119 — Kitten native sample rate is 24 kHz (same as
             // Kokoro) but the runtime accessor is the source of truth.
@@ -1951,6 +1953,63 @@ class EnginePlayer @AssistedInject constructor(
                 ?: SystemTtsEngine.DEFAULT_SAMPLE_RATE
             else -> EngineSampleRateCache.piperRate()
         }.takeIf { it > 0 } ?: DEFAULT_SAMPLE_RATE
+
+        // Issue #858 — sample-rate authority on the cache-hit path.
+        // The AudioTrack is configured ONCE per pipeline; the consumer
+        // computes trailing-silence bytes off the source's sample rate
+        // (`silenceBytesFor(trailingSilenceMs, sampleRate)`). If the
+        // AudioTrack's rate (engine cache) and the cached source's
+        // rate (on-disk index) diverge — say the engine cache was
+        // warmed at 22.05 kHz but the on-disk cache entry was
+        // rendered at 24 kHz by a previous model variant — every
+        // cached chapter plays back at the wrong pitch AND the
+        // trailing-silence write lands the wrong byte count between
+        // sentences (audible gaps). PR-E's CHUNKER_VERSION /
+        // dictHash key only partitions by *configuration*, not by
+        // *engine variant*, so an in-place model update can produce
+        // this skew.
+        //
+        // Resolution: peek the on-disk index sample rate BEFORE
+        // constructing the AudioTrack. If it matches the engine's
+        // current rate, the cache is usable as-is and AudioTrack is
+        // sized to that rate. If it diverges, invalidate the entry
+        // synchronously (delete .pcm + .idx.json + .meta.json) so
+        // the cache-hit branch below falls through to the streaming
+        // path and re-renders at the engine's current rate. Either
+        // way, the AudioTrack sample rate, the cached PCM bytes,
+        // and `silenceBytesFor` all agree.
+        val cachedIndexSampleRate: Int? = run {
+            val chapId = _observableState.value.currentChapterId
+            val voiceId = loadedVoiceId
+            if (chapId == null || voiceId == null) return@run null
+            val probeKey = PcmCacheKey(
+                chapterId = chapId,
+                voiceId = voiceId,
+                speedHundredths = PcmCacheKey.quantize(currentSpeed),
+                pitchHundredths = PcmCacheKey.quantize(currentPitch),
+                chunkerVersion = CHUNKER_VERSION,
+                pronunciationDictHash = cachedPronunciationDict.contentHash,
+            )
+            if (!pcmCache.isComplete(probeKey)) return@run null
+            val onDiskRate = runCatching {
+                pcmCacheJson.decodeFromString(
+                    PcmIndex.serializer(),
+                    pcmCache.indexFileFor(probeKey).readText(),
+                ).sampleRate
+            }.getOrNull() ?: return@run null
+            if (onDiskRate != engineSampleRate) {
+                android.util.Log.w(
+                    "EnginePlayer",
+                    "#858 pcm-cache sample-rate mismatch — engine=$engineSampleRate " +
+                        "on-disk=$onDiskRate base=${probeKey.fileBaseName().take(12)}; " +
+                        "invalidating cache entry and re-rendering",
+                )
+                runBlocking { pcmCache.delete(probeKey) }
+                return@run null
+            }
+            onDiskRate
+        }
+        val sampleRate = cachedIndexSampleRate ?: engineSampleRate
         val track = createAudioTrack(sampleRate)
         audioTrack = track
 
