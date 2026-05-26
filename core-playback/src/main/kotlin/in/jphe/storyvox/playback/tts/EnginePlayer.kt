@@ -54,6 +54,7 @@ import `in`.jphe.storyvox.playback.cache.PrerenderTriggers
 import `in`.jphe.storyvox.playback.cache.pcmCacheJson
 import `in`.jphe.storyvox.playback.tts.source.CacheFileSource
 import `in`.jphe.storyvox.playback.tts.source.EngineStreamingSource
+import `in`.jphe.storyvox.playback.tts.source.PcmChunk
 import `in`.jphe.storyvox.playback.tts.source.PcmSource
 import `in`.jphe.storyvox.playback.voice.EngineType
 import `in`.jphe.storyvox.playback.voice.VoiceManager
@@ -1898,7 +1899,7 @@ class EnginePlayer @AssistedInject constructor(
      * Pre-fetching is implicit via the queue's capacity — generation runs
      * ahead of playback by however many slots are free.
      */
-    private fun startPlaybackPipeline() {
+    private suspend fun startPlaybackPipeline() {
         // Make sure any previous run is fully stopped.
         stopPlaybackPipeline()
 
@@ -2186,8 +2187,8 @@ class EnginePlayer @AssistedInject constructor(
         // gone post-isDebuggable=false, so logcat is the primary
         // verification surface for cache behavior on the tablet.
         val cacheHitSource: PcmSource? = cacheKey?.let { key ->
-            runBlocking {
-                if (!pcmCache.isComplete(key)) return@runBlocking null
+            withContext(Dispatchers.IO) {
+                if (!pcmCache.isComplete(key)) return@withContext null
                 pcmCache.touch(key)
                 runCatching {
                     CacheFileSource.open(
@@ -2222,14 +2223,14 @@ class EnginePlayer @AssistedInject constructor(
             // idx.json absent), wipe it first; PR-D's resume policy
             // is "abandon, restart".
             //
-            // runBlocking is acceptable here: startPlaybackPipeline
-            // is already called synchronously from a coroutine
-            // (or from suspend functions like loadAndPlay), so the
-            // blocking wait for pcmCache.delete is brief (a few
-            // File.delete syscalls on Dispatchers.IO — single-digit
-            // ms).
+            // #866 — withContext(IO), not runBlocking: startPlaybackPipeline
+            // is now suspend, so the cache delete + appender open run on
+            // Dispatchers.IO without parking Main. Pre-#866 this was a
+            // runBlocking on Main and a slow flash filesystem could push
+            // the delete+open to 50+ ms, dropping Compose frames on every
+            // speed/seek/voice-swap rebuild.
             val appender: PcmAppender? = cacheKey?.let { key ->
-                runBlocking {
+                withContext(Dispatchers.IO) {
                     if (pcmCache.metaFileFor(key).exists() && !pcmCache.isComplete(key)) {
                         // Stale partial — wipe before opening fresh.
                         pcmCache.delete(key)
@@ -2329,6 +2330,20 @@ class EnginePlayer @AssistedInject constructor(
             // setVolume JNI call when the ramp is idle, which is the steady
             // state. Seeded in the firstSentence block below.
             var lastVol = -1f
+            // Issue #883 — pause-mid-write resume state. When the user
+            // pauses while we're partway through writing a chunk's PCM (or
+            // its trailing silence), the inner write loops break and we
+            // stash the in-flight chunk here along with how far we got.
+            // After the fast-pause park clears on resume, we re-enter the
+            // write phase for the SAME chunk at the saved offsets instead
+            // of pulling the next chunk from the queue — which would skip
+            // the rest of sentence N and jump to N+1, the audible "player
+            // skips a few seconds on pause" symptom. pausedPcmOffset is a
+            // byte index into chunk.pcm; pausedSilenceWritten is bytes of
+            // trailing silence already accepted by AudioTrack.
+            var pausedChunk: PcmChunk? = null
+            var pausedPcmOffset = 0
+            var pausedSilenceWritten = 0
             try {
                 while (pipelineRunning.get()) {
                     // Issue #540 — fast-pause park. When the user taps
@@ -2384,7 +2399,16 @@ class EnginePlayer @AssistedInject constructor(
                     // but because the consumer thread is the only thing
                     // waiting for the result, runBlocking just parks it
                     // exactly as queue.take() did pre-PR-A.
-                    val chunk = try {
+                    // Issue #883 — if a prior iteration paused mid-write,
+                    // resume that exact chunk rather than dequeuing the
+                    // next one. resumedFromPause gates the per-chunk setup
+                    // below (sentence-range broadcast, firstSentence
+                    // prebuffer) so we don't re-fire it for a chunk the
+                    // listener was already partway through.
+                    val resumedFromPause = pausedChunk != null
+                    val chunkOrNull = if (resumedFromPause) {
+                        pausedChunk
+                    } else try {
                         runBlocking { source.nextChunk() }
                     } catch (t: Throwable) {
                         // Issue #588 — pre-fix this was a silent
@@ -2405,7 +2429,7 @@ class EnginePlayer @AssistedInject constructor(
                         }
                         null
                     }
-                    if (chunk == null) {
+                    if (chunkOrNull == null) {
                         // null = source exhausted (chapter end) OR closed
                         // by stopPlaybackPipeline. Distinguish via the
                         // source's authoritative
@@ -2436,18 +2460,23 @@ class EnginePlayer @AssistedInject constructor(
                         )
                         break
                     }
+                    val chunk = chunkOrNull
 
                     // Surface the new sentence range BEFORE writing. Fire-
                     // and-forget on Main — withContext would force this
                     // thread to coordinate with the coroutine dispatcher,
                     // which is the whole reason we left coroutines.
-                    scope.launch {
-                        currentSentenceIndex = chunk.sentenceIndex
-                        _observableState.update {
-                            it.copy(
-                                currentSentenceRange = chunk.range,
-                                charOffset = chunk.range.startCharInChapter,
-                            )
+                    // #883 — skip on a pause-resume: the listener is still
+                    // inside this same sentence, the range is already live.
+                    if (!resumedFromPause) {
+                        scope.launch {
+                            currentSentenceIndex = chunk.sentenceIndex
+                            _observableState.update {
+                                it.copy(
+                                    currentSentenceRange = chunk.range,
+                                    charOffset = chunk.range.startCharInChapter,
+                                )
+                            }
                         }
                     }
 
@@ -3470,7 +3499,7 @@ class EnginePlayer @AssistedInject constructor(
                 "(this creates a NEW AudioTrack; cold pause or pipeline torn down)",
         )
         _observableState.update { it.copy(isPlaying = true, error = null) }
-        startPlaybackPipeline()
+        scope.launch { startPlaybackPipeline() }
         invalidateState()
     }
 
@@ -3514,7 +3543,7 @@ class EnginePlayer @AssistedInject constructor(
         // the scrubber to retreat.
         pinnedPausePositionMs = null
         lastTruthfulPositionMs = 0L
-        if (_observableState.value.isPlaying) startPlaybackPipeline()
+        if (_observableState.value.isPlaying) scope.launch { startPlaybackPipeline() }
         invalidateState()
     }
 
@@ -3916,14 +3945,26 @@ class EnginePlayer @AssistedInject constructor(
         // monotonic within a chapter except across explicit seeks.
         val anchorChar = handoffChar.coerceAtLeast(_observableState.value.charOffset)
         _observableState.update { it.copy(speed = speed, charOffset = anchorChar) }
-        if (_observableState.value.isPlaying) startPlaybackPipeline() // rebuild with new speed
+        if (_observableState.value.isPlaying) scope.launch { startPlaybackPipeline() }
         invalidateState()
     }
 
     fun setPitch(pitch: Float) {
+        // Issue #868 — symmetric with [setSpeed] (#555). setPitch rebuilds
+        // the pipeline, and `startPlaybackPipeline` prefers
+        // speedHandoffCharOffset over state.charOffset. Without capturing
+        // the truthful audible position here, the rebuild anchors at the
+        // consumer's last queued (sentence-start) charOffset, which lags
+        // the audible head by seconds — visible scrubber rewind on a
+        // mid-chapter pitch tap. The handoff field is rebuild-path-generic;
+        // pitch/speed/pause-mult are never captured concurrently.
+        val handoffChar = ((currentPositionMs() / 1000.0) *
+            SPEED_BASELINE_CHARS_PER_SECOND).toInt()
+        speedHandoffCharOffset = handoffChar
         currentPitch = pitch
-        _observableState.update { it.copy(pitch = pitch) }
-        if (_observableState.value.isPlaying) startPlaybackPipeline()
+        val anchorChar = handoffChar.coerceAtLeast(_observableState.value.charOffset)
+        _observableState.update { it.copy(pitch = pitch, charOffset = anchorChar) }
+        if (_observableState.value.isPlaying) scope.launch { startPlaybackPipeline() }
         invalidateState()
     }
 
@@ -3941,6 +3982,15 @@ class EnginePlayer @AssistedInject constructor(
      */
     fun setPunctuationPauseMultiplier(multiplier: Float) {
         currentPunctuationPauseMultiplier = multiplier.coerceIn(0f, 4f)
+        // Issue #868 — capture the truthful audible position SYNCHRONOUSLY
+        // at the tap, before the scope.launch dispatch. currentPositionMs
+        // reads the live AudioTrack frame counter; deferring it until after
+        // the IO + engineMutex hop would let it drift while we wait on the
+        // lock. Same rebuild-anchor concern as [setSpeed]/[setPitch]: the
+        // pipeline rebuild below prefers speedHandoffCharOffset over the
+        // consumer's lagging state.charOffset.
+        val handoffChar = ((currentPositionMs() / 1000.0) *
+            SPEED_BASELINE_CHARS_PER_SECOND).toInt()
         // Issue #870 — setSilenceScale triggers an OfflineTts rebuild
         // via _reloadIfActive (VoxSherpa v2.7.6+). Without engineMutex
         // the rebuild can race a concurrent generateAudioPCM on the
@@ -3954,6 +4004,12 @@ class EnginePlayer @AssistedInject constructor(
                     )
                 }
             }
+            // Issue #868 — hand the captured position to the rebuild and
+            // anchor state.charOffset so the UI interpolation doesn't read
+            // the stale sentence-start value the consumer last queued.
+            speedHandoffCharOffset = handoffChar
+            val anchorChar = handoffChar.coerceAtLeast(_observableState.value.charOffset)
+            _observableState.update { it.copy(charOffset = anchorChar) }
             if (_observableState.value.isPlaying) startPlaybackPipeline()
             invalidateState()
         }
