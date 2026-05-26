@@ -1,0 +1,75 @@
+version: 2
+updates:
+  - package-ecosystem: "gradle"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 10
+    assignees:
+      - "jphein"
+    labels:
+      - "dependencies"
+    groups:
+      kotlin-ecosystem:
+        patterns:
+          - "kotlin*"
+          - "ksp*"
+          - "org.jetbrains.kotlin*"
+          - "com.google.devtools.ksp*"
+      compose:
+        patterns:
+          - "compose-*"
+          - "androidx.compose*"
+      lifecycle:
+        patterns:
+          - "lifecycle-*"
+          - "androidx.lifecycle*"
+      media3:
+        patterns:
+          - "media3-*"
+          - "androidx.media3*"
+      room:
+        patterns:
+          - "room-*"
+          - "androidx.room*"
+      hilt:
+        patterns:
+          - "hilt*"
+          - "com.google.dagger*"
+          - "dagger.hilt*"
+      wear:
+        patterns:
+          - "wear-*"
+          - "androidx.wear*"
+      testing:
+        patterns:
+          - "junit"
+          - "junit-*"
+          - "espresso*"
+          - "androidx.test.espresso*"
+          - "robolectric*"
+          - "org.robolectric*"
+          - "uiautomator*"
+          - "androidx.test.uiautomator*"
+          - "benchmark*"
+          - "androidx.benchmark*"
+    ignore:
+      - dependency-name: "com.squareup.okhttp3:*"
+        update-types:
+          - "version-update:semver-major"
+      - dependency-name: "io.coil-kt*:*"
+        update-types:
+          - "version-update:semver-major"
+      - dependency-name: "io.coil-kt.coil3*:*"
+        update-types:
+          - "version-update:semver-major"
+      - dependency-name: "com.android.tools.build:gradle"
+        update-types:
+          - "version-update:semver-major"
+      - dependency-name: "com.android.application"
+        update-types:
+          - "version-update:semver-major"
+      - dependency-name: "com.android.library"
+        update-types:
+          - "version-update:semver-major"
