@@ -48,10 +48,10 @@ androidx-webkit = "1.12.1"
 androidx-browser = "1.8.0"
 
 # Concurrency
-coroutines = "1.10.2"
+coroutines = "1.11.0"
 
 # Serialization
-kotlinx-serialization = "1.7.3"
+kotlinx-serialization = "1.10.0"
 
 # Image loading
 coil = "2.7.0"
