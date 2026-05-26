@@ -283,6 +283,10 @@
     <string name="fiction_one_line_description">One-line description</string>
     <string name="fiction_listen_summary">Listen to summary</string>
     <string name="fiction_stop_summary">Stop listening</string>
+    <!-- Issue #794 — chapter search + jump bar (long-webnovel affordance) -->
+    <string name="fiction_chapter_search_label">Search chapters</string>
+    <string name="fiction_chapter_jump_label">Go to #</string>
+    <string name="fiction_chapter_search_no_results">No chapters match your search.</string>
 
     <!-- Voice library -->
     <string name="voicelibrary_title">Voice library</string>

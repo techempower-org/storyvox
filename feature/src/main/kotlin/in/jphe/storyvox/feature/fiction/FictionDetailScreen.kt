@@ -19,7 +19,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -44,9 +46,11 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -84,6 +88,7 @@ import `in`.jphe.storyvox.ui.component.fictionMonogram
 import `in`.jphe.storyvox.ui.component.FictionDetailSkeleton
 import `in`.jphe.storyvox.ui.layout.isAtLeastTablet
 import `in`.jphe.storyvox.ui.theme.LocalSpacing
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -401,7 +406,27 @@ fun FictionDetailScreen(
                         onAdd = viewModel::addNotebookEntry,
                     )
                 }
+                // Issue #794 — chapter search + jump-to-#. Renders only
+                // when the list crosses CHAPTER_SEARCH_THRESHOLD; for
+                // short fictions (Wikisource / Standard Ebooks, 5–30
+                // chapters) the affordance is wasted vertical space.
+                // Action row's `item {}` index inside this LazyColumn is
+                // 0; the search bar (when shown) is index 1; chapter
+                // rows start at index 2 in wide layout (or 1 when the
+                // bar is hidden). The jump handler computes that offset
+                // via `chapterListItemOffset()` so it scrolls to the
+                // right LazyColumn item.
+                val wideListState = rememberLazyListState()
+                val wideScope = rememberCoroutineScope()
+                var wideSearchQuery by remember { mutableStateOf("") }
+                var wideJumpInput by remember { mutableStateOf("") }
+                val wideShowSearch = state.chapters.size >= CHAPTER_SEARCH_THRESHOLD
+                val wideHeaderOffset = if (wideShowSearch) 2 else 1
+                val wideFiltered by remember(state.chapters, wideSearchQuery) {
+                    derivedStateOf { filterChaptersByQuery(state.chapters, wideSearchQuery) }
+                }
                 LazyColumn(
+                    state = wideListState,
                     modifier = Modifier.weight(0.58f).fillMaxSize(),
                     contentPadding = PaddingValues(top = spacing.md, bottom = spacing.md),
                 ) {
@@ -432,7 +457,26 @@ fun FictionDetailScreen(
                             ),
                         )
                     }
-                    items(state.chapters, key = { it.id }) { ch ->
+                    if (wideShowSearch) {
+                        item(key = "chapter-search") {
+                            ChapterSearchBar(
+                                searchQuery = wideSearchQuery,
+                                onSearchQueryChange = { wideSearchQuery = it },
+                                jumpInput = wideJumpInput,
+                                onJumpInputChange = { wideJumpInput = it },
+                                onJumpSubmit = {
+                                    val ordinal = parseChapterJumpInput(wideJumpInput)
+                                    val idx = ordinal?.let { findChapterIndexForOrdinal(wideFiltered, it) }
+                                    if (idx != null) {
+                                        wideScope.launch {
+                                            wideListState.animateScrollToItem(idx + wideHeaderOffset)
+                                        }
+                                    }
+                                },
+                            )
+                        }
+                    }
+                    items(wideFiltered, key = { it.id }) { ch ->
                         ChapterCard(
                             state = ch.toCardState(currentId = null),
                             onClick = { viewModel.listen(ch.id) },
@@ -441,10 +485,45 @@ fun FictionDetailScreen(
                                 .padding(horizontal = spacing.md, vertical = spacing.xxs),
                         )
                     }
+                    if (wideShowSearch && wideFiltered.isEmpty() && wideSearchQuery.isNotBlank()) {
+                        item(key = "chapter-search-empty") {
+                            Text(
+                                text = stringResource(R.string.fiction_chapter_search_no_results),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = spacing.md, vertical = spacing.md),
+                            )
+                        }
+                    }
                 }
             }
         } else {
+            // Issue #794 — same chapter-search affordance as the wide
+            // layout, with a per-item-offset compute (narrow has a more
+            // variable preamble: error banner, hero, action row,
+            // synopsis, notebook).
+            val narrowListState = rememberLazyListState()
+            val narrowScope = rememberCoroutineScope()
+            var narrowSearchQuery by remember { mutableStateOf("") }
+            var narrowJumpInput by remember { mutableStateOf("") }
+            val narrowShowSearch = state.chapters.size >= CHAPTER_SEARCH_THRESHOLD
+            val narrowFiltered by remember(state.chapters, narrowSearchQuery) {
+                derivedStateOf { filterChaptersByQuery(state.chapters, narrowSearchQuery) }
+            }
+            // Header items in order: [error?], Hero, ActionRow, Synopsis,
+            // Notebook, [search?]. Notebook is rendered as a LazyColumn
+            // item even when empty (it early-returns inside, but the item
+            // slot is still consumed).
+            val narrowHeaderCount = (if (state.error != null) 1 else 0) +
+                1 + // Hero
+                1 + // ActionRow
+                1 + // Synopsis
+                1 + // Notebook
+                (if (narrowShowSearch) 1 else 0)
             LazyColumn(
+                state = narrowListState,
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(bottom = spacing.md),
             ) {
@@ -520,7 +599,26 @@ fun FictionDetailScreen(
                         onAdd = viewModel::addNotebookEntry,
                     )
                 }
-                items(state.chapters, key = { it.id }) { ch ->
+                if (narrowShowSearch) {
+                    item(key = "chapter-search") {
+                        ChapterSearchBar(
+                            searchQuery = narrowSearchQuery,
+                            onSearchQueryChange = { narrowSearchQuery = it },
+                            jumpInput = narrowJumpInput,
+                            onJumpInputChange = { narrowJumpInput = it },
+                            onJumpSubmit = {
+                                val ordinal = parseChapterJumpInput(narrowJumpInput)
+                                val idx = ordinal?.let { findChapterIndexForOrdinal(narrowFiltered, it) }
+                                if (idx != null) {
+                                    narrowScope.launch {
+                                        narrowListState.animateScrollToItem(idx + narrowHeaderCount)
+                                    }
+                                }
+                            },
+                        )
+                    }
+                }
+                items(narrowFiltered, key = { it.id }) { ch ->
                     ChapterCard(
                         state = ch.toCardState(currentId = null),
                         onClick = { viewModel.listen(ch.id) },
@@ -528,6 +626,18 @@ fun FictionDetailScreen(
                             .fillMaxWidth()
                             .padding(horizontal = spacing.md, vertical = spacing.xxs),
                     )
+                }
+                if (narrowShowSearch && narrowFiltered.isEmpty() && narrowSearchQuery.isNotBlank()) {
+                    item(key = "chapter-search-empty") {
+                        Text(
+                            text = stringResource(R.string.fiction_chapter_search_no_results),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = spacing.md, vertical = spacing.md),
+                        )
+                    }
                 }
             }
         }
@@ -1074,6 +1184,120 @@ private fun ActionRow(
                 modifier = Modifier.weight(1f),
             )
         }
+    }
+}
+
+/**
+ * Issue #794 — chapter count at and above which the chapter list
+ * surfaces a search/jump bar. Below this the affordance is wasted
+ * vertical space (Wikisource, Standard Ebooks: 5–30 chapters); above
+ * it the user can have hundreds of chapters in one flat LazyColumn
+ * (Royal Road serials like *He Who Fights With Monsters*, 800+) with
+ * no way to find Chapter 412 except scrolling. 50 is the crossover the
+ * issue calls for; chosen so a typical novel with ~30 chapters stays
+ * scroll-only and a webnovel jumps into search mode.
+ */
+internal const val CHAPTER_SEARCH_THRESHOLD: Int = 50
+
+/**
+ * Issue #794 — case-insensitive title-substring filter. Empty / blank
+ * query returns the full list unchanged (cheap reference equality
+ * preserved). Trim the query before matching so a stray trailing space
+ * from a paste doesn't zero out results.
+ */
+internal fun filterChaptersByQuery(chapters: List<UiChapter>, query: String): List<UiChapter> {
+    val trimmed = query.trim()
+    if (trimmed.isEmpty()) return chapters
+    return chapters.filter { it.title.contains(trimmed, ignoreCase = true) }
+}
+
+/**
+ * Issue #794 — lenient parser for the "Go to chapter #" input. Accepts
+ * a bare integer, "ch 412", "chapter 412", "ch.412", etc. Returns the
+ * first integer-shaped token, or null if the input doesn't contain
+ * one. Negative / zero values are rejected (chapter ordinals are 1+).
+ *
+ * Examples:
+ *   "412"          → 412
+ *   "ch 412"       → 412
+ *   "Chapter 12"   → 12
+ *   "ch.7"         → 7
+ *   "epilogue"     → null
+ *   "0"            → null
+ *   ""             → null
+ */
+internal fun parseChapterJumpInput(input: String): Int? {
+    val match = Regex("\\d+").find(input) ?: return null
+    val n = match.value.toIntOrNull() ?: return null
+    return if (n >= 1) n else null
+}
+
+/**
+ * Issue #794 — locate the index of the chapter whose ordinal matches
+ * [ordinal]. Tries exact `UiChapter.number` first; falls back to a
+ * title-prefix match ("412: …") for sources whose chapter list lacks
+ * a stable numeric ordinal (Notion, RSS) but still names chapters by
+ * number. Returns null if neither path finds a hit so the caller can
+ * leave the scroll position untouched rather than scrolling to an
+ * arbitrary chapter.
+ */
+internal fun findChapterIndexForOrdinal(chapters: List<UiChapter>, ordinal: Int): Int? {
+    if (chapters.isEmpty()) return null
+    val exact = chapters.indexOfFirst { it.number == ordinal }
+    if (exact >= 0) return exact
+    val prefix = "$ordinal"
+    val titled = chapters.indexOfFirst { ch ->
+        val t = ch.title.trimStart()
+        t.startsWith(prefix) && (t.length == prefix.length || !t[prefix.length].isDigit())
+    }
+    return if (titled >= 0) titled else null
+}
+
+/**
+ * Issue #794 — search + jump-to-chapter affordance for long webnovels.
+ * Two fields: a title-substring filter on the left, a "Go to #"
+ * integer field on the right. The integer field commits on the IME
+ * Done action and on each `onValueChange` whose latest input parses
+ * to a valid ordinal — feels snappier than waiting for Done on
+ * single-digit-then-Enter input.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ChapterSearchBar(
+    searchQuery: String,
+    onSearchQueryChange: (String) -> Unit,
+    jumpInput: String,
+    onJumpInputChange: (String) -> Unit,
+    onJumpSubmit: () -> Unit,
+) {
+    val spacing = LocalSpacing.current
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = spacing.md, vertical = spacing.xs),
+        horizontalArrangement = Arrangement.spacedBy(spacing.sm),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        androidx.compose.material3.OutlinedTextField(
+            value = searchQuery,
+            onValueChange = onSearchQueryChange,
+            label = { Text(stringResource(R.string.fiction_chapter_search_label)) },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+            modifier = Modifier.weight(2f),
+        )
+        androidx.compose.material3.OutlinedTextField(
+            value = jumpInput,
+            onValueChange = onJumpInputChange,
+            label = { Text(stringResource(R.string.fiction_chapter_jump_label)) },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(
+                keyboardType = androidx.compose.ui.text.input.KeyboardType.Number,
+                imeAction = ImeAction.Go,
+            ),
+            keyboardActions = KeyboardActions(onGo = { onJumpSubmit() }),
+            modifier = Modifier.weight(1f),
+        )
     }
 }
 
