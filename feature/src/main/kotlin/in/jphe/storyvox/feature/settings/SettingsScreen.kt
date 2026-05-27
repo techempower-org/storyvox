@@ -51,6 +51,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.text.KeyboardOptions
@@ -97,7 +98,10 @@ import `in`.jphe.storyvox.ui.component.SkeletonBlock
 import `in`.jphe.storyvox.ui.theme.LocalSpacing
 import android.widget.Toast
 import androidx.compose.ui.platform.LocalContext
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @Composable
 fun SettingsScreen(
@@ -2479,29 +2483,39 @@ private fun VertexProviderRows(
     // the URI immediately and store it encrypted; the URI itself is
     // discarded.
     val context = androidx.compose.ui.platform.LocalContext.current
+    val scope = rememberCoroutineScope()
     val saFilePicker = androidx.activity.compose.rememberLauncherForActivityResult(
         contract = androidx.activity.result.contract.ActivityResultContracts.OpenDocument(),
     ) { uri ->
         if (uri != null) {
-            val text = runCatching {
-                context.contentResolver.openInputStream(uri)?.use { stream ->
-                    stream.bufferedReader(Charsets.UTF_8).readText()
+            // #864 — SA JSON can live on a cloud-backed provider (Drive),
+            // where openInputStream()/readText() block on network I/O.
+            // Reading on the launcher callback's main-thread dispatch
+            // risks an ANR, so hop to IO for the read and back to Main
+            // for the Compose state writes below.
+            scope.launch(Dispatchers.IO) {
+                val text = runCatching {
+                    context.contentResolver.openInputStream(uri)?.use { stream ->
+                        stream.bufferedReader(Charsets.UTF_8).readText()
+                    }
+                }.getOrNull()
+                withContext(Dispatchers.Main) {
+                    if (text.isNullOrBlank()) {
+                        // Reads can fail when SAF returns a transient URI we
+                        // can't open (rare; OOM, permission revoke mid-pick).
+                        // Forward to the VM as a fake error so the user sees
+                        // why nothing changed.
+                        onSetVertexServiceAccountJson(null)
+                    } else {
+                        onSetVertexServiceAccountJson(text)
+                        saConfiguredOverride = true
+                        // Picking SA implicitly drops the API key (mutual
+                        // exclusion at the repo). Reflect that locally so the
+                        // "key set" label updates without waiting for a Flow
+                        // round-trip.
+                        keyConfiguredOverride = false
+                    }
                 }
-            }.getOrNull()
-            if (text.isNullOrBlank()) {
-                // Reads can fail when SAF returns a transient URI we
-                // can't open (rare; OOM, permission revoke mid-pick).
-                // Forward to the VM as a fake error so the user sees
-                // why nothing changed.
-                onSetVertexServiceAccountJson(null)
-            } else {
-                onSetVertexServiceAccountJson(text)
-                saConfiguredOverride = true
-                // Picking SA implicitly drops the API key (mutual
-                // exclusion at the repo). Reflect that locally so the
-                // "key set" label updates without waiting for a Flow
-                // round-trip.
-                keyConfiguredOverride = false
             }
         }
     }
