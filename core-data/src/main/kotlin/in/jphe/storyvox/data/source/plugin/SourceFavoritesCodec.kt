@@ -21,6 +21,7 @@ import kotlinx.serialization.json.Json
  */
 private val SourceFavoritesJson = Json {
     ignoreUnknownKeys = true
+    coerceInputValues = true
 }
 
 private val SetSerializer = SetSerializer(String.serializer())

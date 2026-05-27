@@ -90,7 +90,7 @@ class SecretsSyncer @Inject constructor(
     @Named(PASSPHRASE_PROVIDER) private val passphraseProvider: PassphraseProvider,
 ) : Syncer {
 
-    private val json: Json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
+    private val json: Json = Json { ignoreUnknownKeys = true; encodeDefaults = true; coerceInputValues = true }
 
     override val name: String get() = DOMAIN
 

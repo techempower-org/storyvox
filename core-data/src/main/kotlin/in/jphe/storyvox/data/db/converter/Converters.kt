@@ -56,7 +56,7 @@ class Converters {
         raw?.let { runCatching { NotePosition.valueOf(it) }.getOrNull() }
 
     private companion object {
-        val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
+        val json = Json { ignoreUnknownKeys = true; encodeDefaults = true; coerceInputValues = true }
         val stringListSerializer = ListSerializer(String.serializer())
     }
 }

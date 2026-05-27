@@ -137,6 +137,7 @@ class InstantClient internal constructor(
             ignoreUnknownKeys = true
             isLenient = true
             encodeDefaults = false
+            coerceInputValues = true
         }
     }
 }

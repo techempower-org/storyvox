@@ -193,6 +193,7 @@ open class AnthropicTeamsAuthApi @Inject constructor(
         private val JSON: Json = Json {
             ignoreUnknownKeys = true
             explicitNulls = false
+            coerceInputValues = true
         }
     }
 }

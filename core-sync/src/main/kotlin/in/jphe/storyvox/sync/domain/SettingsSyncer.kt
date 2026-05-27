@@ -42,7 +42,7 @@ class SettingsSyncer @Inject constructor(
     private val backend: InstantBackend,
 ) : Syncer {
 
-    private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
+    private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true; coerceInputValues = true }
 
     private val delegate by lazy {
         LwwBlobSyncer(

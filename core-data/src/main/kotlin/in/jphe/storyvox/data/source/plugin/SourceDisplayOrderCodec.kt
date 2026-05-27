@@ -16,6 +16,7 @@ import kotlinx.serialization.json.Json
  */
 private val DisplayOrderJson = Json {
     ignoreUnknownKeys = true
+    coerceInputValues = true
 }
 
 private val ListStringSerializer = ListSerializer(String.serializer())

@@ -51,7 +51,7 @@ open class GoogleOAuthTokenSource(
     @Inject
     constructor(@LlmHttp http: OkHttpClient) : this(http, { System.currentTimeMillis() / 1000L })
 
-    private val json = Json { ignoreUnknownKeys = true }
+    private val json = Json { ignoreUnknownKeys = true; coerceInputValues = true }
     private val mutex = Mutex()
 
     /** Atomic cache entry. Volatile so the fast-path read sees writes

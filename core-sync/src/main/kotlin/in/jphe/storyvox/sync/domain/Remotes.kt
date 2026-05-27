@@ -123,5 +123,6 @@ internal object Defaults {
     val json: Json = Json {
         ignoreUnknownKeys = true
         encodeDefaults = true
+        coerceInputValues = true
     }
 }

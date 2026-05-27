@@ -62,6 +62,7 @@ object LlmModule {
     fun provideJson(): Json = Json {
         ignoreUnknownKeys = true
         encodeDefaults = false
+        coerceInputValues = true
     }
 
     /** Bridge the [LlmConfigProvider] (bound by `:app`) to the

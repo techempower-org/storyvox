@@ -57,6 +57,7 @@ data class GoogleServiceAccount(
 
         private val parser = Json {
             ignoreUnknownKeys = true
+            coerceInputValues = true
         }
 
         /**

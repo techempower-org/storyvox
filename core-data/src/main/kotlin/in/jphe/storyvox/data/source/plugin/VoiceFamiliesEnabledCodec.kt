@@ -27,6 +27,7 @@ import kotlinx.serialization.json.Json
 private val VoiceFamiliesJson = Json {
     ignoreUnknownKeys = true
     encodeDefaults = true
+    coerceInputValues = true
 }
 
 private val MapSerializer = MapSerializer(String.serializer(), Boolean.serializer())

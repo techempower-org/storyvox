@@ -36,7 +36,7 @@ class BookmarksSyncer @Inject constructor(
 
     override val name: String get() = DOMAIN
 
-    private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
+    private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true; coerceInputValues = true }
 
     @Serializable
     data class Payload(

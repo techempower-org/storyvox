@@ -98,6 +98,7 @@ class HttpInstantBackend(
         ignoreUnknownKeys = true
         encodeDefaults = false
         isLenient = true
+        coerceInputValues = true
     }
 
     override suspend fun fetch(
