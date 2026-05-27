@@ -106,12 +106,18 @@ class PlaybackPositionSyncer @Inject constructor(
 
         // Push the merged payload back.
         val pushPayload = Payload(entries = mergedByFiction.values.sortedBy { it.fictionId })
+        // Nothing to upload (fresh install, no local or remote positions).
+        // Pushing here would stamp the remote row with System.currentTimeMillis(),
+        // an updatedAt that corresponds to no real entry and ratchets upward on
+        // every empty sync round. Skip instead. See issue #887.
+        val pushStamp = pushPayload.entries.maxOfOrNull { it.updatedAt }
+            ?: return SyncOutcome.Ok(writes)
         val pushed = backend.upsert(
             user = user,
             entity = ENTITY,
             id = rowId(user),
             payload = json.encodeToString(Payload.serializer(), pushPayload),
-            updatedAt = pushPayload.entries.maxOfOrNull { it.updatedAt } ?: System.currentTimeMillis(),
+            updatedAt = pushStamp,
         )
         if (pushed.isFailure) {
             return SyncOutcome.Transient("remote push: ${pushed.exceptionOrNull()?.message}")
