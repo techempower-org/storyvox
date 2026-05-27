@@ -158,7 +158,6 @@ fun VoiceLibraryScreen(
         }
         val installedTotal = filteredInstalled.values.sumOf { tiers -> tiers.values.sumOf { it.size } }
         val availableTotal = filteredAvailable.values.sumOf { tiers -> tiers.values.sumOf { it.size } }
-        val availableHasKokoro = filteredAvailable.containsKey(VoiceEngine.Kokoro)
         // Unfiltered-empty check has to read the VM unfiltered shape,
         // not [state] — when the user has typed a query that matches
         // nothing, [state] is empty but the catalog isn't. We use the
@@ -545,9 +544,6 @@ fun VoiceLibraryScreen(
                     Spacer(modifier = Modifier.height(spacing.md))
                     SectionHeader("Available", count = availableTotal, dim = true)
                 }
-                if (availableHasKokoro) {
-                    item { KokoroBundleNote() }
-                }
                 availableByEngine.forEach { (engine, tiers) ->
                     val engineCount = tiers.values.sumOf { it.size }
                     val engineKey = EngineKey(VoiceLibrarySection.Available, engine.toCoreId())
@@ -564,6 +560,13 @@ fun VoiceLibraryScreen(
                         )
                     }
                     if (!isCollapsed) {
+                        when (engine) {
+                            VoiceEngine.SystemTts -> item(key = "a-systemtts-note") { SystemTtsInfoNote() }
+                            VoiceEngine.Piper -> item(key = "a-piper-note") { PiperInfoNote() }
+                            VoiceEngine.Kokoro -> item(key = "a-kokoro-note") { KokoroBundleNote() }
+                            VoiceEngine.Kitten -> item(key = "a-kitten-note") { KittenInfoNote() }
+                            else -> {}
+                        }
                         tiers.forEach { (tier, voicesInTier) ->
                             item(key = "a-${engine.name}-tier-${tier.name}") {
                                 TierSubHeader(tier = tier, count = voicesInTier.size, dim = true)
@@ -619,10 +622,98 @@ fun VoiceLibraryScreen(
  *  and the remaining 52 then activate instantly. Inference is heavier
  *  than Piper, so on modest hardware a small inter-sentence pause is
  *  expected. Heading off both UX surprises upfront. */
-/** #912 — polished Kokoro bundle note with a leading icon and more
- *  structured layout. The brass border-left accent visually ties it to
- *  the engine sub-header above while the icon + structured text makes
- *  the two key points (shared bundle + inference cost) scannable. */
+@Composable
+private fun SystemTtsInfoNote() {
+    val spacing = LocalSpacing.current
+    val accent = MaterialTheme.colorScheme.onSurfaceVariant
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .background(MaterialTheme.colorScheme.surfaceContainerLow)
+            .drawBehind {
+                drawRoundRect(
+                    color = accent.copy(alpha = 0.4f),
+                    size = androidx.compose.ui.geometry.Size(
+                        width = 3.dp.toPx(),
+                        height = size.height,
+                    ),
+                    cornerRadius = CornerRadius(2.dp.toPx()),
+                )
+            }
+            .padding(start = spacing.sm + 3.dp, end = spacing.sm, top = spacing.sm, bottom = spacing.sm),
+        horizontalArrangement = Arrangement.spacedBy(spacing.sm),
+    ) {
+        Icon(
+            imageVector = Icons.Outlined.RecordVoiceOver,
+            contentDescription = null,
+            tint = accent.copy(alpha = 0.7f),
+            modifier = Modifier
+                .size(20.dp)
+                .padding(top = 2.dp),
+        )
+        Column(verticalArrangement = Arrangement.spacedBy(spacing.xxs)) {
+            Text(
+                "System TTS — your device's built-in voices",
+                style = MaterialTheme.typography.labelLarge,
+                color = accent,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Text(
+                "Uses your device's installed TTS engine (Google, Samsung, etc.). No extra download needed — quality and available voices depend on what's installed in your device settings.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+@Composable
+private fun PiperInfoNote() {
+    val spacing = LocalSpacing.current
+    val accent = MaterialTheme.colorScheme.tertiary
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .background(MaterialTheme.colorScheme.surfaceContainerLow)
+            .drawBehind {
+                drawRoundRect(
+                    color = accent.copy(alpha = 0.6f),
+                    size = androidx.compose.ui.geometry.Size(
+                        width = 3.dp.toPx(),
+                        height = size.height,
+                    ),
+                    cornerRadius = CornerRadius(2.dp.toPx()),
+                )
+            }
+            .padding(start = spacing.sm + 3.dp, end = spacing.sm, top = spacing.sm, bottom = spacing.sm),
+        horizontalArrangement = Arrangement.spacedBy(spacing.sm),
+    ) {
+        Icon(
+            imageVector = Icons.Outlined.MusicNote,
+            contentDescription = null,
+            tint = accent.copy(alpha = 0.7f),
+            modifier = Modifier
+                .size(20.dp)
+                .padding(top = 2.dp),
+        )
+        Column(verticalArrangement = Arrangement.spacedBy(spacing.xxs)) {
+            Text(
+                "Piper — fast, natural on-device voices",
+                style = MaterialTheme.typography.labelLarge,
+                color = accent,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Text(
+                "Each Piper voice is a separate model download (15–60 MB). Lightweight inference — runs well on modest hardware with minimal pause between sentences. Wide language selection.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
 @Composable
 private fun KokoroBundleNote() {
     val spacing = LocalSpacing.current
@@ -670,6 +761,52 @@ private fun KokoroBundleNote() {
                 "Kokoro inference is heavier than Piper — on modest hardware expect a brief pause between sentences.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+            )
+        }
+    }
+}
+
+@Composable
+private fun KittenInfoNote() {
+    val spacing = LocalSpacing.current
+    val accent = MaterialTheme.colorScheme.secondary
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .background(MaterialTheme.colorScheme.surfaceContainerLow)
+            .drawBehind {
+                drawRoundRect(
+                    color = accent.copy(alpha = 0.6f),
+                    size = androidx.compose.ui.geometry.Size(
+                        width = 3.dp.toPx(),
+                        height = size.height,
+                    ),
+                    cornerRadius = CornerRadius(2.dp.toPx()),
+                )
+            }
+            .padding(start = spacing.sm + 3.dp, end = spacing.sm, top = spacing.sm, bottom = spacing.sm),
+        horizontalArrangement = Arrangement.spacedBy(spacing.sm),
+    ) {
+        Icon(
+            imageVector = Icons.Outlined.Pets,
+            contentDescription = null,
+            tint = accent.copy(alpha = 0.7f),
+            modifier = Modifier
+                .size(20.dp)
+                .padding(top = 2.dp),
+        )
+        Column(verticalArrangement = Arrangement.spacedBy(spacing.xxs)) {
+            Text(
+                "Kitten — lightweight on-device TTS",
+                style = MaterialTheme.typography.labelLarge,
+                color = accent,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Text(
+                "All 8 Kitten speakers share a single ~25 MB model — fast to download and light on storage. First load takes 2–4 seconds; switching speakers is instant.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
     }
