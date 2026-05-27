@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.HelpOutline
@@ -54,7 +55,7 @@ internal fun DomainStatusIcon(status: SyncStatus) {
     val icon = when (status) {
         SyncStatus.Idle -> {
             tint = MaterialTheme.colorScheme.onSurfaceVariant
-            Icons.Filled.HelpOutline
+            Icons.AutoMirrored.Filled.HelpOutline
         }
         SyncStatus.Running -> {
             tint = MaterialTheme.colorScheme.primary

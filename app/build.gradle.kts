@@ -458,6 +458,7 @@ play {
 kotlin {
     compilerOptions {
         jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+        freeCompilerArgs.addAll("-Xannotation-default-target=param-property")
     }
 }
 
