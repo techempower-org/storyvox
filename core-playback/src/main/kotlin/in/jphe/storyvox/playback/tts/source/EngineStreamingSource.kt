@@ -526,8 +526,22 @@ class EngineStreamingSource(
         try {
             var next = fromIndex
             while (next < sentences.size && running.get()) {
+                // #901 — simplified predicate. Pre-fix was
+                //   `signal.first { it != signal.value || completed.containsKey(next) }`
+                // The `it != signal.value` branch is a dead comparison:
+                // StateFlow.first {} receives the current value on
+                // subscribe, at which point `it == signal.value`, so the
+                // predicate only passes via the second disjunct anyway.
+                // On subsequent emissions `it` IS the new value and
+                // `signal.value` has already been CAS'd to the same
+                // value, so the comparison is racy and can wake
+                // spuriously (the sequencer re-enters the inner while,
+                // finds the map still empty, and re-subscribes — wasted
+                // work on the producer dispatcher). Dropping the dead
+                // branch means the sequencer only wakes when the target
+                // sentence is actually ready.
                 while (running.get() && !completed.containsKey(next)) {
-                    signal.first { it != signal.value || completed.containsKey(next) }
+                    signal.first { completed.containsKey(next) }
                 }
                 if (!running.get()) break
                 val chunk = completed.remove(next) ?: continue
