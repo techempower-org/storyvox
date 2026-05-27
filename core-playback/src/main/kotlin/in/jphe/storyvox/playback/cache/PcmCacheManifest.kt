@@ -9,8 +9,9 @@ import kotlinx.serialization.json.Json
  * is just `indexFor(key).exists()`.
  *
  * `start`/`end` are character offsets into the chapter's plaintext, so
- * `SentenceTracker` keeps working unchanged; `byteOffset`/`byteLen`
- * locate the sentence's PCM in the `.pcm` file.
+ * the EnginePlayer consumer thread can emit `currentSentenceRange`
+ * unchanged; `byteOffset`/`byteLen` locate the sentence's PCM in the
+ * `.pcm` file.
  *
  * `trailingSilenceMs` is the punctuation-driven cadence pause the
  * streaming source splices in — preserved here so PR-E's

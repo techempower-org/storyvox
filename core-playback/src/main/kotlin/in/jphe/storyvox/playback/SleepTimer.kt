@@ -58,7 +58,7 @@ class SleepTimer @Inject constructor(
     private val chapterEndSignal = MutableSharedFlow<Unit>(replay = 1)
     val chapterEnd: SharedFlow<Unit> = chapterEndSignal.asSharedFlow()
 
-    /** Called by [tts.SentenceTracker] when the last sentence of a chapter finishes. */
+    /** Called when the last sentence of a chapter finishes. */
     fun signalChapterEnd() {
         chapterEndSignal.tryEmit(Unit)
     }

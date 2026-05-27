@@ -41,8 +41,9 @@ data class Sentence(
 /**
  * Splits chapter text into sentence-sized utterances using ICU's [BreakIterator].
  * Sentences exceeding [maxUtteranceChars] (engine limit ~4000 by default) are
- * subdivided at clause boundaries; the [SentenceTracker] reassembles parent
- * ranges from sub-utterance ids.
+ * subdivided at clause boundaries; the EnginePlayer consumer thread
+ * reassembles parent ranges and emits `currentSentenceRange` via
+ * `_observableState.update` as each utterance plays.
  */
 @Singleton
 class SentenceChunker @Inject constructor() {
