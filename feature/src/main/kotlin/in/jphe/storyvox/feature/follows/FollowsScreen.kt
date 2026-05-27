@@ -39,6 +39,7 @@ import `in`.jphe.storyvox.ui.component.fictionMonogram
 import `in`.jphe.storyvox.ui.component.MagicSkeletonTile
 import `in`.jphe.storyvox.ui.component.MagicTitleBar
 import `in`.jphe.storyvox.ui.component.SkeletonBlock
+import `in`.jphe.storyvox.ui.layout.isAtLeastExpanded
 import `in`.jphe.storyvox.ui.layout.isAtLeastTablet
 import `in`.jphe.storyvox.ui.theme.LocalSpacing
 import androidx.compose.foundation.layout.Spacer
@@ -64,6 +65,12 @@ fun FollowsScreen(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val spacing = LocalSpacing.current
     val multiColumn = isAtLeastTablet()
+    // Issue #783 — on the Expanded breakpoint (>=840dp: Tab S-class
+    // landscape, unfolded foldables) tighten the adaptive card
+    // minimum from 320dp to 300dp so a third column fits on the
+    // wider canvas (e.g. 3 cols at ~932dp instead of 2). Tablet keeps
+    // 320dp. The skeletons mirror the same value via [followsCardMinSizeDp].
+    val followsCardMinSize = followsCardMinSizeDp(expanded = isAtLeastExpanded())
 
     // #328 — single deduped list shared by both the grid (multiColumn)
     // and the linear LazyColumn branches below. Computed once per
@@ -129,7 +136,7 @@ fun FollowsScreen(
             when {
                 // Brass-sigil skeletons while the network refresh is in flight
                 // and we have no cached follows to show yet.
-                state.isRefreshing && state.follows.isEmpty() -> FollowsSkeletons(multiColumn)
+                state.isRefreshing && state.follows.isEmpty() -> FollowsSkeletons(multiColumn, followsCardMinSize)
                 // Unauthed: show the sign-in CTA. Cookies are device-local, so
                 // a fresh install on a new device lands here even if the user
                 // is signed in elsewhere.
@@ -140,7 +147,7 @@ fun FollowsScreen(
                     // Tablet/foldable: row-cards laid out in 2+ adaptive columns so a
                     // long follow list fills the screen instead of a thin centered strip.
                     LazyVerticalGrid(
-                        columns = GridCells.Adaptive(minSize = 320.dp),
+                        columns = GridCells.Adaptive(minSize = followsCardMinSize.dp),
                         contentPadding = PaddingValues(spacing.md),
                         horizontalArrangement = Arrangement.spacedBy(spacing.sm),
                         verticalArrangement = Arrangement.spacedBy(spacing.sm),
@@ -240,12 +247,22 @@ private fun SignedInEmpty() {
  * placeholders that match the FollowCard layout (small cover thumb +
  * title bar + author bar). The sigil rotates on each cover slot.
  */
+/**
+ * Issue #783 — adaptive card-grid minimum for the Follows tablet/expanded
+ * layout. 320dp on tablet (>=600dp), tightened to 300dp on Expanded
+ * (>=840dp) so a third card column fits on Tab S-class landscape and
+ * unfolded foldables. Pinned by [FollowsCardMinSizeTest]; both the live
+ * grid and [FollowsSkeletons] read it so the loading and loaded layouts
+ * keep the same column count.
+ */
+internal fun followsCardMinSizeDp(expanded: Boolean): Int = if (expanded) 300 else 320
+
 @Composable
-private fun FollowsSkeletons(multiColumn: Boolean) {
+private fun FollowsSkeletons(multiColumn: Boolean, cardMinSizeDp: Int) {
     val spacing = LocalSpacing.current
     if (multiColumn) {
         LazyVerticalGrid(
-            columns = GridCells.Adaptive(minSize = 320.dp),
+            columns = GridCells.Adaptive(minSize = cardMinSizeDp.dp),
             contentPadding = PaddingValues(spacing.md),
             horizontalArrangement = Arrangement.spacedBy(spacing.sm),
             verticalArrangement = Arrangement.spacedBy(spacing.sm),

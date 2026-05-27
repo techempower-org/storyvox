@@ -71,4 +71,35 @@ class LibraryGridLandscapeTest {
             libraryGridAdaptiveMinSizeDp == 140,
         )
     }
+
+    @Test
+    fun `Expanded breakpoint bumps the adaptive minSize to 180dp`() {
+        // Issue #783 — at >=840dp (Tab S-class landscape, unfolded
+        // foldables) the grid switches from the 140dp tablet minimum
+        // to 180dp for larger covers. Pin the Expanded value so a PR
+        // that retunes it has to bump this test in lock-step, same
+        // contract as the 140dp tablet value above.
+        assertTrue(
+            "Expanded minSize must be 180dp (issue #783)",
+            libraryGridExpandedMinSizeDp == 180,
+        )
+        assertTrue(
+            "Expanded minimum must be strictly larger than the tablet minimum",
+            libraryGridExpandedMinSizeDp > libraryGridAdaptiveMinSizeDp,
+        )
+    }
+
+    @Test
+    fun `Expanded minSize keeps a sane column count on a Tab S-class landscape width`() {
+        // Tab S9 landscape content width ~1180dp. At 180dp minimum
+        // that yields ~6 columns; the 140dp value would over-pack to
+        // ~8. Verify the Expanded value stays in the 4..6 band so we
+        // get larger covers without collapsing to one giant column.
+        val expandedWidth = 1180
+        val cols = expandedWidth / libraryGridExpandedMinSizeDp
+        assertTrue(
+            "Expanded grid on a Tab S-class width must render 4..7 columns (got $cols)",
+            cols in 4..7,
+        )
+    }
 }

@@ -86,6 +86,7 @@ import `in`.jphe.storyvox.ui.component.friendlyErrorMessage
 import `in`.jphe.storyvox.ui.component.FictionCoverThumb
 import `in`.jphe.storyvox.ui.component.fictionMonogram
 import `in`.jphe.storyvox.ui.component.FictionDetailSkeleton
+import `in`.jphe.storyvox.ui.layout.isAtLeastExpanded
 import `in`.jphe.storyvox.ui.layout.isAtLeastTablet
 import `in`.jphe.storyvox.ui.theme.LocalSpacing
 import kotlinx.coroutines.launch
@@ -111,6 +112,15 @@ fun FictionDetailScreen(
     val synopsisSpeaking by viewModel.synopsisSpeaking.collectAsStateWithLifecycle()
     val spacing = LocalSpacing.current
     val twoColumn = isAtLeastTablet()
+    // Issue #783 — on Expanded (>=840dp) the meta column at 0.42f
+    // sprawls to ~495dp on a Tab S-class 1180dp canvas, leaving the
+    // cover and synopsis swimming in whitespace. Narrow the meta pane
+    // and hand the reclaimed width to the chapter list, which has far
+    // more content to fill it. Tablet (600..839dp) keeps the original
+    // 0.42 / 0.58 split.
+    val expanded = isAtLeastExpanded()
+    val metaWeight = if (expanded) 0.34f else 0.42f
+    val chapterWeight = if (expanded) 0.66f else 0.58f
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -379,7 +389,7 @@ fun FictionDetailScreen(
             ) {
                 Column(
                     modifier = Modifier
-                        .weight(0.42f)
+                        .weight(metaWeight)
                         .fillMaxSize()
                         .verticalScroll(rememberScrollState()),
                 ) {
@@ -427,7 +437,7 @@ fun FictionDetailScreen(
                 }
                 LazyColumn(
                     state = wideListState,
-                    modifier = Modifier.weight(0.58f).fillMaxSize(),
+                    modifier = Modifier.weight(chapterWeight).fillMaxSize(),
                     contentPadding = PaddingValues(top = spacing.md, bottom = spacing.md),
                 ) {
                     // Issue #638 — action row pinned at the top of the

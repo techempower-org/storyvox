@@ -69,6 +69,7 @@ import `in`.jphe.storyvox.ui.component.fictionMonogram
 import `in`.jphe.storyvox.ui.component.MagicSkeletonTile
 import `in`.jphe.storyvox.ui.component.MagicTitleBar
 import `in`.jphe.storyvox.ui.component.cascadeReveal
+import `in`.jphe.storyvox.ui.layout.isAtLeastExpanded
 import `in`.jphe.storyvox.ui.theme.LocalSpacing
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.text.KeyboardActions
@@ -846,6 +847,19 @@ internal const val libraryGridIsWeightBounded: Boolean = true
 internal const val libraryGridAdaptiveMinSizeDp: Int = 140
 
 /**
+ * Issue #783 — on the Expanded breakpoint (>=840dp: Tab S-class
+ * landscape, large foldables unfolded) the 140dp tablet minimum
+ * leaves covers small and the row over-packed. Bumping the adaptive
+ * minimum to 180dp on Expanded yields larger, more legible covers
+ * and a deliberate column count (e.g. ~5 cols at 932dp, ~6 at
+ * 1100dp) instead of the 6-7 cramped columns the 140dp value would
+ * produce on the same width. Tablet/phone keep 140dp via
+ * [libraryGridAdaptiveMinSizeDp]; the breakpoint switch is made at
+ * the [LibraryGridBody] grid call site with [isAtLeastExpanded].
+ */
+internal const val libraryGridExpandedMinSizeDp: Int = 180
+
+/**
  * Issue #158 — All / Reading library grid. Extracted from the inlined body
  * so the same composable serves both sub-tabs without duplication. The
  * Resume card + "Your library" caption hero zone is preserved as the
@@ -911,12 +925,18 @@ private fun LibraryGridBody(
         }
         return
     }
+    // Issue #783 — Expanded (>=840dp) bumps the adaptive minimum to
+    // 180dp for larger, more legible covers on Tab S-class landscape
+    // and unfolded foldables. Tablet/phone keep the 140dp value
+    // pinned by [libraryGridAdaptiveMinSizeDp] (#452).
+    val gridMinSizeDp =
+        if (isAtLeastExpanded()) libraryGridExpandedMinSizeDp else libraryGridAdaptiveMinSizeDp
     LazyVerticalGrid(
         // Issue #452 — see [libraryGridAdaptiveMinSizeDp] for the
-        // rationale. Pinned to 140dp; the regression test
-        // [LibraryGridLandscapeTest] guards both the value and the
-        // weight-bounded parent wrapper.
-        columns = GridCells.Adaptive(minSize = libraryGridAdaptiveMinSizeDp.dp),
+        // rationale. Pinned to 140dp below Expanded; the regression
+        // test [LibraryGridLandscapeTest] guards both the value and
+        // the weight-bounded parent wrapper.
+        columns = GridCells.Adaptive(minSize = gridMinSizeDp.dp),
         contentPadding = PaddingValues(spacing.md),
         horizontalArrangement = Arrangement.spacedBy(spacing.sm),
         verticalArrangement = Arrangement.spacedBy(spacing.md),

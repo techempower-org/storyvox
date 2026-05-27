@@ -79,6 +79,7 @@ import `in`.jphe.storyvox.ui.component.fictionMonogram
 import `in`.jphe.storyvox.ui.component.MagicSkeletonTile
 import `in`.jphe.storyvox.ui.component.MagicSpinner
 import `in`.jphe.storyvox.ui.component.MagicTitleBar
+import `in`.jphe.storyvox.ui.layout.isAtLeastExpanded
 import `in`.jphe.storyvox.ui.theme.LocalSpacing
 
 /**
@@ -482,7 +483,7 @@ fun BrowseScreen(
                 ) {
                 LazyVerticalGrid(
                     state = gridState,
-                    columns = GridCells.Adaptive(minSize = 140.dp),
+                    columns = GridCells.Adaptive(minSize = browseGridMinSizeDp(isAtLeastExpanded()).dp),
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(spacing.md),
                     horizontalArrangement = Arrangement.spacedBy(spacing.sm),
@@ -686,11 +687,21 @@ private fun FilterButton(activeCount: Int, onClick: () -> Unit) {
     }
 }
 
+/**
+ * Issue #783 — Browse cover-grid adaptive minimum. 140dp on tablet/phone
+ * (matches the Library grid #452 tuning), bumped to 180dp on the Expanded
+ * breakpoint (>=840dp) so covers grow on Tab S-class landscape and unfolded
+ * foldables instead of over-packing the row. Both the live grid and
+ * [SkeletonGrid] read it so the loading and loaded layouts agree on column
+ * count. Pinned by [BrowseGridExpandedTest].
+ */
+internal fun browseGridMinSizeDp(expanded: Boolean): Int = if (expanded) 180 else 140
+
 @Composable
 private fun SkeletonGrid() {
     val spacing = LocalSpacing.current
     LazyVerticalGrid(
-        columns = GridCells.Adaptive(minSize = 140.dp),
+        columns = GridCells.Adaptive(minSize = browseGridMinSizeDp(isAtLeastExpanded()).dp),
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(spacing.md),
         horizontalArrangement = Arrangement.spacedBy(spacing.sm),
