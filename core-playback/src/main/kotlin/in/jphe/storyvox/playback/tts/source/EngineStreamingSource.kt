@@ -203,6 +203,33 @@ class EngineStreamingSource(
     private val queue = LinkedBlockingQueue<Item>(queueCapacity)
 
     /**
+     * #906 — the chunk most recently handed to the consumer by [nextChunk]
+     * that has NOT yet been balanced by a [decrementHeadroomForChunk] call.
+     * The producer increments [_bufferHeadroomMs] on enqueue; the consumer
+     * is supposed to decrement after it finishes writing the chunk to
+     * AudioTrack. But the consumer can abort between dequeue and decrement
+     * (pipeline teardown on voice swap / seek / chapter advance flips
+     * `pipelineRunning` false mid-write-loop, exiting the consumer before
+     * the decrement at EnginePlayer's post-write point). The increment then
+     * has no matching decrement and headroom drifts upward — bounded per
+     * pipeline lifetime today, but #540's fast-pause reuses the same source
+     * across pause-resume cycles, so the drift accumulates.
+     *
+     * We record the in-flight chunk here at dequeue and settle the account
+     * in [close] if the consumer never completed it. Guarded by [headroomLock]
+     * so the normal-path decrement and the close-path decrement can't both
+     * fire for the same chunk (idempotency the kdoc on
+     * [decrementHeadroomForChunk] promised but the prior `coerceAtLeast(0L)`
+     * floor didn't actually provide).
+     *
+     * Volatile + identity-compared under the lock: the consumer thread reads
+     * and clears it via [decrementHeadroomForChunk]; [close] runs on the
+     * caller thread.
+     */
+    @Volatile private var inFlightChunk: PcmChunk? = null
+    private val headroomLock = Any()
+
+    /**
      * PR-D (#86) — mutable shadow of the constructor's `cacheAppender`
      * param so [seekToCharOffset] and [close] can null it out after
      * abandon. Volatile because the producer reads it on the dedicated
@@ -269,6 +296,10 @@ class EngineStreamingSource(
         // earlier than the listener actually needed. The consumer
         // now calls [decrementHeadroomForChunk] after the AudioTrack
         // write loop exits — see [EnginePlayer]'s consumer.
+        //
+        // #906 — record this chunk as in-flight so [close] can settle its
+        // headroom if the consumer aborts before the matching decrement.
+        synchronized(headroomLock) { inFlightChunk = item.chunk }
         item.chunk
     }
 
@@ -279,17 +310,31 @@ class EngineStreamingSource(
      * listener hasn't heard yet" (queue + writes-in-flight), not "audio
      * still in the queue."
      *
-     * Idempotent guard: if the consumer aborts mid-write (pause /
-     * voice swap), it MUST still call this once after exiting the
-     * write loop so the headroom doesn't drift upward. The producer-
-     * side increment in [startProducer] is the matching counter; if
-     * one fires without the other, [bufferHeadroomMs] desyncs and the
-     * underrun threshold fires at the wrong time.
+     * #906 — idempotent via an identity guard against [inFlightChunk]:
+     * the producer-side increment in [startProducer] is balanced by
+     * exactly one decrement per dequeued chunk, no matter how many times
+     * (or from how many threads) this is called for the same chunk. The
+     * consumer's normal post-write call and [close]'s settle-on-abort call
+     * race harmlessly — whichever runs first clears [inFlightChunk] and the
+     * other no-ops. This is what keeps [bufferHeadroomMs] from drifting
+     * upward across #540 fast-pause-resume cycles, where the same source is
+     * reused and a mid-write teardown would otherwise leave a phantom
+     * increment on the books.
      */
     override fun decrementHeadroomForChunk(chunk: PcmChunk) {
-        val durMs = pcmDurationMs(chunk.pcm.size) +
-            pcmDurationMs(chunk.trailingSilenceBytes)
-        _bufferHeadroomMs.update { (it - durMs).coerceAtLeast(0L) }
+        synchronized(headroomLock) {
+            // #906 — only decrement if this chunk is still the recorded
+            // in-flight one. Identity guard makes the call idempotent: a
+            // second call for the same chunk (or a [close] that races the
+            // consumer's decrement) sees inFlightChunk already cleared and
+            // no-ops, so the producer's single increment can never be
+            // decremented twice.
+            if (inFlightChunk !== chunk) return
+            inFlightChunk = null
+            val durMs = pcmDurationMs(chunk.pcm.size) +
+                pcmDurationMs(chunk.trailingSilenceBytes)
+            _bufferHeadroomMs.update { (it - durMs).coerceAtLeast(0L) }
+        }
     }
 
     override suspend fun seekToCharOffset(charOffset: Int) {
@@ -309,6 +354,15 @@ class EngineStreamingSource(
 
     override suspend fun close() {
         running.set(false)
+        // #906 — settle the in-flight chunk's headroom. If the consumer
+        // aborted between dequeue and its post-write decrement (pipeline
+        // torn down mid-write on voice swap / seek / chapter advance), the
+        // producer's enqueue increment is still on the books with no
+        // matching decrement. Balance it here. The identity guard inside
+        // [decrementHeadroomForChunk] makes this safe against a consumer
+        // that completes the same chunk concurrently — whichever fires
+        // first clears inFlightChunk and the other no-ops.
+        inFlightChunk?.let { decrementHeadroomForChunk(it) }
         producerJob.cancel()
         queue.clear()
         // Wake any consumer blocked in take() so nextChunk returns null.
