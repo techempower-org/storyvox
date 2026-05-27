@@ -16,7 +16,7 @@ CI runs on self-hosted runner (katana). Tags trigger release APK build + GitHub 
 ## Module layout
 
 - **app** — nav graph (`StoryvoxNavHost`), DI wiring (`AppBindings`), `SettingsRepositoryUiImpl`
-- **feature** — all UI: `browse/`, `reader/`, `library/`, `settings/`, `chat/`, `fiction/`, `voicelibrary/`, `onboarding/`
+- **feature** — all UI: `browse/`, `reader/`, `library/`, `settings/`, `chat/`, `fiction/`, `voicelibrary/`, `onboarding/`, `follows/`, `techempower/`, `sync/`, `auth/`, `sessions/`, `debug/`, `milestone/`, `engine/`, plus shared `api/`, `components/`, `di/`
 - **core-data** — `FictionSource` interface, `SearchQuery`, `FilterDimension`/`FilterState`, Room DB, models
 - **core-playback** — TTS engine (`EnginePlayer`), voice catalog, audio focus
 - **core-llm** — AI chat, summaries
@@ -31,17 +31,17 @@ CI runs on self-hosted runner (katana). Tags trigger release APK build + GitHub 
 
 **Browse filters**: Sources declare `filterDimensions()` returning `List<FilterDimension>` (Sort, Select, TagSet, NumberRange, DateRange, Toggle, Text). `DynamicFilterSheet` renders them generically. Sources implement `applyFilters(base, state)` to translate UI state → `SearchQuery`.
 
-**Navigation**: `StoryvoxNavHost.kt` defines all routes as `StoryvoxRoutes` constants. Bottom bar: Playing, Library, Follows, Browse, Voice Library, Settings Hub.
+**Navigation**: `StoryvoxNavHost.kt` defines all routes as `StoryvoxRoutes` constants. Bottom bar: Playing, Library, Browse, Voices, Settings.
 
 **Testing**: JUnit 4, no Robolectric. Tests use fake `FictionSource` implementations (see `PluginManagerLogicTest` for the pattern). Compose UI tests use `createComposeRule()`.
 
 ## Large files (read with offset/limit)
 
-- `EnginePlayer.kt` — 4400 lines
-- `SettingsScreen.kt` — 3900 lines (legacy long-scroll, being replaced by hub)
-- `SettingsRepositoryUiImpl.kt` — 2900 lines
-- `AudiobookView.kt` — 2200 lines
-- `UiContracts.kt` — 2200 lines
+- `EnginePlayer.kt` — 5100 lines
+- `SettingsScreen.kt` — 4100 lines (legacy long-scroll, being replaced by hub)
+- `SettingsRepositoryUiImpl.kt` — 3100 lines
+- `AudiobookView.kt` — 2300 lines
+- `UiContracts.kt` — 2300 lines
 
 ## Versioning
 

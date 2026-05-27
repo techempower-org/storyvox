@@ -9,6 +9,106 @@ Entries before v0.5.12 are reconstructed from the git log — see
 
 ## [Unreleased]
 
+## [0.7.3] -- 2026-05-27
+
+**Deprecation warning cleanup.** Resolves all Kotlin 2.3 + Compose Material deprecation warnings introduced by the v0.7.2 dependency migration.
+
+### Fixed
+- **#925** `hiltViewModel` package deprecation across all screens -- migrated from `androidx.hilt.navigation.compose` to `dagger.hilt.android.lifecycle`
+- **#926** Compose Material icon and Divider deprecations -- `AutoMirrored` icons, `HorizontalDivider` replacements
+- **#924** KT-73255 annotation default target warnings -- explicit `@get:` / `@field:` targets on Room + HiltWorker annotations
+
+## [0.7.2] -- 2026-05-27
+
+**Major dependency migration.** AGP 8.13 to 9.2, Gradle 8.13 to 9.4.1, Kotlin 2.2 to 2.3, plus 9 other dependency group bumps. `kotlinOptions` DSL migrated to `kotlin { compilerOptions {} }` across all 33 Android modules.
+
+### Changed
+- AGP 8.13.2 to 9.2.0
+- Gradle 8.13 to 9.4.1
+- Kotlin 2.2.21 to 2.3.21 (+ KSP 2.3.9)
+- Hilt 2.57 to 2.59.2
+- Room 2.7 to 2.8.1
+- Media3 1.10.0 to 1.10.1
+- Compose BOM 2026.04.01 to 2026.05.01
+- AndroidX Wear + Test + DocumentFile bumped to latest
+- `kotlinOptions { jvmTarget = "17" }` migrated to `kotlin { compilerOptions { jvmTarget.set(JvmTarget.JVM_17) } }` across 33 modules
+
+## [0.7.1] -- 2026-05-26
+
+**Wave 9 features.** Wikisource filters, chapter-arrival notifications, preference sync expansion, plus 9 dependency bumps reverted in this release (re-applied in v0.7.2).
+
+### Added
+- **#797** Wikisource Author + Genre + Quality browse filters
+- **#907** Chapter-arrival notifications for followed fictions
+- **#916** Expanded preference sync surface to cover all user state
+
+### Changed
+- Reverted all Dependabot bumps (#848-856) that broke AGP 8.13 (Kotlin 2.3 / Hilt 2.59 / Room 2.8 require AGP 9)
+
+## [0.7.0] -- 2026-05-26
+
+**Wave 8 features.** Connectivity, expanded tablet layouts, Wikipedia browse tabs, settings search, full i18n, tag exclude UX.
+
+### Added
+- **#786** `ConnectivityObserver` + `OfflineBanner` -- reactive network state across all surfaces
+- **#783** Expanded breakpoint layouts for tablet landscape
+- **#796** Wikipedia "On This Day" + "In the News" browse tabs
+- **#802** Search affordance on legacy SettingsScreen
+- **#772** Strikethrough excluded tag chips in DynamicFilterSheet
+
+### Changed
+- **#799** i18n all 13 settings files -- all user-facing strings extracted to resources
+
+## [0.6.6] -- 2026-05-26
+
+### Fixed
+- **#922** Critical playback self-cancellation bug -- `stopPlaybackPipeline()` cancelled `pipelineSetupJob` which was itself the running coroutine in `startPlaybackPipeline()`, aborting the pipeline rebuild mid-flight
+
+## [0.6.5] -- 2026-05-26
+
+**Wave 7 features.** Reader FAB, voices polish, error UI, thermal/power-save awareness, library search.
+
+## [0.6.4] -- 2026-05-26
+
+**Wave 6.** Nav, performance, and locale fixes.
+
+## [0.6.3] -- 2026-05-26
+
+### Fixed
+- **#914** Serialized pipeline setup to prevent double AudioTrack creation
+
+## [0.6.2] -- 2026-05-26
+
+**Wave 4.** Medium + low priority fix sweep.
+
+## [0.6.1] -- 2026-05-26
+
+**Wave 3.** Medium-priority fix sweep.
+
+## [0.6.0] -- 2026-05-26
+
+**Wave 2 fix sweep.** 8 fixes: #866 (suspend pipeline), #886 (awaitTermination 15s), #869 (OkHttp sync patience), #883 (pause-resume chunk), #903 (WAV file leak), #885 (bookmark FK guard), #896 (mmap force-unmap), #868 (pitch handoff).
+
+## [0.5.99] -- 2026-05-26
+
+**Overnight high-priority fix wave.** Secondary engine leak + pause-mult race + sentenceIndex visibility fix.
+
+## [0.5.98] -- 2026-05-26
+
+**Full dependency upgrade.** AGP 8.7.2 to 8.13.2, Kotlin 2.0.21 to 2.2.21, Media3 1.5.0 to 1.10.0, Coil 2.7.0 to 3.4.0, compileSdk 35 to 36, plus AndroidX suite bumps. Dependabot configured for ongoing dependency management.
+
+## [0.5.97] -- 2026-05-26
+
+**Chapter search + library sort + sync retry + chat i18n + ExoPlayer retry.** Five parallel PRs: chapter search and jump-to-chapter (#794), library sort options (#793), sync transient failure retry with bounded backoff (#779), chat i18n + a11y labeling (#781), ExoPlayer network error retry (#807).
+
+## [0.5.96] -- 2026-05-26
+
+**Onboarding steps + haptics + i18n errors + dev logging.** Step indicator on onboarding, reader haptic feedback, i18n-friendly error messages, developer logging toggle.
+
+## [0.5.95 -- 0.5.75] -- 2026-05-22 to 2026-05-26
+
+Rapid iteration: 20+ point releases covering v1.0 Play Store readiness, voice-library engine blurbs, parallel-agent feature waves, stability fixes, and ongoing polish. See `git log v0.5.74..v0.5.95` for the exhaustive record.
+
 ## [0.5.74] — 2026-05-22
 
 **Dream team session.** 9 PRs merged in one pass — closed all 4 open issues (#690-693) plus 6 new issues filed and 4 of those fixed same-session.

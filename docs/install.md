@@ -64,14 +64,14 @@ To sign out: **Settings → Account → Sign out**.
 
 ## Build from source
 
-Requires JDK 17, Android SDK 35, and a system Gradle ≥ 8.10 for the wrapper bootstrap.
+Requires JDK 17, Android SDK 36, and a system Gradle ≥ 8.10 for the wrapper bootstrap (the wrapper downloads Gradle 9.4.1).
 
 ```sh
 git clone https://github.com/techempower-org/storyvox.git
 cd storyvox
 
 # One-time bootstrap
-gradle wrapper --gradle-version 8.10 --distribution-type bin
+gradle wrapper --gradle-version 9.4.1 --distribution-type bin
 echo "sdk.dir=$ANDROID_HOME" > local.properties
 
 # Build

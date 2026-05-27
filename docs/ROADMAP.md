@@ -5,7 +5,7 @@ A short-form list of shipped + in-flight + planned work. Detailed designs live u
 [`docs/compose-gotchas.md`](compose-gotchas.md) for known scope-shadowing
 and stability traps before searching the internet for confusing errors.
 
-Last refreshed for **v0.5.51 — Luminous Quartz** (six-parallel-agent bundle).
+Last refreshed for **v0.7.3** (AGP 9 migration + deprecation cleanup). Prior major refresh was v0.5.51.
 
 ---
 

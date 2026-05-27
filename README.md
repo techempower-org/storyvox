@@ -103,14 +103,14 @@ storyvox uses an in-app WebView for the login flow. Your password never touches 
 
 ## Build from source
 
-Requires JDK 17, Android SDK 35, and a system gradle ≥ 8.10 for the wrapper bootstrap.
+Requires JDK 17, Android SDK 36, and a system gradle ≥ 8.10 for the wrapper bootstrap (the wrapper downloads Gradle 9.4.1).
 
 ```sh
 git clone https://github.com/techempower-org/storyvox.git
 cd storyvox
 
 # One-time bootstrap
-gradle wrapper --gradle-version 8.10 --distribution-type bin
+gradle wrapper --gradle-version 9.4.1 --distribution-type bin
 echo "sdk.dir=$ANDROID_HOME" > local.properties
 
 # Build
@@ -218,7 +218,7 @@ Per-dreamer detail specs live in `scratch/dreamers/`.
 
 | | |
 |---|---|
-| Language | Kotlin 2.0 |
+| Language | Kotlin 2.3 |
 | UI | Jetpack Compose, Material 3 |
 | DI | Hilt (KSP) |
 | Storage | Room, DataStore Preferences, EncryptedSharedPreferences |
