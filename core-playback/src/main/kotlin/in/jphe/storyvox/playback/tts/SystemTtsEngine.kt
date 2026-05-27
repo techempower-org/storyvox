@@ -7,12 +7,14 @@ import android.util.Log
 import java.io.File
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import kotlin.math.max
 import kotlin.math.min
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * Issue #676 — adapter from Android's framework `TextToSpeech` to the
@@ -77,8 +79,13 @@ class SystemTtsEngine(
     @Volatile private var cachedSampleRate: Int = 0
 
     /** Per-utterance completion routing — UtteranceProgressListener
-     *  fires once per synthesizeToFile() and we route by utteranceId. */
-    private val pending = ConcurrentHashMap<String, CompletableDeferred<Boolean>>()
+     *  fires once per synthesizeToFile() and we route by utteranceId.
+     *  The gate's [CompletionGate.awaitBlocking] parks the calling thread —
+     *  #876 routes System TTS synth on the URGENT_AUDIO producer thread via
+     *  the blocking path, while the suspend [generateAudioPCM] reaches the
+     *  same await through `runInterruptible` so coroutine callers keep the
+     *  suspend contract. */
+    private val pending = ConcurrentHashMap<String, CompletionGate>()
 
     private val progressListener = object : UtteranceProgressListener() {
         override fun onStart(utteranceId: String?) { /* not used */ }
@@ -181,15 +188,63 @@ class SystemTtsEngine(
      *  - synthesizeToFile returning an error code.
      *  - UtteranceProgressListener firing onError.
      *  - Output file truncated below the WAV header length.
+     *
+     * Suspend variant for coroutine callers — dispatches to
+     * [Dispatchers.IO] so it never blocks the caller's thread. The
+     * EnginePlayer producer path uses [generateAudioPCMBlocking] instead
+     * (#876); this entry point remains for non-producer callers that
+     * want the suspend contract.
      */
     suspend fun generateAudioPCM(
         text: String,
         speed: Float,
         pitch: Float,
     ): ByteArray? = withContext(Dispatchers.IO) {
-        if (text.isBlank()) return@withContext null
-        val instance = tts ?: return@withContext null
-        if (!ready) return@withContext null
+        // runInterruptible so coroutine cancellation interrupts the
+        // gate's blocking await rather than orphaning the synth.
+        runInterruptible { synthesizeBlocking(text, speed, pitch) }
+    }
+
+    /**
+     * #876 — synchronous synth on the **calling thread**, with no
+     * dispatcher hop.
+     *
+     * The EnginePlayer producer worker is pinned at
+     * `THREAD_PRIORITY_URGENT_AUDIO`; the previous `runBlocking { … }`
+     * wrapper around the suspend [generateAudioPCM] dispatched the synth
+     * onto a `Dispatchers.IO` pool thread running at DEFAULT priority,
+     * so System TTS was the only engine whose synth missed URGENT_AUDIO
+     * scheduling (and the producer thread parked uselessly). This variant
+     * runs `synthesizeToFile` + the completion await directly on the
+     * URGENT_AUDIO producer thread.
+     *
+     * Same null-return contract as [generateAudioPCM]. The completion
+     * await is bounded by [SYNTH_TIMEOUT_MS] via a [CountDownLatch] so a
+     * framework engine that swallows the utterance (no onDone/onError)
+     * can't park the producer thread forever.
+     */
+    fun generateAudioPCMBlocking(
+        text: String,
+        speed: Float,
+        pitch: Float,
+    ): ByteArray? = synthesizeBlocking(text, speed, pitch)
+
+    /**
+     * Shared synth core. Runs entirely on the calling thread (the
+     * framework's `synthesizeToFile` is itself async and posts back via
+     * the [progressListener], so this thread only blocks awaiting the
+     * [CompletionGate]). Callers that need an off-thread guarantee wrap
+     * this in their own dispatcher; the producer path (#876) calls it
+     * directly to inherit URGENT_AUDIO priority.
+     */
+    private fun synthesizeBlocking(
+        text: String,
+        speed: Float,
+        pitch: Float,
+    ): ByteArray? {
+        if (text.isBlank()) return null
+        val instance = tts ?: return null
+        if (!ready) return null
 
         // Clamp into Android TTS's documented range. The framework
         // clamps for us in newer versions, but older OEMs occasionally
@@ -202,8 +257,8 @@ class SystemTtsEngine(
         }
 
         val utteranceId = UUID.randomUUID().toString()
-        val deferred = CompletableDeferred<Boolean>()
-        pending[utteranceId] = deferred
+        val gate = CompletionGate()
+        pending[utteranceId] = gate
 
         val outFile = File(context.cacheDir, "$TEMP_WAV_PREFIX$utteranceId$TEMP_WAV_SUFFIX")
         // Defensive cleanup if a previous run with the same UUID
@@ -217,13 +272,13 @@ class SystemTtsEngine(
         }.getOrElse { t ->
             Log.w(TAG, "synthesizeToFile threw: ${t.message}")
             pending.remove(utteranceId)
-            return@withContext null
+            return null
         }
         if (rc != TextToSpeech.SUCCESS) {
             Log.w(TAG, "synthesizeToFile returned non-success rc=$rc text.len=${text.length}")
             pending.remove(utteranceId)
             runCatching { outFile.delete() }
-            return@withContext null
+            return null
         }
 
         // #903 — once synthesizeToFile has accepted the request, the temp
@@ -237,27 +292,27 @@ class SystemTtsEngine(
             // #716 — bound the await so an engine that swallows the
             // utterance (no onDone, no onError — observed on stock Samsung
             // TTS firmware after a mid-synth engine-package crash) can't
-            // park this coroutine forever. A healthy sentence synthesizes
+            // park this thread forever. A healthy sentence synthesizes
             // in <500 ms even on slow phones; SYNTH_TIMEOUT_MS (10 s) is
             // well outside the healthy band and matches the buffering
             // watchdog window in PlaybackController so upstream's
             // AudioOutputStuck recovery kicks in at the same horizon.
-            val ok = withTimeoutOrNull(SYNTH_TIMEOUT_MS) { deferred.await() }
+            val ok = gate.awaitBlocking(SYNTH_TIMEOUT_MS)
             if (ok == null) {
                 Log.w(TAG, "synth timed out after ${SYNTH_TIMEOUT_MS}ms text.len=${text.length}")
-                return@withContext null
+                return null
             }
             if (!ok) {
-                return@withContext null
+                return null
             }
             if (!outFile.exists() || outFile.length() <= WAV_HEADER_BYTES) {
                 Log.w(TAG, "synthesizeToFile produced no audio body file=${outFile.length()}b")
-                return@withContext null
+                return null
             }
             val bytes = outFile.readBytes()
             if (bytes.size <= WAV_HEADER_BYTES) {
                 Log.w(TAG, "synthesizeToFile output too short to contain audio (${bytes.size}b)")
-                return@withContext null
+                return null
             }
             // Cache the sample rate from the WAV header on first successful synth.
             if (cachedSampleRate == 0) {
@@ -269,7 +324,7 @@ class SystemTtsEngine(
             }
             // Strip the 44-byte header — the rest is signed 16-bit little-endian PCM,
             // matching the contract Piper/Kokoro/Kitten/Azure all return.
-            bytes.copyOfRange(WAV_HEADER_BYTES, bytes.size)
+            return bytes.copyOfRange(WAV_HEADER_BYTES, bytes.size)
         } finally {
             pending.remove(utteranceId)
             runCatching { outFile.delete() }
@@ -279,8 +334,8 @@ class SystemTtsEngine(
     /**
      * Tear down the underlying TextToSpeech. Safe to call multiple
      * times; further [generateAudioPCM] calls after shutdown return
-     * null. Any in-flight syntheses get their deferreds completed
-     * `false` so block-awaiting callers wake up promptly.
+     * null. Any in-flight syntheses get their gates completed `false`
+     * so block-awaiting callers wake up promptly.
      */
     fun shutdown() {
         ready = false
@@ -291,11 +346,46 @@ class SystemTtsEngine(
             runCatching { instance.shutdown() }
         }
         // Wake every block-awaiting caller so they don't hang on a
-        // deferred whose listener is now detached.
+        // gate whose listener is now detached.
         val drained = pending.keys.toList()
         for (id in drained) {
             pending.remove(id)?.complete(false)
         }
+    }
+
+    /**
+     * One-shot completion primitive routed by utteranceId. The
+     * [progressListener] fires [complete] exactly once (onDone → true,
+     * onError → false); [awaitBlocking] parks the calling thread on a
+     * [CountDownLatch] until then or the timeout elapses.
+     *
+     * Why a latch and not a `CompletableDeferred`: #876 needs the synth
+     * to run on the URGENT_AUDIO producer thread without a coroutine
+     * dispatcher hop, so the await must be a plain blocking call. A
+     * `CountDownLatch.await(timeout)` is interruptible, so coroutine
+     * callers reach it through [runInterruptible] and cancellation still
+     * propagates.
+     */
+    private class CompletionGate {
+        private val latch = CountDownLatch(1)
+        @Volatile private var result: Boolean = false
+
+        fun complete(value: Boolean) {
+            // CountDownLatch.countDown() past zero is a no-op, so a
+            // duplicate listener event (shouldn't happen — the map
+            // removes on first fire — but be defensive) is harmless.
+            result = value
+            latch.countDown()
+        }
+
+        /**
+         * Block the calling thread until [complete] fires or [timeoutMs]
+         * elapses. Returns the completion value, or null on timeout. A
+         * thread interrupt (coroutine cancellation via runInterruptible)
+         * surfaces as an [InterruptedException] to the caller.
+         */
+        fun awaitBlocking(timeoutMs: Long): Boolean? =
+            if (latch.await(timeoutMs, TimeUnit.MILLISECONDS)) result else null
     }
 
     companion object {

@@ -3035,13 +3035,18 @@ class EnginePlayer @AssistedInject constructor(
     /**
      * #676 — handle for System TTS voices. Mirrors [azureStreamingHandle]
      * in that it adapts an instance-based engine ([SystemTtsEngine]) to
-     * the [EngineStreamingSource.VoiceEngineHandle] contract. The
-     * underlying [SystemTtsEngine.generateAudioPCM] is suspending
-     * (block-awaits the framework's UtteranceProgressListener) so we
-     * wrap with [kotlinx.coroutines.runBlocking] on the producer worker
-     * thread — same shape Piper/Kokoro use for their synchronous JNI
-     * calls. Returns null when the engine isn't loaded yet (the
-     * pipeline's skip-empty-PCM branch handles this).
+     * the [EngineStreamingSource.VoiceEngineHandle] contract.
+     *
+     * #876 — synth runs through [SystemTtsEngine.generateAudioPCMBlocking],
+     * which does `synthesizeToFile` + the completion await synchronously
+     * on **this** producer worker thread. The previous `runBlocking { … }`
+     * wrapper dispatched the suspend body onto a `Dispatchers.IO` pool
+     * thread at DEFAULT priority, so the URGENT_AUDIO priority set just
+     * below leaked nowhere useful and the producer parked idle. The
+     * blocking variant keeps the synth on the URGENT_AUDIO thread —
+     * same shape Piper/Kokoro use for their synchronous JNI calls.
+     * Returns null when the engine isn't loaded yet (the pipeline's
+     * skip-empty-PCM branch handles this).
      */
     private fun systemTtsHandle(
         engineType: EngineType.SystemTts,
@@ -3055,7 +3060,7 @@ class EnginePlayer @AssistedInject constructor(
             ): ByteArray? {
                 AndroidProcess.setThreadPriority(AndroidProcess.THREAD_PRIORITY_URGENT_AUDIO)
                 val engine = systemTtsEngine ?: return null
-                return runBlocking { engine.generateAudioPCM(text, speed, pitch) }
+                return engine.generateAudioPCMBlocking(text, speed, pitch)
             }
         }
 
