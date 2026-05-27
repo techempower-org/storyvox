@@ -5,8 +5,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import `in`.jphe.storyvox.feature.R
 import `in`.jphe.storyvox.ui.theme.LocalSpacing
 
 /**
@@ -34,7 +36,7 @@ fun AdvancedSettingsScreen(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val spacing = LocalSpacing.current
 
-    SettingsSubscreenScaffold(title = "Advanced", onBack = onBack) { padding ->
+    SettingsSubscreenScaffold(title = stringResource(R.string.settings_advanced_title), onBack = onBack) { padding ->
         val s = state.settings ?: run {
             SettingsSkeleton(
                 modifier = Modifier
@@ -56,10 +58,8 @@ fun AdvancedSettingsScreen(
                     .indexOfFirst { it == s.autoItemsPerCategory }
                     .let { if (it < 0) autoOptions.indexOf(6) else it }
                 SettingsSegmentedBlock(
-                    title = "Android Auto: items per category",
-                    subtitle = "How many items each Auto category exposes " +
-                        "(Library / Follows / Recent / New). 6 matches Google's " +
-                        "head-unit guideline; large libraries may prefer 8 or 12.",
+                    title = stringResource(R.string.settings_advanced_auto_items_title),
+                    subtitle = stringResource(R.string.settings_advanced_auto_items_subtitle),
                     options = autoOptions.map { "$it" },
                     selectedIndex = autoIndex,
                     onSelected = { idx ->

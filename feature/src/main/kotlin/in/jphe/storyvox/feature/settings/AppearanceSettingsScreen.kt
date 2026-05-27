@@ -28,6 +28,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
@@ -36,6 +37,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import `in`.jphe.storyvox.feature.R
 import `in`.jphe.storyvox.feature.api.CoverStyle
 import `in`.jphe.storyvox.feature.api.UiBrassPulseLevel
 import `in`.jphe.storyvox.feature.api.UiParticleIntensity
@@ -88,7 +90,7 @@ fun AppearanceSettingsScreen(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val spacing = LocalSpacing.current
 
-    SettingsSubscreenScaffold(title = "Appearance", onBack = onBack) { padding ->
+    SettingsSubscreenScaffold(title = stringResource(R.string.settings_appearance_title), onBack = onBack) { padding ->
         val s = state.settings ?: run {
             SettingsSkeleton(
                 modifier = Modifier
@@ -109,18 +111,18 @@ fun AppearanceSettingsScreen(
                 val styleOptions = listOf(
                     CoverStyleOption(
                         value = CoverStyle.Monogram,
-                        label = "Monogram",
-                        subtitle = "Classic minimalist · author initial on dark",
+                        label = stringResource(R.string.settings_appearance_cover_monogram_label),
+                        subtitle = stringResource(R.string.settings_appearance_cover_monogram_subtitle),
                     ),
                     CoverStyleOption(
                         value = CoverStyle.Branded,
-                        label = "Branded",
-                        subtitle = "Bold magical · sun-disk + EB Garamond title",
+                        label = stringResource(R.string.settings_appearance_cover_branded_label),
+                        subtitle = stringResource(R.string.settings_appearance_cover_branded_subtitle),
                     ),
                     CoverStyleOption(
                         value = CoverStyle.CoverOnly,
-                        label = "Cover only",
-                        subtitle = "Real cover when available, dim sigil outline otherwise",
+                        label = stringResource(R.string.settings_appearance_cover_only_label),
+                        subtitle = stringResource(R.string.settings_appearance_cover_only_subtitle),
                     ),
                 )
 
@@ -141,10 +143,8 @@ fun AppearanceSettingsScreen(
             // understand why their covers changed.
             SettingsGroupCard {
                 SettingsRow(
-                    title = "About these covers",
-                    subtitle = "Real cover images are always used when available. " +
-                        "This setting controls what we render when a fiction has no cover, " +
-                        "the cover URL has expired, or the load fails.",
+                    title = stringResource(R.string.settings_appearance_about_covers_title),
+                    subtitle = stringResource(R.string.settings_appearance_about_covers_subtitle),
                 )
             }
 
@@ -163,21 +163,19 @@ fun AppearanceSettingsScreen(
             // targets per device.
             SettingsGroupCard {
                 val speedOptions = listOf(
-                    0f to "Off",
-                    0.5f to "Slow",
-                    1f to "Normal",
-                    1.5f to "Brisk",
-                    2f to "Fast",
+                    0f to stringResource(R.string.settings_appearance_animation_off),
+                    0.5f to stringResource(R.string.settings_appearance_animation_slow),
+                    1f to stringResource(R.string.settings_appearance_animation_normal),
+                    1.5f to stringResource(R.string.settings_appearance_animation_brisk),
+                    2f to stringResource(R.string.settings_appearance_animation_fast),
                 )
                 val activeScale = s.animationSpeedScale
                 val selectedIndex = speedOptions
                     .indexOfFirst { it.first == activeScale }
                     .let { if (it < 0) speedOptions.indexOfFirst { p -> p.first == 1f } else it }
                 SettingsSegmentedBlock(
-                    title = "Animation speed",
-                    subtitle = "Master multiplier on every transition. " +
-                        "Off makes animations instant — useful with assistive tech " +
-                        "or on slower devices.",
+                    title = stringResource(R.string.settings_appearance_animation_speed_title),
+                    subtitle = stringResource(R.string.settings_appearance_animation_speed_subtitle),
                     options = speedOptions.map { it.second },
                     selectedIndex = selectedIndex,
                     onSelected = { idx ->
@@ -192,17 +190,16 @@ fun AppearanceSettingsScreen(
                 // the decoration entirely; Lush doubles the count for
                 // a more vivid Library Nocturne ambiance.
                 val particleOptions = listOf(
-                    UiParticleIntensity.None to "None",
-                    UiParticleIntensity.Subtle to "Subtle",
-                    UiParticleIntensity.Lush to "Lush",
+                    UiParticleIntensity.None to stringResource(R.string.settings_appearance_particle_none),
+                    UiParticleIntensity.Subtle to stringResource(R.string.settings_appearance_particle_subtle),
+                    UiParticleIntensity.Lush to stringResource(R.string.settings_appearance_particle_lush),
                 )
                 val particleIndex = particleOptions
                     .indexOfFirst { it.first == s.particleIntensity }
                     .let { if (it < 0) 1 else it }
                 SettingsSegmentedBlock(
-                    title = "Particle intensity",
-                    subtitle = "Brass-ember sparks + chapter-completion flare. " +
-                        "None silences decorative particles; Lush doubles the count.",
+                    title = stringResource(R.string.settings_appearance_particle_title),
+                    subtitle = stringResource(R.string.settings_appearance_particle_subtitle),
                     options = particleOptions.map { it.second },
                     selectedIndex = particleIndex,
                     onSelected = { idx ->
@@ -216,18 +213,16 @@ fun AppearanceSettingsScreen(
                 // the 3-layered rotating brass sigil from
                 // [MagicSkeletonTile].
                 val skeletonOptions = listOf(
-                    UiSkeletonStyle.Off to "Off",
-                    UiSkeletonStyle.Pulse to "Pulse",
-                    UiSkeletonStyle.Sigil to "Sigil",
+                    UiSkeletonStyle.Off to stringResource(R.string.settings_appearance_skeleton_off),
+                    UiSkeletonStyle.Pulse to stringResource(R.string.settings_appearance_skeleton_pulse),
+                    UiSkeletonStyle.Sigil to stringResource(R.string.settings_appearance_skeleton_sigil),
                 )
                 val skeletonIndex = skeletonOptions
                     .indexOfFirst { it.first == s.skeletonStyle }
                     .let { if (it < 0) 2 else it }
                 SettingsSegmentedBlock(
-                    title = "Skeleton style",
-                    subtitle = "How loading placeholders look. " +
-                        "Off = plain rectangle, Pulse = breathing rectangle, " +
-                        "Sigil = rotating brass sigil.",
+                    title = stringResource(R.string.settings_appearance_skeleton_title),
+                    subtitle = stringResource(R.string.settings_appearance_skeleton_subtitle),
                     options = skeletonOptions.map { it.second },
                     selectedIndex = skeletonIndex,
                     onSelected = { idx ->
@@ -239,17 +234,16 @@ fun AppearanceSettingsScreen(
                 // (narrow breath), Standard = 0.55..1.0 (current),
                 // Bold = 0.4..1.0 (wide vivid pulse).
                 val pulseOptions = listOf(
-                    UiBrassPulseLevel.Subtle to "Subtle",
-                    UiBrassPulseLevel.Standard to "Standard",
-                    UiBrassPulseLevel.Bold to "Bold",
+                    UiBrassPulseLevel.Subtle to stringResource(R.string.settings_appearance_brass_pulse_subtle),
+                    UiBrassPulseLevel.Standard to stringResource(R.string.settings_appearance_brass_pulse_standard),
+                    UiBrassPulseLevel.Bold to stringResource(R.string.settings_appearance_brass_pulse_bold),
                 )
                 val pulseIndex = pulseOptions
                     .indexOfFirst { it.first == s.brassPulseLevel }
                     .let { if (it < 0) 1 else it }
                 SettingsSegmentedBlock(
-                    title = "Brass pulse",
-                    subtitle = "How deep the brass breath cycles on loading dots, " +
-                        "the player sigil, and skeleton tiles.",
+                    title = stringResource(R.string.settings_appearance_brass_pulse_title),
+                    subtitle = stringResource(R.string.settings_appearance_brass_pulse_subtitle),
                     options = pulseOptions.map { it.second },
                     selectedIndex = pulseIndex,
                     onSelected = { idx ->
@@ -283,7 +277,7 @@ private fun CoverStylePicker(
     val spacing = LocalSpacing.current
     Column {
         Text(
-            text = "Book cover style",
+            text = stringResource(R.string.settings_appearance_cover_style_title),
             style = MaterialTheme.typography.bodyLarge,
             modifier = Modifier.padding(
                 start = spacing.md,
@@ -292,13 +286,14 @@ private fun CoverStylePicker(
             ),
         )
         Text(
-            text = "What to show when a fiction has no cover image.",
+            text = stringResource(R.string.settings_appearance_cover_style_subtitle),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(horizontal = spacing.md),
         )
         options.forEach { option ->
             val isSelected = option.value == selected
+            val rowCd = stringResource(R.string.settings_appearance_cover_radio_cd, option.label, option.subtitle)
             SettingsRow(
                 title = option.label,
                 subtitle = option.subtitle,
@@ -306,7 +301,7 @@ private fun CoverStylePicker(
                 modifier = Modifier.semantics {
                     role = Role.RadioButton
                     this.selected = isSelected
-                    contentDescription = "${option.label}. ${option.subtitle}"
+                    contentDescription = rowCd
                 },
                 trailing = {
                     CoverStylePickerDot(selected = isSelected)
@@ -377,7 +372,7 @@ private fun CoverStylePreviewStrip(
         verticalArrangement = Arrangement.spacedBy(spacing.xs),
     ) {
         Text(
-            text = "Preview",
+            text = stringResource(R.string.settings_appearance_preview_label),
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -386,21 +381,21 @@ private fun CoverStylePreviewStrip(
             horizontalArrangement = Arrangement.spacedBy(spacing.md),
         ) {
             CoverStylePreviewChip(
-                label = "Monogram",
+                label = stringResource(R.string.settings_appearance_cover_monogram_label),
                 style = CoverStyle.Monogram,
                 isSelected = selected == CoverStyle.Monogram,
                 onClick = { onSelected(CoverStyle.Monogram) },
                 modifier = Modifier.weight(1f),
             )
             CoverStylePreviewChip(
-                label = "Branded",
+                label = stringResource(R.string.settings_appearance_cover_branded_label),
                 style = CoverStyle.Branded,
                 isSelected = selected == CoverStyle.Branded,
                 onClick = { onSelected(CoverStyle.Branded) },
                 modifier = Modifier.weight(1f),
             )
             CoverStylePreviewChip(
-                label = "Cover only",
+                label = stringResource(R.string.settings_appearance_cover_only_label),
                 style = CoverStyle.CoverOnly,
                 isSelected = selected == CoverStyle.CoverOnly,
                 onClick = { onSelected(CoverStyle.CoverOnly) },
@@ -429,13 +424,14 @@ private fun CoverStylePreviewChip(
     } else {
         MaterialTheme.colorScheme.outline.copy(alpha = 0.35f)
     }
+    val chipCd = stringResource(R.string.settings_appearance_preview_chip_cd, label)
     Column(
         modifier = modifier
             .clickable(onClick = onClick)
             .semantics {
                 role = Role.RadioButton
                 this.selected = isSelected
-                contentDescription = "$label preview — tap to select"
+                contentDescription = chipCd
             },
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(spacing.xs),

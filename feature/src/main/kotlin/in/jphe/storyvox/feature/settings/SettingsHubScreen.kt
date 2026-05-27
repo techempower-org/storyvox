@@ -42,6 +42,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
+import `in`.jphe.storyvox.feature.R
 import `in`.jphe.storyvox.feature.settings.components.SectionHeading
 import `in`.jphe.storyvox.ui.component.MagicTitleBar
 import `in`.jphe.storyvox.ui.theme.LocalSpacing
@@ -148,12 +150,12 @@ fun SettingsHubScreen(
         topBar = {
             // #830 — shared title bar across all primary-nav surfaces.
             MagicTitleBar(
-                title = "Settings",
+                title = stringResource(R.string.settings_hub_title),
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(
                             Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back",
+                            contentDescription = stringResource(R.string.settings_back),
                         )
                     }
                 },
@@ -174,9 +176,9 @@ fun SettingsHubScreen(
             // inter-row peek. One card with many link rows reads as a
             // navigation index rather than a fragmented card grid.
             SectionHeading(
-                label = "Storyvox",
+                label = stringResource(R.string.settings_hub_heading),
                 icon = Icons.Outlined.AutoAwesome,
-                descriptor = "Pick a section to configure.",
+                descriptor = stringResource(R.string.settings_hub_descriptor),
             )
             // Issue #773 — search filter. Case-insensitive substring
             // match against each row's title and subtitle; non-matching
@@ -184,7 +186,7 @@ fun SettingsHubScreen(
             OutlinedTextField(
                 value = query,
                 onValueChange = { query = it },
-                label = { Text("Search settings") },
+                label = { Text(stringResource(R.string.settings_hub_search_label)) },
                 singleLine = true,
                 leadingIcon = {
                     Icon(Icons.Outlined.Search, contentDescription = null)
@@ -192,7 +194,7 @@ fun SettingsHubScreen(
                 trailingIcon = {
                     if (query.isNotEmpty()) {
                         IconButton(onClick = { query = "" }) {
-                            Icon(Icons.Outlined.Clear, contentDescription = "Clear search")
+                            Icon(Icons.Outlined.Clear, contentDescription = stringResource(R.string.settings_hub_clear_search))
                         }
                     }
                 },
@@ -203,21 +205,21 @@ fun SettingsHubScreen(
                 // Voice & Playback — most-touched, first.
                 SettingsHubRow(
                     icon = Icons.Outlined.RecordVoiceOver,
-                    title = "Voice & Playback",
-                    subtitle = "Voice, speed, cadence, pitch.",
+                    title = stringResource(R.string.settings_hub_voice_playback_title),
+                    subtitle = stringResource(R.string.settings_hub_voice_playback_subtitle),
                     onClick = onOpenVoicePlayback,
                 )
                 // Voice library — dedicated subscreen.
                 SettingsHubRow(
                     icon = Icons.Outlined.RecordVoiceOver,
-                    title = "Voice library",
-                    subtitle = "Browse and switch between available voices.",
+                    title = stringResource(R.string.settings_hub_voice_library_title),
+                    subtitle = stringResource(R.string.settings_hub_voice_library_subtitle),
                     onClick = onOpenVoiceLibrary,
                 )
                 SettingsHubRow(
                     icon = Icons.AutoMirrored.Outlined.MenuBook,
-                    title = "Reading",
-                    subtitle = "Theme, sleep timer.",
+                    title = stringResource(R.string.settings_hub_reading_title),
+                    subtitle = stringResource(R.string.settings_hub_reading_subtitle),
                     onClick = onOpenReading,
                 )
                 // v0.5.59 (#cover-style-toggle) — Appearance. Book-
@@ -226,20 +228,20 @@ fun SettingsHubScreen(
                 // visual-style knobs; future visual rows land here.
                 SettingsHubRow(
                     icon = Icons.Outlined.Palette,
-                    title = "Appearance",
-                    subtitle = "Book cover style.",
+                    title = stringResource(R.string.settings_hub_appearance_title),
+                    subtitle = stringResource(R.string.settings_hub_appearance_subtitle),
                     onClick = onOpenAppearance,
                 )
                 SettingsHubRow(
                     icon = Icons.Outlined.Speed,
-                    title = "Performance",
-                    subtitle = "Buffer, parallel synth, decoder choice.",
+                    title = stringResource(R.string.settings_hub_performance_title),
+                    subtitle = stringResource(R.string.settings_hub_performance_subtitle),
                     onClick = onOpenPerformance,
                 )
                 SettingsHubRow(
                     icon = Icons.Outlined.AutoAwesome,
-                    title = "AI",
-                    subtitle = "Chat model, grounding, recap.",
+                    title = stringResource(R.string.settings_hub_ai_title),
+                    subtitle = stringResource(R.string.settings_hub_ai_subtitle),
                     onClick = onOpenAi,
                 )
                 // Accessibility — Phase 1 scaffold (v0.5.42). Positioned
@@ -247,40 +249,40 @@ fun SettingsHubScreen(
                 // not buried with the advanced rows further down.
                 SettingsHubRow(
                     icon = Icons.Outlined.Accessibility,
-                    title = "Accessibility",
-                    subtitle = "TalkBack, contrast, motion, font scale.",
+                    title = stringResource(R.string.settings_hub_accessibility_title),
+                    subtitle = stringResource(R.string.settings_hub_accessibility_subtitle),
                     onClick = onOpenAccessibility,
                 )
                 SettingsHubRow(
                     icon = Icons.Outlined.AutoStories,
-                    title = "AI sessions",
-                    subtitle = "Review past chats and delete history.",
+                    title = stringResource(R.string.settings_hub_ai_sessions_title),
+                    subtitle = stringResource(R.string.settings_hub_ai_sessions_subtitle),
                     onClick = onOpenAiSessions,
                 )
                 // Plugin manager (#404). Dedicated subscreen with its own
                 // search + filter chips + capability legend.
                 SettingsHubRow(
                     icon = Icons.Outlined.Extension,
-                    title = "Plugins",
-                    subtitle = "Toggle backends — Fiction, Audio streams, Voice bundles.",
+                    title = stringResource(R.string.settings_hub_plugins_title),
+                    subtitle = stringResource(R.string.settings_hub_plugins_subtitle),
                     onClick = onOpenPluginManager,
                 )
                 SettingsHubRow(
                     icon = Icons.AutoMirrored.Outlined.LibraryBooks,
-                    title = "Pronunciation dictionary",
-                    subtitle = "Per-word phonetic overrides.",
+                    title = stringResource(R.string.settings_hub_pronunciation_title),
+                    subtitle = stringResource(R.string.settings_hub_pronunciation_subtitle),
                     onClick = onOpenPronunciationDict,
                 )
                 SettingsHubRow(
                     icon = Icons.Outlined.AccountCircle,
-                    title = "Account",
-                    subtitle = "Royal Road, GitHub.",
+                    title = stringResource(R.string.settings_hub_account_title),
+                    subtitle = stringResource(R.string.settings_hub_account_subtitle),
                     onClick = onOpenAccount,
                 )
                 SettingsHubRow(
                     icon = Icons.Outlined.Cloud,
-                    title = "Memory Palace",
-                    subtitle = "Daemon host, probe, integration.",
+                    title = stringResource(R.string.settings_hub_memory_palace_title),
+                    subtitle = stringResource(R.string.settings_hub_memory_palace_subtitle),
                     onClick = onOpenMemoryPalace,
                 )
                 // v1 settings-bundle-7 — Advanced subscreen. Power-
@@ -291,20 +293,20 @@ fun SettingsHubScreen(
                 // debugging.
                 SettingsHubRow(
                     icon = Icons.Outlined.Tune,
-                    title = "Advanced",
-                    subtitle = "Android Auto, integration tunables.",
+                    title = stringResource(R.string.settings_hub_advanced_title),
+                    subtitle = stringResource(R.string.settings_hub_advanced_subtitle),
                     onClick = onOpenAdvanced,
                 )
                 SettingsHubRow(
                     icon = Icons.Outlined.BugReport,
-                    title = "Developer",
-                    subtitle = "Debug overlay, log ring, advanced toggles.",
+                    title = stringResource(R.string.settings_hub_developer_title),
+                    subtitle = stringResource(R.string.settings_hub_developer_subtitle),
                     onClick = onOpenDebug,
                 )
                 SettingsHubRow(
                     icon = Icons.Outlined.Info,
-                    title = "About",
-                    subtitle = "Version, sigil, open-source notices.",
+                    title = stringResource(R.string.settings_hub_about_title),
+                    subtitle = stringResource(R.string.settings_hub_about_subtitle),
                     onClick = onOpenAbout,
                 )
                 // Escape hatch — the legacy flat-scroll SettingsScreen
@@ -313,8 +315,8 @@ fun SettingsHubScreen(
                 // everything you used to scroll through is still here".
                 SettingsHubRow(
                     icon = Icons.AutoMirrored.Outlined.LibraryBooks,
-                    title = "All settings",
-                    subtitle = "Every setting on one long page (legacy).",
+                    title = stringResource(R.string.settings_hub_all_settings_title),
+                    subtitle = stringResource(R.string.settings_hub_all_settings_subtitle),
                     onClick = onOpenAllSettings,
                 )
             }

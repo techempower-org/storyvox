@@ -479,4 +479,320 @@
     <string name="voice_desc_alba">British, soft-spoken — quiet hours and bedtime.</string>
     <string name="voice_desc_fallback">%1$s — small free download.</string>
 
+    <!-- ════════════════════════════════════════════════════════════ -->
+    <!-- Settings (#799 — i18n the settings module)                    -->
+    <!-- ════════════════════════════════════════════════════════════ -->
+
+    <!-- Settings · shared scaffold + common labels -->
+    <string name="settings_back">Back</string>
+    <string name="settings_cancel">Cancel</string>
+    <string name="settings_clear">Clear</string>
+    <string name="settings_sign_in">Sign in</string>
+    <string name="settings_sign_out">Sign out</string>
+
+    <!-- Settings · hub (SettingsHubScreen) -->
+    <string name="settings_hub_title">Settings</string>
+    <string name="settings_hub_heading">Storyvox</string>
+    <string name="settings_hub_descriptor">Pick a section to configure.</string>
+    <string name="settings_hub_search_label">Search settings</string>
+    <string name="settings_hub_clear_search">Clear search</string>
+    <string name="settings_hub_voice_playback_title">Voice &amp; Playback</string>
+    <string name="settings_hub_voice_playback_subtitle">Voice, speed, cadence, pitch.</string>
+    <string name="settings_hub_voice_library_title">Voice library</string>
+    <string name="settings_hub_voice_library_subtitle">Browse and switch between available voices.</string>
+    <string name="settings_hub_reading_title">Reading</string>
+    <string name="settings_hub_reading_subtitle">Theme, sleep timer.</string>
+    <string name="settings_hub_appearance_title">Appearance</string>
+    <string name="settings_hub_appearance_subtitle">Book cover style.</string>
+    <string name="settings_hub_performance_title">Performance</string>
+    <string name="settings_hub_performance_subtitle">Buffer, parallel synth, decoder choice.</string>
+    <string name="settings_hub_ai_title">AI</string>
+    <string name="settings_hub_ai_subtitle">Chat model, grounding, recap.</string>
+    <string name="settings_hub_accessibility_title">Accessibility</string>
+    <string name="settings_hub_accessibility_subtitle">TalkBack, contrast, motion, font scale.</string>
+    <string name="settings_hub_ai_sessions_title">AI sessions</string>
+    <string name="settings_hub_ai_sessions_subtitle">Review past chats and delete history.</string>
+    <string name="settings_hub_plugins_title">Plugins</string>
+    <string name="settings_hub_plugins_subtitle">Toggle backends — Fiction, Audio streams, Voice bundles.</string>
+    <string name="settings_hub_pronunciation_title">Pronunciation dictionary</string>
+    <string name="settings_hub_pronunciation_subtitle">Per-word phonetic overrides.</string>
+    <string name="settings_hub_account_title">Account</string>
+    <string name="settings_hub_account_subtitle">Royal Road, GitHub.</string>
+    <string name="settings_hub_memory_palace_title">Memory Palace</string>
+    <string name="settings_hub_memory_palace_subtitle">Daemon host, probe, integration.</string>
+    <string name="settings_hub_advanced_title">Advanced</string>
+    <string name="settings_hub_advanced_subtitle">Android Auto, integration tunables.</string>
+    <string name="settings_hub_developer_title">Developer</string>
+    <string name="settings_hub_developer_subtitle">Debug overlay, log ring, advanced toggles.</string>
+    <string name="settings_hub_about_title">About</string>
+    <string name="settings_hub_about_subtitle">Version, sigil, open-source notices.</string>
+    <string name="settings_hub_all_settings_title">All settings</string>
+    <string name="settings_hub_all_settings_subtitle">Every setting on one long page (legacy).</string>
+
+    <!-- Settings · Reading subscreen -->
+    <string name="settings_reading_title">Reading</string>
+    <string name="settings_reading_theme_title">Theme</string>
+    <string name="settings_reading_theme_subtitle">System matches the device\'s day/night.</string>
+    <string name="settings_reading_shake_extend_title">Shake to extend sleep timer</string>
+    <string name="settings_reading_shake_extend_subtitle">Shake during the fade-out to add 15 more minutes.</string>
+
+    <!-- Settings · Cloud voices subscreen -->
+    <string name="settings_cloud_voices_title">Cloud voices</string>
+
+    <!-- Settings · Memory Palace subscreen -->
+    <string name="settings_memory_palace_title">Memory Palace</string>
+
+    <!-- Settings · Advanced subscreen -->
+    <string name="settings_advanced_title">Advanced</string>
+    <string name="settings_advanced_auto_items_title">Android Auto: items per category</string>
+    <string name="settings_advanced_auto_items_subtitle">How many items each Auto category exposes (Library / Follows / Recent / New). 6 matches Google\'s head-unit guideline; large libraries may prefer 8 or 12.</string>
+
+    <!-- Settings · About subscreen -->
+    <string name="settings_about_title">About</string>
+    <string name="settings_about_version">storyvox v%1$s</string>
+    <string name="settings_about_dirty"> · dirty</string>
+    <string name="settings_about_built"> · built %1$s</string>
+
+    <!-- Settings · AI subscreen -->
+    <string name="settings_ai_title">AI</string>
+    <string name="settings_ai_sessions_title">Sessions</string>
+    <string name="settings_ai_sessions_subtitle">Review and manage past chats and chapter recaps.</string>
+
+    <!-- Settings · Voice &amp; Playback subscreen -->
+    <string name="settings_voice_title">Voice &amp; Playback</string>
+    <string name="settings_voice_library_title">Voice library</string>
+    <string name="settings_voice_library_subtitle">Pick a voice and hear samples.</string>
+    <string name="settings_voice_speed_title">Speed</string>
+    <string name="settings_voice_speed_value">%1$s×</string>
+    <string name="settings_voice_speed_cd">Default speech speed</string>
+    <string name="settings_voice_speed_state">%1$s times</string>
+    <string name="settings_voice_tick_natural">▲ 1×</string>
+    <string name="settings_voice_pitch_title">Pitch</string>
+    <string name="settings_voice_pitch_value">%1$s×</string>
+    <string name="settings_voice_pitch_cd">Default pitch</string>
+    <string name="settings_voice_pitch_state">%1$s, neutral at one</string>
+    <string name="settings_voice_hq_pitch_title">High-quality pitch interpolation</string>
+    <string name="settings_voice_hq_pitch_on">Smoother pitch-shifted audio. ~20%% extra CPU per chapter render.</string>
+    <string name="settings_voice_hq_pitch_off">Faster pitch shifting. Some grittiness at non-neutral pitch.</string>
+    <string name="settings_voice_pronunciation_title">Pronunciation</string>
+    <string name="settings_voice_pronunciation_subtitle">Teach the voice how to say specific names and words.</string>
+    <string name="settings_voice_skip_distance_title">Skip distance</string>
+    <string name="settings_voice_skip_distance_subtitle">Seconds the +N / -N buttons jump per tap.</string>
+    <string name="settings_voice_skip_distance_option">%1$ds</string>
+    <string name="settings_voice_rewind_title">Skip-back: jump to start when within</string>
+    <string name="settings_voice_rewind_subtitle">Past this point in a chapter, the prev-track button rewinds to the start. Within it, jumps to the previous chapter. Off (0s) always goes to the previous chapter.</string>
+    <string name="settings_voice_rewind_off">Off</string>
+    <string name="settings_voice_rewind_option">%1$ds</string>
+    <string name="settings_voice_shake_extend_title">Sleep timer: shake-to-extend</string>
+    <string name="settings_voice_shake_extend_subtitle">Minutes the timer extends when you shake during the 10-second fade tail.</string>
+    <string name="settings_voice_shake_extend_option">%1$d min</string>
+
+    <!-- Settings · Performance subscreen -->
+    <string name="settings_performance_title">Performance</string>
+    <string name="settings_performance_catchup_title">Catch-up Pause</string>
+    <string name="settings_performance_catchup_on">Pause briefly when the voice falls behind, then resume cleanly.</string>
+    <string name="settings_performance_catchup_off">Drain through underruns; no buffering spinner.</string>
+    <string name="settings_performance_full_prerender_title">Full Pre-render</string>
+    <string name="settings_performance_full_prerender_on">Cache every chapter of every library fiction in the background. Aggressive disk + CPU use; gapless playback everywhere.</string>
+    <string name="settings_performance_full_prerender_off">Cache the next few chapters only (1-3 on add, +2 on chapter end). Lighter on disk.</string>
+    <string name="settings_performance_cache_size_title">Audio cache size</string>
+    <string name="settings_performance_cache_size_subtitle">How much disk to use for cached audiobook PCM. Larger = more chapters playable instantly; smaller = less disk used.</string>
+    <string name="settings_performance_cache_used_title">Currently used</string>
+    <string name="settings_performance_cache_no_cap">no cap</string>
+    <string name="settings_performance_cache_used_value">%1$s / %2$s</string>
+    <string name="settings_performance_clear_cache">Clear cache</string>
+    <string name="settings_performance_clear_cache_confirm_title">Clear audio cache?</string>
+    <string name="settings_performance_clear_cache_confirm_body">Frees %1$s of disk. Chapters you replay will re-render the first time you play them. Library and reading positions are not affected.</string>
+    <string name="settings_performance_prerender_window_title">Pre-render window</string>
+    <string name="settings_performance_prerender_window_subtitle">How many chapters ahead the cache renders. Smaller = less disk + bandwidth; larger = more chapters ready for instant playback.</string>
+    <string name="settings_performance_prerender_window_option">N+%1$d</string>
+    <string name="settings_performance_network_patience_title">Network patience</string>
+    <string name="settings_performance_network_patience_subtitle">Network timeout budget for source plugins. Aggressive fails fast on flaky links; Patient gives slow APIs more room.</string>
+    <string name="settings_performance_network_patience_aggressive">Aggressive (5s)</string>
+    <string name="settings_performance_network_patience_default">Default (10s)</string>
+    <string name="settings_performance_network_patience_patient">Patient (30s)</string>
+    <string name="settings_performance_advanced_warmup">Warm-up Wait</string>
+    <string name="settings_performance_advanced_determinism">Voice Determinism</string>
+    <string name="settings_performance_advanced_parallel">Parallel synth (engines + threads)</string>
+    <string name="settings_performance_warmup_title">Warm-up Wait</string>
+    <string name="settings_performance_warmup_on">Wait for the voice to warm up before playback starts.</string>
+    <string name="settings_performance_warmup_off">Start playback immediately; accept silence at chapter start.</string>
+    <string name="settings_performance_determinism_title">Voice Determinism</string>
+    <string name="settings_performance_determinism_on">Steady — identical text plays the same each time.</string>
+    <string name="settings_performance_determinism_off">Expressive — slight variation, fuller prosody.</string>
+
+    <!-- Settings · Accessibility subscreen -->
+    <string name="settings_accessibility_title">Accessibility</string>
+    <string name="settings_accessibility_high_contrast_title">High contrast theme</string>
+    <string name="settings_accessibility_high_contrast_subtitle">Use a higher-contrast variant of Library Nocturne. Auto-enables when TalkBack is active.</string>
+    <string name="settings_accessibility_reduced_motion_title">Reduced motion</string>
+    <string name="settings_accessibility_reduced_motion_subtitle">Disable non-essential animations (chip slides, brass shimmer, page-transition curves). Auto-enables when the system \"Remove animations\" setting is on.</string>
+    <string name="settings_accessibility_touch_targets_title">Larger touch targets</string>
+    <string name="settings_accessibility_touch_targets_subtitle">Increase tap-target minimums from 48dp to 64dp where feasible. Auto-enables when Switch Access is active.</string>
+    <string name="settings_accessibility_pauses_title">Screen-reader pauses</string>
+    <string name="settings_accessibility_pauses_value">%1$d ms</string>
+    <string name="settings_accessibility_pauses_subtitle">Extra pause between sentences when TalkBack is active.</string>
+    <string name="settings_accessibility_pauses_cd">Screen-reader inter-sentence pause</string>
+    <string name="settings_accessibility_pauses_state">%1$d milliseconds</string>
+    <string name="settings_accessibility_speak_chapter_title">Speak chapter numbers / titles</string>
+    <string name="settings_accessibility_speak_chapter_subtitle">Controls how TalkBack reads chapter headers.</string>
+    <string name="settings_accessibility_speak_both">Both</string>
+    <string name="settings_accessibility_speak_numbers">Numbers only</string>
+    <string name="settings_accessibility_speak_titles">Titles only</string>
+    <string name="settings_accessibility_font_scale_title">Font scale override</string>
+    <string name="settings_accessibility_font_scale_value">%1$s×</string>
+    <string name="settings_accessibility_font_scale_subtitle">Multiplier on top of Android\'s system font scale.</string>
+    <string name="settings_accessibility_font_scale_cd">Font scale override</string>
+    <string name="settings_accessibility_font_scale_state">%1$s times</string>
+    <string name="settings_accessibility_direction_title">Override system reading direction</string>
+    <string name="settings_accessibility_direction_subtitle">Escape hatch for RTL testing and locale-mismatch overrides.</string>
+    <string name="settings_accessibility_direction_follow">Follow system</string>
+    <string name="settings_accessibility_direction_ltr">Force LTR</string>
+    <string name="settings_accessibility_direction_rtl">Force RTL</string>
+    <string name="settings_accessibility_about_title">About these settings</string>
+    <string name="settings_accessibility_about_subtitle">These settings improve storyvox for users who rely on TalkBack, Switch Access, or other accessibility tools. Most adapt automatically when assistive services are detected.</string>
+    <string name="settings_accessibility_learn_more_title">Learn more</string>
+    <string name="settings_accessibility_learn_more_subtitle">Open the accessibility documentation in your browser.</string>
+    <string name="settings_accessibility_talkback_active">TalkBack is active. The screen-reader-related settings on this page are taking effect right now.</string>
+    <string name="settings_accessibility_talkback_nudge_title">TalkBack isn\'t running</string>
+    <string name="settings_accessibility_talkback_nudge_body">The screen-reader-related settings below activate when you turn on TalkBack in Android Settings → Accessibility. Some devices ship with TalkBack pre-installed; on others you\'ll need to install Android Accessibility Suite from the Play Store.</string>
+    <string name="settings_accessibility_talkback_nudge_dismiss">Got it</string>
+
+    <!-- Settings · Appearance subscreen -->
+    <string name="settings_appearance_title">Appearance</string>
+    <string name="settings_appearance_cover_style_title">Book cover style</string>
+    <string name="settings_appearance_cover_style_subtitle">What to show when a fiction has no cover image.</string>
+    <string name="settings_appearance_cover_monogram_label">Monogram</string>
+    <string name="settings_appearance_cover_monogram_subtitle">Classic minimalist · author initial on dark</string>
+    <string name="settings_appearance_cover_branded_label">Branded</string>
+    <string name="settings_appearance_cover_branded_subtitle">Bold magical · sun-disk + EB Garamond title</string>
+    <string name="settings_appearance_cover_only_label">Cover only</string>
+    <string name="settings_appearance_cover_only_subtitle">Real cover when available, dim sigil outline otherwise</string>
+    <string name="settings_appearance_cover_radio_cd">%1$s. %2$s</string>
+    <string name="settings_appearance_preview_label">Preview</string>
+    <string name="settings_appearance_preview_chip_cd">%1$s preview — tap to select</string>
+    <string name="settings_appearance_about_covers_title">About these covers</string>
+    <string name="settings_appearance_about_covers_subtitle">Real cover images are always used when available. This setting controls what we render when a fiction has no cover, the cover URL has expired, or the load fails.</string>
+    <string name="settings_appearance_animation_speed_title">Animation speed</string>
+    <string name="settings_appearance_animation_speed_subtitle">Master multiplier on every transition. Off makes animations instant — useful with assistive tech or on slower devices.</string>
+    <string name="settings_appearance_animation_off">Off</string>
+    <string name="settings_appearance_animation_slow">Slow</string>
+    <string name="settings_appearance_animation_normal">Normal</string>
+    <string name="settings_appearance_animation_brisk">Brisk</string>
+    <string name="settings_appearance_animation_fast">Fast</string>
+    <string name="settings_appearance_particle_title">Particle intensity</string>
+    <string name="settings_appearance_particle_subtitle">Brass-ember sparks + chapter-completion flare. None silences decorative particles; Lush doubles the count.</string>
+    <string name="settings_appearance_particle_none">None</string>
+    <string name="settings_appearance_particle_subtle">Subtle</string>
+    <string name="settings_appearance_particle_lush">Lush</string>
+    <string name="settings_appearance_skeleton_title">Skeleton style</string>
+    <string name="settings_appearance_skeleton_subtitle">How loading placeholders look. Off = plain rectangle, Pulse = breathing rectangle, Sigil = rotating brass sigil.</string>
+    <string name="settings_appearance_skeleton_off">Off</string>
+    <string name="settings_appearance_skeleton_pulse">Pulse</string>
+    <string name="settings_appearance_skeleton_sigil">Sigil</string>
+    <string name="settings_appearance_brass_pulse_title">Brass pulse</string>
+    <string name="settings_appearance_brass_pulse_subtitle">How deep the brass breath cycles on loading dots, the player sigil, and skeleton tiles.</string>
+    <string name="settings_appearance_brass_pulse_subtle">Subtle</string>
+    <string name="settings_appearance_brass_pulse_standard">Standard</string>
+    <string name="settings_appearance_brass_pulse_bold">Bold</string>
+
+    <!-- Settings · Account subscreen -->
+    <string name="settings_account_title">Account</string>
+    <string name="settings_account_cloud_sync_syncing">Cloud Sync · syncing</string>
+    <string name="settings_account_cloud_sync_connected">Cloud Sync · connected</string>
+    <string name="settings_account_cloud_sync_not_signed_in">Cloud Sync · not signed in</string>
+    <string name="settings_account_signed_in_as">Signed in as</string>
+    <string name="settings_account_no_email">(no email)</string>
+    <string name="settings_account_domain_status">Domain status</string>
+    <string name="settings_account_syncing">Syncing…</string>
+    <string name="settings_account_sync_now">Sync now</string>
+    <string name="settings_account_secrets_enabled">Secrets sync · enabled</string>
+    <string name="settings_account_secrets_not_configured">Secrets sync · not configured</string>
+    <string name="settings_account_secrets_body">Encrypt API keys and tokens with a passphrase before syncing them to the cloud. The same passphrase is needed on every device.</string>
+    <string name="settings_account_cloud_sync_title">Cloud Sync</string>
+    <string name="settings_account_cloud_sync_signin_subtitle">Sign in to sync library, follows, positions, and secrets across devices.</string>
+    <string name="settings_account_royal_road_signed_in">Royal Road · signed in</string>
+    <string name="settings_account_royal_road_not_signed_in">Royal Road · not signed in</string>
+    <string name="settings_account_royal_road_title">Royal Road</string>
+    <string name="settings_account_royal_road_signed_in_subtitle">Signed in</string>
+    <string name="settings_account_royal_road_signin_subtitle">Sign-in unlocks Premium chapters and your Follows list.</string>
+    <string name="settings_account_github_not_signed_in">GitHub · not signed in</string>
+    <string name="settings_account_github_signed_in_as">GitHub · signed in as @%1$s</string>
+    <string name="settings_account_github_signed_in">GitHub · signed in</string>
+    <string name="settings_account_github_expired">GitHub · session expired</string>
+    <string name="settings_account_passphrase_set">Passphrase is set</string>
+    <string name="settings_account_passphrase_label">Sync passphrase</string>
+    <string name="settings_account_passphrase_placeholder">Enter a passphrase for secrets sync</string>
+    <string name="settings_account_passphrase_set_button">Set passphrase</string>
+
+    <!-- Settings · legacy long-scroll (SettingsScreen) section headings -->
+    <string name="settings_section_voice_label">Voice &amp; Playback</string>
+    <string name="settings_section_voice_descriptor">How storyvox sounds — voice, speed, cadence.</string>
+    <string name="settings_section_reading_label">Reading</string>
+    <string name="settings_section_reading_descriptor">How chapter text and the reader behave.</string>
+    <string name="settings_section_performance_label">Performance &amp; buffering</string>
+    <string name="settings_section_performance_descriptor">Trade memory and CPU for smoother playback.</string>
+    <string name="settings_section_ai_label">AI</string>
+    <string name="settings_section_ai_descriptor">Smart features — Recap, character lookup, chat.</string>
+    <string name="settings_section_library_label">Library &amp; Sync</string>
+    <string name="settings_section_library_descriptor">Where stories come from and how often we check for updates.</string>
+    <string name="settings_legacy_plugins_title">Plugins</string>
+    <string name="settings_legacy_plugins_subtitle">Fiction sources, audio streams, and voice bundles.</string>
+
+    <!-- Settings · legacy Inbox notifications sub-card -->
+    <string name="settings_inbox_royalroad_title">Inbox: Royal Road</string>
+    <string name="settings_inbox_royalroad_subtitle">New-chapter events from your Royal Road follows.</string>
+    <string name="settings_inbox_kvmr_title">Inbox: KVMR</string>
+    <string name="settings_inbox_kvmr_subtitle">Live programs starting on KVMR Community Radio.</string>
+    <string name="settings_inbox_wikipedia_title">Inbox: Wikipedia</string>
+    <string name="settings_inbox_wikipedia_subtitle">Updates to followed Wikipedia articles. (No diff poller yet — see #383 follow-up.)</string>
+
+    <!-- Settings · legacy Sync sub-card -->
+    <string name="settings_sync_wifi_only_title">Wi-Fi only</string>
+    <string name="settings_sync_wifi_only_subtitle">Don\'t poll on cellular.</string>
+    <string name="settings_sync_interval_title">Update check interval</string>
+    <string name="settings_sync_interval_value">Every %1$dh</string>
+    <string name="settings_sync_interval_state">Every %1$d hours</string>
+
+    <!-- Settings · legacy Account section -->
+    <string name="settings_section_account_label">Account</string>
+    <string name="settings_section_account_descriptor">Sign-in for fiction sources that need it.</string>
+
+    <!-- Settings · legacy Memory Palace section -->
+    <string name="settings_section_palace_label">Memory Palace</string>
+    <string name="settings_section_palace_descriptor">Browse your local mempalace as fictions (LAN only).</string>
+
+    <!-- Settings · legacy Cloud voices section -->
+    <string name="settings_section_cloud_voices_label">Cloud voices</string>
+    <string name="settings_section_cloud_voices_descriptor">Bring your own Azure key for HD Neural and Dragon HD voices.</string>
+
+    <!-- Settings · legacy Developer section -->
+    <string name="settings_section_developer_label">Developer</string>
+    <string name="settings_section_developer_descriptor">Live pipeline diagnostics + bug-report export.</string>
+    <string name="settings_developer_overlay_title">Show debug overlay</string>
+    <string name="settings_developer_overlay_on">A compact pipeline-state card floats above the reader.</string>
+    <string name="settings_developer_overlay_off">Off — the reader stays clean.</string>
+    <string name="settings_developer_open_debug_title">Open Debug screen</string>
+    <string name="settings_developer_open_debug_subtitle">Pipeline · engine · Azure · network · events · export.</string>
+    <string name="settings_developer_reset_onboarding_title">Reset onboarding</string>
+    <string name="settings_developer_reset_onboarding_subtitle">Show the first-launch welcome flow again. Restart the app to see it.</string>
+
+    <!-- Settings · legacy About section -->
+    <string name="settings_section_about_label">About</string>
+    <string name="settings_section_about_descriptor">Build identity for bug reports.</string>
+
+    <!-- Settings · GitHub sign-in row -->
+    <string name="settings_github_title">GitHub</string>
+    <string name="settings_github_anon_subtitle">Sign in lifts the 60 req/hr anon cap to 5,000 req/hr and unlocks repository READMEs as fictions. read:user + public_repo only.</string>
+    <string name="settings_github_signed_in_as_scope">Signed in as @%1$s · scope %2$s</string>
+    <string name="settings_github_signed_in_scope">Signed in · scope %1$s</string>
+    <string name="settings_github_private_title">Enable private repos</string>
+    <string name="settings_github_private_needs_resign">ON. Sign out and back in to upgrade to the `repo` scope (read/write to private + public repos).</string>
+    <string name="settings_github_private_downgrade">OFF. Current token still carries the `repo` scope; sign out and back in to drop down to `public_repo`.</string>
+    <string name="settings_github_private_on">Sign-in requests `repo` (full repo, read/write, includes private).</string>
+    <string name="settings_github_private_off">Sign-in requests `public_repo` only (least privilege).</string>
+    <string name="settings_github_revoke_title">Revoke at github.com</string>
+    <string name="settings_github_revoke_subtitle">Sign-out clears the local token; use this to revoke storyvox\'s authorization on GitHub\'s side too.</string>
+    <string name="settings_github_expired_subtitle">Session expired — sign in again to recover.</string>
+
 </resources>

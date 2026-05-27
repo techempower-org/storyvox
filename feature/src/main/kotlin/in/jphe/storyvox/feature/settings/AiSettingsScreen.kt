@@ -5,8 +5,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import `in`.jphe.storyvox.feature.R
 import `in`.jphe.storyvox.ui.theme.LocalSpacing
 
 /**
@@ -40,7 +42,7 @@ fun AiSettingsScreen(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val spacing = LocalSpacing.current
 
-    SettingsSubscreenScaffold(title = "AI", onBack = onBack) { padding ->
+    SettingsSubscreenScaffold(title = stringResource(R.string.settings_ai_title), onBack = onBack) { padding ->
         val s = state.settings ?: run {
             SettingsSkeleton(modifier = Modifier.fillMaxSize().padding(padding).padding(spacing.md))
             return@SettingsSubscreenScaffold
@@ -84,8 +86,8 @@ fun AiSettingsScreen(
                     onSignOutTeams = viewModel::signOutTeams,
                 )
                 SettingsLinkRow(
-                    title = "Sessions",
-                    subtitle = "Review and manage past chats and chapter recaps.",
+                    title = stringResource(R.string.settings_ai_sessions_title),
+                    subtitle = stringResource(R.string.settings_ai_sessions_subtitle),
                     onClick = onOpenAiSessions,
                 )
             }

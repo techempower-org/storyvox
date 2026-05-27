@@ -18,6 +18,8 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import `in`.jphe.storyvox.feature.R
 import `in`.jphe.storyvox.ui.theme.LocalSpacing
 
 /**
@@ -59,7 +61,7 @@ internal fun SettingsSubscreenScaffold(
                     IconButton(onClick = onBack) {
                         Icon(
                             Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back",
+                            contentDescription = stringResource(R.string.settings_back),
                         )
                     }
                 },

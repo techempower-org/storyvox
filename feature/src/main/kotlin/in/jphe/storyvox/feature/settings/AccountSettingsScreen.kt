@@ -17,12 +17,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import `in`.jphe.storyvox.feature.R
 import `in`.jphe.storyvox.feature.api.UiGitHubAuthState
 import `in`.jphe.storyvox.feature.settings.components.StatusPill
 import `in`.jphe.storyvox.feature.settings.components.StatusTone
@@ -53,7 +55,7 @@ fun AccountSettingsScreen(
     val syncState by syncViewModel.state.collectAsStateWithLifecycle()
     val spacing = LocalSpacing.current
 
-    SettingsSubscreenScaffold(title = "Account", onBack = onBack) { padding ->
+    SettingsSubscreenScaffold(title = stringResource(R.string.settings_account_title), onBack = onBack) { padding ->
         val s = state.settings ?: run {
             SettingsSkeleton(modifier = Modifier.fillMaxSize().padding(padding).padding(spacing.md))
             return@SettingsSubscreenScaffold
@@ -63,17 +65,17 @@ fun AccountSettingsScreen(
             if (syncState.signedInUser != null) {
                 SettingsGroupCard {
                     StatusPill(
-                        text = if (syncState.anySyncing) "Cloud Sync · syncing" else "Cloud Sync · connected",
+                        text = if (syncState.anySyncing) stringResource(R.string.settings_account_cloud_sync_syncing) else stringResource(R.string.settings_account_cloud_sync_connected),
                         tone = StatusTone.Connected,
                     )
                     SettingsRow(
-                        title = "Signed in as",
-                        subtitle = syncState.signedInUser?.email ?: "(no email)",
+                        title = stringResource(R.string.settings_account_signed_in_as),
+                        subtitle = syncState.signedInUser?.email ?: stringResource(R.string.settings_account_no_email),
                     )
 
                     if (syncState.domainStatuses.isNotEmpty()) {
                         Text(
-                            "Domain status",
+                            stringResource(R.string.settings_account_domain_status),
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(top = spacing.xs),
@@ -87,7 +89,7 @@ fun AccountSettingsScreen(
 
                     Spacer(Modifier.height(spacing.xs))
                     BrassButton(
-                        label = if (syncState.anySyncing) "Syncing…" else "Sync now",
+                        label = if (syncState.anySyncing) stringResource(R.string.settings_account_syncing) else stringResource(R.string.settings_account_sync_now),
                         onClick = syncViewModel::syncNow,
                         variant = BrassButtonVariant.Secondary,
                         modifier = Modifier.fillMaxWidth(),
@@ -98,12 +100,11 @@ fun AccountSettingsScreen(
                 // ── Secrets Passphrase ──────────────────────────────
                 SettingsGroupCard {
                     StatusPill(
-                        text = if (syncState.passphraseSet) "Secrets sync · enabled" else "Secrets sync · not configured",
+                        text = if (syncState.passphraseSet) stringResource(R.string.settings_account_secrets_enabled) else stringResource(R.string.settings_account_secrets_not_configured),
                         tone = if (syncState.passphraseSet) StatusTone.Connected else StatusTone.Neutral,
                     )
                     Text(
-                        "Encrypt API keys and tokens with a passphrase before syncing them to the cloud. " +
-                            "The same passphrase is needed on every device.",
+                        stringResource(R.string.settings_account_secrets_body),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -116,15 +117,15 @@ fun AccountSettingsScreen(
             } else {
                 SettingsGroupCard {
                     StatusPill(
-                        text = "Cloud Sync · not signed in",
+                        text = stringResource(R.string.settings_account_cloud_sync_not_signed_in),
                         tone = StatusTone.Neutral,
                     )
                     SettingsRow(
-                        title = "Cloud Sync",
-                        subtitle = "Sign in to sync library, follows, positions, and secrets across devices.",
+                        title = stringResource(R.string.settings_account_cloud_sync_title),
+                        subtitle = stringResource(R.string.settings_account_cloud_sync_signin_subtitle),
                         trailing = {
                             BrassButton(
-                                label = "Sign in",
+                                label = stringResource(R.string.settings_sign_in),
                                 onClick = onOpenSignIn,
                                 variant = BrassButtonVariant.Primary,
                             )
@@ -136,16 +137,16 @@ fun AccountSettingsScreen(
             // ── Fiction Source Accounts ──────────────────────────────
             SettingsGroupCard {
                 StatusPill(
-                    text = if (s.isSignedIn) "Royal Road · signed in" else "Royal Road · not signed in",
+                    text = if (s.isSignedIn) stringResource(R.string.settings_account_royal_road_signed_in) else stringResource(R.string.settings_account_royal_road_not_signed_in),
                     tone = if (s.isSignedIn) StatusTone.Connected else StatusTone.Neutral,
                 )
                 if (s.isSignedIn) {
                     SettingsRow(
-                        title = "Royal Road",
-                        subtitle = "Signed in",
+                        title = stringResource(R.string.settings_account_royal_road_title),
+                        subtitle = stringResource(R.string.settings_account_royal_road_signed_in_subtitle),
                         trailing = {
                             BrassButton(
-                                label = "Sign out",
+                                label = stringResource(R.string.settings_sign_out),
                                 onClick = viewModel::signOut,
                                 variant = BrassButtonVariant.Secondary,
                             )
@@ -154,11 +155,11 @@ fun AccountSettingsScreen(
                     RoyalRoadTagSyncRow()
                 } else {
                     SettingsRow(
-                        title = "Royal Road",
-                        subtitle = "Sign-in unlocks Premium chapters and your Follows list.",
+                        title = stringResource(R.string.settings_account_royal_road_title),
+                        subtitle = stringResource(R.string.settings_account_royal_road_signin_subtitle),
                         trailing = {
                             BrassButton(
-                                label = "Sign in",
+                                label = stringResource(R.string.settings_sign_in),
                                 onClick = onOpenSignIn,
                                 variant = BrassButtonVariant.Primary,
                             )
@@ -168,11 +169,11 @@ fun AccountSettingsScreen(
 
                 StatusPill(
                     text = when (val g = s.github) {
-                        UiGitHubAuthState.Anonymous -> "GitHub · not signed in"
+                        UiGitHubAuthState.Anonymous -> stringResource(R.string.settings_account_github_not_signed_in)
                         is UiGitHubAuthState.SignedIn ->
-                            g.login?.let { "GitHub · signed in as @$it" }
-                                ?: "GitHub · signed in"
-                        UiGitHubAuthState.Expired -> "GitHub · session expired"
+                            g.login?.let { stringResource(R.string.settings_account_github_signed_in_as, it) }
+                                ?: stringResource(R.string.settings_account_github_signed_in)
+                        UiGitHubAuthState.Expired -> stringResource(R.string.settings_account_github_expired)
                     },
                     tone = when (s.github) {
                         UiGitHubAuthState.Anonymous -> StatusTone.Neutral
@@ -209,12 +210,12 @@ private fun PassphraseEntry(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                "Passphrase is set",
+                stringResource(R.string.settings_account_passphrase_set),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurface,
             )
             BrassButton(
-                label = "Clear",
+                label = stringResource(R.string.settings_clear),
                 onClick = onClear,
                 variant = BrassButtonVariant.Secondary,
             )
@@ -223,8 +224,8 @@ private fun PassphraseEntry(
         OutlinedTextField(
             value = input,
             onValueChange = { input = it },
-            label = { Text("Sync passphrase") },
-            placeholder = { Text("Enter a passphrase for secrets sync") },
+            label = { Text(stringResource(R.string.settings_account_passphrase_label)) },
+            placeholder = { Text(stringResource(R.string.settings_account_passphrase_placeholder)) },
             visualTransformation = PasswordVisualTransformation(),
             keyboardOptions = KeyboardOptions(
                 keyboardType = KeyboardType.Password,
@@ -235,7 +236,7 @@ private fun PassphraseEntry(
             modifier = Modifier.fillMaxWidth(),
         )
         BrassButton(
-            label = "Set passphrase",
+            label = stringResource(R.string.settings_account_passphrase_set_button),
             onClick = {
                 if (input.isNotBlank()) {
                     onSet(input.toCharArray())

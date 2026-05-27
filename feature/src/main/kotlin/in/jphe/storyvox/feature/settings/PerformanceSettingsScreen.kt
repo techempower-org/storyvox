@@ -20,8 +20,10 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import `in`.jphe.storyvox.feature.R
 import `in`.jphe.storyvox.feature.api.CacheQuotaOptions
 import `in`.jphe.storyvox.feature.api.UiNetworkPatience
 import `in`.jphe.storyvox.feature.api.formatBytes
@@ -60,7 +62,7 @@ fun PerformanceSettingsScreen(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val spacing = LocalSpacing.current
 
-    SettingsSubscreenScaffold(title = "Performance", onBack = onBack) { padding ->
+    SettingsSubscreenScaffold(title = stringResource(R.string.settings_performance_title), onBack = onBack) { padding ->
         val s = state.settings ?: run {
             SettingsSkeleton(modifier = Modifier.fillMaxSize().padding(padding).padding(spacing.md))
             return@SettingsSubscreenScaffold
@@ -68,11 +70,11 @@ fun PerformanceSettingsScreen(
         SettingsSubscreenBody(padding) {
             SettingsGroupCard {
                 SettingsSwitchRow(
-                    title = "Catch-up Pause",
+                    title = stringResource(R.string.settings_performance_catchup_title),
                     subtitle = if (s.catchupPause) {
-                        "Pause briefly when the voice falls behind, then resume cleanly."
+                        stringResource(R.string.settings_performance_catchup_on)
                     } else {
-                        "Drain through underruns; no buffering spinner."
+                        stringResource(R.string.settings_performance_catchup_off)
                     },
                     checked = s.catchupPause,
                     onCheckedChange = viewModel::setCatchupPause,
@@ -90,13 +92,11 @@ fun PerformanceSettingsScreen(
                 // makes the disk-cost tradeoff explicit so users don't
                 // flip it blind.
                 SettingsSwitchRow(
-                    title = "Full Pre-render",
+                    title = stringResource(R.string.settings_performance_full_prerender_title),
                     subtitle = if (s.fullPrerender) {
-                        "Cache every chapter of every library fiction in the background. " +
-                            "Aggressive disk + CPU use; gapless playback everywhere."
+                        stringResource(R.string.settings_performance_full_prerender_on)
                     } else {
-                        "Cache the next few chapters only (1-3 on add, +2 on chapter end). " +
-                            "Lighter on disk."
+                        stringResource(R.string.settings_performance_full_prerender_off)
                     },
                     checked = s.fullPrerender,
                     onCheckedChange = viewModel::setFullPrerender,
@@ -132,11 +132,9 @@ fun PerformanceSettingsScreen(
                     .indexOfFirst { it == s.prerenderChapterCount }
                     .let { if (it < 0) prerenderOptions.indexOf(5) else it }
                 SettingsSegmentedBlock(
-                    title = "Pre-render window",
-                    subtitle = "How many chapters ahead the cache renders. " +
-                        "Smaller = less disk + bandwidth; larger = more chapters " +
-                        "ready for instant playback.",
-                    options = prerenderOptions.map { "N+$it" },
+                    title = stringResource(R.string.settings_performance_prerender_window_title),
+                    subtitle = stringResource(R.string.settings_performance_prerender_window_subtitle),
+                    options = prerenderOptions.map { stringResource(R.string.settings_performance_prerender_window_option, it) },
                     selectedIndex = prerenderIndex,
                     onSelected = { idx ->
                         viewModel.setPrerenderChapterCount(prerenderOptions[idx])
@@ -150,17 +148,16 @@ fun PerformanceSettingsScreen(
                 // flaky cellular; Patient is forgiving on slow Notion
                 // walks or large EPUB downloads.
                 val patienceOptions = listOf(
-                    UiNetworkPatience.Aggressive to "Aggressive (5s)",
-                    UiNetworkPatience.Default to "Default (10s)",
-                    UiNetworkPatience.Patient to "Patient (30s)",
+                    UiNetworkPatience.Aggressive to stringResource(R.string.settings_performance_network_patience_aggressive),
+                    UiNetworkPatience.Default to stringResource(R.string.settings_performance_network_patience_default),
+                    UiNetworkPatience.Patient to stringResource(R.string.settings_performance_network_patience_patient),
                 )
                 val patienceIndex = patienceOptions
                     .indexOfFirst { it.first == s.networkPatience }
                     .let { if (it < 0) 1 else it }
                 SettingsSegmentedBlock(
-                    title = "Network patience",
-                    subtitle = "Network timeout budget for source plugins. Aggressive " +
-                        "fails fast on flaky links; Patient gives slow APIs more room.",
+                    title = stringResource(R.string.settings_performance_network_patience_title),
+                    subtitle = stringResource(R.string.settings_performance_network_patience_subtitle),
                     options = patienceOptions.map { it.second },
                     selectedIndex = patienceIndex,
                     onSelected = { idx ->
@@ -171,29 +168,29 @@ fun PerformanceSettingsScreen(
                 var perfAdvancedOpen by remember { mutableStateOf(false) }
                 AdvancedExpander(
                     titlesPreview = listOf(
-                        "Warm-up Wait",
-                        "Voice Determinism",
-                        "Parallel synth (engines + threads)",
+                        stringResource(R.string.settings_performance_advanced_warmup),
+                        stringResource(R.string.settings_performance_advanced_determinism),
+                        stringResource(R.string.settings_performance_advanced_parallel),
                     ),
                     expanded = perfAdvancedOpen,
                     onToggle = { perfAdvancedOpen = !perfAdvancedOpen },
                 ) {
                     SettingsSwitchRow(
-                        title = "Warm-up Wait",
+                        title = stringResource(R.string.settings_performance_warmup_title),
                         subtitle = if (s.warmupWait) {
-                            "Wait for the voice to warm up before playback starts."
+                            stringResource(R.string.settings_performance_warmup_on)
                         } else {
-                            "Start playback immediately; accept silence at chapter start."
+                            stringResource(R.string.settings_performance_warmup_off)
                         },
                         checked = s.warmupWait,
                         onCheckedChange = viewModel::setWarmupWait,
                     )
                     SettingsSwitchRow(
-                        title = "Voice Determinism",
+                        title = stringResource(R.string.settings_performance_determinism_title),
                         subtitle = if (s.voiceSteady) {
-                            "Steady — identical text plays the same each time."
+                            stringResource(R.string.settings_performance_determinism_on)
                         } else {
-                            "Expressive — slight variation, fuller prosody."
+                            stringResource(R.string.settings_performance_determinism_off)
                         },
                         checked = s.voiceSteady,
                         onCheckedChange = viewModel::setVoiceSteady,
@@ -227,10 +224,9 @@ private fun CacheSizeSelector(
 ) {
     val spacing = LocalSpacing.current
     Column(modifier = Modifier.padding(horizontal = spacing.md, vertical = spacing.sm)) {
-        Text("Audio cache size", style = MaterialTheme.typography.bodyLarge)
+        Text(stringResource(R.string.settings_performance_cache_size_title), style = MaterialTheme.typography.bodyLarge)
         Text(
-            "How much disk to use for cached audiobook PCM. Larger = more chapters " +
-                "playable instantly; smaller = less disk used.",
+            stringResource(R.string.settings_performance_cache_size_subtitle),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -283,20 +279,20 @@ private fun CacheUsageRow(
             .padding(horizontal = spacing.md, vertical = spacing.sm),
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text("Currently used", style = MaterialTheme.typography.bodyLarge)
+            Text(stringResource(R.string.settings_performance_cache_used_title), style = MaterialTheme.typography.bodyLarge)
             val quotaLabel = if (quotaBytes == CacheQuotaOptions.UNLIMITED) {
-                "no cap"
+                stringResource(R.string.settings_performance_cache_no_cap)
             } else {
                 formatBytes(quotaBytes)
             }
             Text(
-                "${formatBytes(usedBytes)} / $quotaLabel",
+                stringResource(R.string.settings_performance_cache_used_value, formatBytes(usedBytes), quotaLabel),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
         BrassButton(
-            label = "Clear cache",
+            label = stringResource(R.string.settings_performance_clear_cache),
             onClick = { showConfirm = true },
             variant = BrassButtonVariant.Secondary,
         )
@@ -305,17 +301,15 @@ private fun CacheUsageRow(
     if (showConfirm) {
         AlertDialog(
             onDismissRequest = { showConfirm = false },
-            title = { Text("Clear audio cache?") },
+            title = { Text(stringResource(R.string.settings_performance_clear_cache_confirm_title)) },
             text = {
                 Text(
-                    "Frees ${formatBytes(usedBytes)} of disk. Chapters you replay will " +
-                        "re-render the first time you play them. Library and reading " +
-                        "positions are not affected.",
+                    stringResource(R.string.settings_performance_clear_cache_confirm_body, formatBytes(usedBytes)),
                 )
             },
             confirmButton = {
                 BrassButton(
-                    label = "Clear",
+                    label = stringResource(R.string.settings_clear),
                     onClick = {
                         onClearCache()
                         showConfirm = false
@@ -325,7 +319,7 @@ private fun CacheUsageRow(
             },
             dismissButton = {
                 BrassButton(
-                    label = "Cancel",
+                    label = stringResource(R.string.settings_cancel),
                     onClick = { showConfirm = false },
                     variant = BrassButtonVariant.Secondary,
                 )

@@ -66,6 +66,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
@@ -95,6 +96,7 @@ import `in`.jphe.storyvox.feature.api.UiChatGrounding
 import `in`.jphe.storyvox.feature.api.UiGitHubAuthState
 import `in`.jphe.storyvox.feature.api.UiLlmProvider
 import `in`.jphe.storyvox.feature.api.UiPalaceConfig
+import `in`.jphe.storyvox.feature.R
 import `in`.jphe.storyvox.feature.settings.components.SectionHeading
 import `in`.jphe.storyvox.feature.settings.components.StatusPill
 import `in`.jphe.storyvox.feature.settings.components.StatusTone
@@ -231,18 +233,18 @@ fun SettingsScreen(
         // end-to-end.
         if (sectionVisible("Voice & Playback")) {
         SectionHeading(
-            label = "Voice & Playback",
+            label = stringResource(R.string.settings_section_voice_label),
             icon = Icons.Outlined.RecordVoiceOver,
-            descriptor = "How storyvox sounds — voice, speed, cadence.",
+            descriptor = stringResource(R.string.settings_section_voice_descriptor),
         )
         SettingsGroupCard {
             SettingsLinkRow(
-                title = "Voice library",
+                title = stringResource(R.string.settings_hub_voice_library_title),
                 // Issue #670 — until per-voice sample-play exists, the
                 // subtitle should not promise "hear samples". The
                 // current row only Activates the voice; preview-without-
                 // activation is filed as a v1.x enhancement.
-                subtitle = "Browse and switch between available voices.",
+                subtitle = stringResource(R.string.settings_hub_voice_library_subtitle),
                 onClick = onOpenVoiceLibrary,
             )
             // #195 — sliders read+write the *effective* value (the
@@ -266,9 +268,12 @@ fun SettingsScreen(
             val speedMax = 4.0f
             val naturalValue = 1.0f
             val speedNaturalFraction = (naturalValue - speedMin) / (speedMax - speedMin)
+            val speedCd = stringResource(R.string.settings_voice_speed_cd)
+            val speedState = stringResource(R.string.settings_voice_speed_state, "%.2f".format(s.effectiveSpeed))
+            val naturalTickLabel = stringResource(R.string.settings_voice_tick_natural)
             SettingsSliderBlock(
-                title = "Speed",
-                valueLabel = "${"%.2f".format(s.effectiveSpeed)}×",
+                title = stringResource(R.string.settings_voice_speed_title),
+                valueLabel = stringResource(R.string.settings_voice_speed_value, "%.2f".format(s.effectiveSpeed)),
                 slider = {
                     Column {
                         Slider(
@@ -278,12 +283,12 @@ fun SettingsScreen(
                             // benefit from 3-4× on familiar narrators).
                             valueRange = speedMin..speedMax,
                             modifier = Modifier.semantics {
-                                contentDescription = "Default speech speed"
-                                stateDescription = "%.2f times".format(s.effectiveSpeed)
+                                contentDescription = speedCd
+                                stateDescription = speedState
                             },
                         )
                         SliderTickLabels(
-                            ticks = listOf("▲ 1×" to speedNaturalFraction),
+                            ticks = listOf(naturalTickLabel to speedNaturalFraction),
                             onTickTap = { viewModel.setSpeed(naturalValue) },
                         )
                     }
@@ -292,9 +297,11 @@ fun SettingsScreen(
             val pitchMin = 0.6f
             val pitchMax = 1.4f
             val pitchNaturalFraction = (naturalValue - pitchMin) / (pitchMax - pitchMin)
+            val pitchCd = stringResource(R.string.settings_voice_pitch_cd)
+            val pitchState = stringResource(R.string.settings_voice_pitch_state, "%.2f".format(s.effectivePitch))
             SettingsSliderBlock(
-                title = "Pitch",
-                valueLabel = "${"%.2f".format(s.effectivePitch)}×",
+                title = stringResource(R.string.settings_voice_pitch_title),
+                valueLabel = stringResource(R.string.settings_voice_pitch_value, "%.2f".format(s.effectivePitch)),
                 slider = {
                     Column {
                         Slider(
@@ -304,12 +311,12 @@ fun SettingsScreen(
                             // floor at 0.6: Sonic introduces artifacts below ~0.7.
                             valueRange = pitchMin..pitchMax,
                             modifier = Modifier.semantics {
-                                contentDescription = "Default pitch"
-                                stateDescription = "%.2f, neutral at one".format(s.effectivePitch)
+                                contentDescription = pitchCd
+                                stateDescription = pitchState
                             },
                         )
                         SliderTickLabels(
-                            ticks = listOf("▲ 1×" to pitchNaturalFraction),
+                            ticks = listOf(naturalTickLabel to pitchNaturalFraction),
                             onTickTap = { viewModel.setPitch(naturalValue) },
                         )
                     }
@@ -329,18 +336,18 @@ fun SettingsScreen(
             // OFF available for users on slow hardware who'd rather
             // burn the CPU cycles elsewhere.
             SettingsSwitchRow(
-                title = "High-quality pitch interpolation",
+                title = stringResource(R.string.settings_voice_hq_pitch_title),
                 subtitle = if (s.pitchInterpolationHighQuality) {
-                    "Smoother pitch-shifted audio. ~20% extra CPU per chapter render."
+                    stringResource(R.string.settings_voice_hq_pitch_on)
                 } else {
-                    "Faster pitch shifting. Some grittiness at non-neutral pitch."
+                    stringResource(R.string.settings_voice_hq_pitch_off)
                 },
                 checked = s.pitchInterpolationHighQuality,
                 onCheckedChange = viewModel::setPitchInterpolationHighQuality,
             )
             SettingsLinkRow(
-                title = "Pronunciation",
-                subtitle = "Teach the voice how to say specific names and words.",
+                title = stringResource(R.string.settings_voice_pronunciation_title),
+                subtitle = stringResource(R.string.settings_voice_pronunciation_subtitle),
                 onClick = onOpenPronunciationDict,
             )
         }
@@ -354,14 +361,14 @@ fun SettingsScreen(
         // shake-to-extend toggle migrates there.
         if (sectionVisible("Reading")) {
         SectionHeading(
-            label = "Reading",
+            label = stringResource(R.string.settings_section_reading_label),
             icon = Icons.AutoMirrored.Outlined.MenuBook,
-            descriptor = "How chapter text and the reader behave.",
+            descriptor = stringResource(R.string.settings_section_reading_descriptor),
         )
         SettingsGroupCard {
             SettingsSegmentedBlock(
-                title = "Theme",
-                subtitle = "System matches the device's day/night.",
+                title = stringResource(R.string.settings_reading_theme_title),
+                subtitle = stringResource(R.string.settings_reading_theme_subtitle),
                 options = ThemeOverride.entries.map { it.name },
                 selectedIndex = ThemeOverride.entries.indexOf(s.themeOverride).coerceAtLeast(0),
                 onSelected = { idx -> viewModel.setTheme(ThemeOverride.entries[idx]) },
@@ -371,8 +378,8 @@ fun SettingsScreen(
             // and ramps volume back up. Off for users in moving
             // vehicles where accidental shakes are a problem.
             SettingsSwitchRow(
-                title = "Shake to extend sleep timer",
-                subtitle = "Shake during the fade-out to add 15 more minutes.",
+                title = stringResource(R.string.settings_reading_shake_extend_title),
+                subtitle = stringResource(R.string.settings_reading_shake_extend_subtitle),
                 checked = s.sleepShakeToExtendEnabled,
                 onCheckedChange = viewModel::setSleepShakeToExtendEnabled,
             )
@@ -394,19 +401,19 @@ fun SettingsScreen(
         // moved to Voice & Playback in the same overhaul.
         if (sectionVisible("Performance & buffering")) {
         SectionHeading(
-            label = "Performance & buffering",
+            label = stringResource(R.string.settings_section_performance_label),
             icon = Icons.Outlined.Speed,
-            descriptor = "Trade memory and CPU for smoother playback.",
+            descriptor = stringResource(R.string.settings_section_performance_descriptor),
         )
         SettingsGroupCard {
             // Mode B — Catch-up Pause. Default ON. ON: pause+resume on
             // underrun (PR #77). OFF: drain through underrun.
             SettingsSwitchRow(
-                title = "Catch-up Pause",
+                title = stringResource(R.string.settings_performance_catchup_title),
                 subtitle = if (s.catchupPause) {
-                    "Pause briefly when the voice falls behind, then resume cleanly."
+                    stringResource(R.string.settings_performance_catchup_on)
                 } else {
-                    "Drain through underruns; no buffering spinner."
+                    stringResource(R.string.settings_performance_catchup_off)
                 },
                 checked = s.catchupPause,
                 onCheckedChange = viewModel::setCatchupPause,
@@ -426,13 +433,11 @@ fun SettingsScreen(
             // can drop these three lines without touching the
             // subscreen.
             SettingsSwitchRow(
-                title = "Full Pre-render",
+                title = stringResource(R.string.settings_performance_full_prerender_title),
                 subtitle = if (s.fullPrerender) {
-                    "Cache every chapter of every library fiction in the background. " +
-                        "Aggressive disk + CPU use; gapless playback everywhere."
+                    stringResource(R.string.settings_performance_full_prerender_on)
                 } else {
-                    "Cache the next few chapters only (1-3 on add, +2 on chapter end). " +
-                        "Lighter on disk."
+                    stringResource(R.string.settings_performance_full_prerender_off)
                 },
                 checked = s.fullPrerender,
                 onCheckedChange = viewModel::setFullPrerender,
@@ -446,9 +451,9 @@ fun SettingsScreen(
             var perfAdvancedOpen by remember { mutableStateOf(false) }
             AdvancedExpander(
                 titlesPreview = listOf(
-                    "Warm-up Wait",
-                    "Voice Determinism",
-                    "Parallel synth (engines + threads)",
+                    stringResource(R.string.settings_performance_advanced_warmup),
+                    stringResource(R.string.settings_performance_advanced_determinism),
+                    stringResource(R.string.settings_performance_advanced_parallel),
                 ),
                 expanded = perfAdvancedOpen,
                 onToggle = { perfAdvancedOpen = !perfAdvancedOpen },
@@ -456,11 +461,11 @@ fun SettingsScreen(
                 // Mode A — Warm-up Wait. Default ON. ON: brass spinner +
                 // frozen scrubber while engine warms up. OFF: silent start.
                 SettingsSwitchRow(
-                    title = "Warm-up Wait",
+                    title = stringResource(R.string.settings_performance_warmup_title),
                     subtitle = if (s.warmupWait) {
-                        "Wait for the voice to warm up before playback starts."
+                        stringResource(R.string.settings_performance_warmup_on)
                     } else {
-                        "Start playback immediately; accept silence at chapter start."
+                        stringResource(R.string.settings_performance_warmup_off)
                     },
                     checked = s.warmupWait,
                     onCheckedChange = viewModel::setWarmupWait,
@@ -470,11 +475,11 @@ fun SettingsScreen(
                 // upstream Piper defaults (more variable prosody). Flips
                 // force a model reload — handled by EnginePlayer.
                 SettingsSwitchRow(
-                    title = "Voice Determinism",
+                    title = stringResource(R.string.settings_performance_determinism_title),
                     subtitle = if (s.voiceSteady) {
-                        "Steady — identical text plays the same each time."
+                        stringResource(R.string.settings_performance_determinism_on)
                     } else {
-                        "Expressive — slight variation, fuller prosody."
+                        stringResource(R.string.settings_performance_determinism_off)
                     },
                     checked = s.voiceSteady,
                     onCheckedChange = viewModel::setVoiceSteady,
@@ -500,9 +505,9 @@ fun SettingsScreen(
         // tuning) and library (network syncing).
         if (sectionVisible("AI")) {
         SectionHeading(
-            label = "AI",
+            label = stringResource(R.string.settings_section_ai_label),
             icon = Icons.Outlined.AutoAwesome,
-            descriptor = "Smart features — Recap, character lookup, chat.",
+            descriptor = stringResource(R.string.settings_section_ai_descriptor),
         )
         SettingsGroupCard {
         AiSection(
@@ -550,8 +555,8 @@ fun SettingsScreen(
         // bottom of the AI card so the section's "Forget all AI
         // settings" destructive action stays visually adjacent.
         SettingsLinkRow(
-            title = "Sessions",
-            subtitle = "Review and manage past chats and chapter recaps.",
+            title = stringResource(R.string.settings_ai_sessions_title),
+            subtitle = stringResource(R.string.settings_ai_sessions_subtitle),
             onClick = onOpenAiSessions,
         )
         }
@@ -575,9 +580,9 @@ fun SettingsScreen(
         // hints (auth scope, file location).
         if (sectionVisible("Library & Sync")) {
         SectionHeading(
-            label = "Library & Sync",
+            label = stringResource(R.string.settings_section_library_label),
             icon = Icons.AutoMirrored.Outlined.LibraryBooks,
-            descriptor = "Where stories come from and how often we check for updates.",
+            descriptor = stringResource(R.string.settings_section_library_descriptor),
         )
 
         // ── Sources sub-card ──────────────────────────────────────
@@ -590,8 +595,8 @@ fun SettingsScreen(
         // a new row in the manager — no edit to this file required.
         SettingsGroupCard {
             SettingsLinkRow(
-                title = "Plugins",
-                subtitle = "Fiction sources, audio streams, and voice bundles.",
+                title = stringResource(R.string.settings_legacy_plugins_title),
+                subtitle = stringResource(R.string.settings_legacy_plugins_subtitle),
                 onClick = onOpenPluginManager,
             )
             // Inline config rows that hang off specific plugins —

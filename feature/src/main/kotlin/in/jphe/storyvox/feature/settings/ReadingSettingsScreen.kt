@@ -5,8 +5,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import `in`.jphe.storyvox.feature.R
 import `in`.jphe.storyvox.feature.api.ThemeOverride
 import `in`.jphe.storyvox.ui.theme.LocalSpacing
 
@@ -29,7 +31,7 @@ fun ReadingSettingsScreen(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val spacing = LocalSpacing.current
 
-    SettingsSubscreenScaffold(title = "Reading", onBack = onBack) { padding ->
+    SettingsSubscreenScaffold(title = stringResource(R.string.settings_reading_title), onBack = onBack) { padding ->
         val s = state.settings ?: run {
             SettingsSkeleton(modifier = Modifier.fillMaxSize().padding(padding).padding(spacing.md))
             return@SettingsSubscreenScaffold
@@ -37,16 +39,16 @@ fun ReadingSettingsScreen(
         SettingsSubscreenBody(padding) {
             SettingsGroupCard {
                 SettingsSegmentedBlock(
-                    title = "Theme",
-                    subtitle = "System matches the device's day/night.",
+                    title = stringResource(R.string.settings_reading_theme_title),
+                    subtitle = stringResource(R.string.settings_reading_theme_subtitle),
                     options = ThemeOverride.entries.map { it.name },
                     selectedIndex = ThemeOverride.entries.indexOf(s.themeOverride).coerceAtLeast(0),
                     onSelected = { idx -> viewModel.setTheme(ThemeOverride.entries[idx]) },
                 )
 
                 SettingsSwitchRow(
-                    title = "Shake to extend sleep timer",
-                    subtitle = "Shake during the fade-out to add 15 more minutes.",
+                    title = stringResource(R.string.settings_reading_shake_extend_title),
+                    subtitle = stringResource(R.string.settings_reading_shake_extend_subtitle),
                     checked = s.sleepShakeToExtendEnabled,
                     onCheckedChange = viewModel::setSleepShakeToExtendEnabled,
                 )

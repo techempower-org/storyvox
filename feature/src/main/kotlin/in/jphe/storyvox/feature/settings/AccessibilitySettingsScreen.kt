@@ -23,12 +23,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import `in`.jphe.storyvox.feature.R
 import `in`.jphe.storyvox.feature.api.ReadingDirection
 import `in`.jphe.storyvox.feature.api.SpeakChapterMode
 import `in`.jphe.storyvox.ui.theme.LocalSpacing
@@ -90,7 +92,7 @@ fun AccessibilitySettingsScreen(
     val spacing = LocalSpacing.current
     val uriHandler = LocalUriHandler.current
 
-    SettingsSubscreenScaffold(title = "Accessibility", onBack = onBack) { padding ->
+    SettingsSubscreenScaffold(title = stringResource(R.string.settings_accessibility_title), onBack = onBack) { padding ->
         val s = state.settings ?: run {
             SettingsSkeleton(modifier = Modifier.fillMaxSize().padding(padding).padding(spacing.md))
             return@SettingsSubscreenScaffold
@@ -118,9 +120,8 @@ fun AccessibilitySettingsScreen(
                 //    overlay when TalkBack is detected is also Phase 2
                 //    (reads [AccessibilityStateBridge.state]).
                 SettingsSwitchRow(
-                    title = "High contrast theme",
-                    subtitle = "Use a higher-contrast variant of Library Nocturne. " +
-                        "Auto-enables when TalkBack is active.",
+                    title = stringResource(R.string.settings_accessibility_high_contrast_title),
+                    subtitle = stringResource(R.string.settings_accessibility_high_contrast_subtitle),
                     checked = s.a11yHighContrast,
                     onCheckedChange = viewModel::setA11yHighContrast,
                 )
@@ -134,9 +135,8 @@ fun AccessibilitySettingsScreen(
                 //    OS-level setting can still suppress storyvox's
                 //    motion.
                 SettingsSwitchRow(
-                    title = "Reduced motion",
-                    subtitle = "Disable non-essential animations (chip slides, brass shimmer, page-transition curves). " +
-                        "Auto-enables when the system \"Remove animations\" setting is on.",
+                    title = stringResource(R.string.settings_accessibility_reduced_motion_title),
+                    subtitle = stringResource(R.string.settings_accessibility_reduced_motion_subtitle),
                     checked = s.a11yReducedMotion,
                     onCheckedChange = viewModel::setA11yReducedMotion,
                 )
@@ -147,9 +147,8 @@ fun AccessibilitySettingsScreen(
                 //    Access auto-on is Phase 2 (reads
                 //    [AccessibilityStateBridge.isSwitchAccessActive]).
                 SettingsSwitchRow(
-                    title = "Larger touch targets",
-                    subtitle = "Increase tap-target minimums from 48dp to 64dp where feasible. " +
-                        "Auto-enables when Switch Access is active.",
+                    title = stringResource(R.string.settings_accessibility_touch_targets_title),
+                    subtitle = stringResource(R.string.settings_accessibility_touch_targets_subtitle),
                     checked = s.a11yLargerTouchTargets,
                     onCheckedChange = viewModel::setA11yLargerTouchTargets,
                 )
@@ -164,10 +163,12 @@ fun AccessibilitySettingsScreen(
                 val pauseMax = 1500f
                 val pauseValue = s.a11yScreenReaderPauseMs.toFloat()
                     .coerceIn(pauseMin, pauseMax)
+                val pauseCd = stringResource(R.string.settings_accessibility_pauses_cd)
+                val pauseState = stringResource(R.string.settings_accessibility_pauses_state, pauseValue.toInt())
                 SettingsSliderBlock(
-                    title = "Screen-reader pauses",
-                    valueLabel = "${s.a11yScreenReaderPauseMs} ms",
-                    subtitle = "Extra pause between sentences when TalkBack is active.",
+                    title = stringResource(R.string.settings_accessibility_pauses_title),
+                    valueLabel = stringResource(R.string.settings_accessibility_pauses_value, s.a11yScreenReaderPauseMs),
+                    subtitle = stringResource(R.string.settings_accessibility_pauses_subtitle),
                     slider = {
                         Slider(
                             value = pauseValue,
@@ -178,8 +179,8 @@ fun AccessibilitySettingsScreen(
                             // reasonable a11y-pacing granularity.
                             steps = 14,
                             modifier = Modifier.semantics {
-                                contentDescription = "Screen-reader inter-sentence pause"
-                                stateDescription = "${pauseValue.toInt()} milliseconds"
+                                contentDescription = pauseCd
+                                stateDescription = pauseState
                             },
                         )
                     },
@@ -191,16 +192,16 @@ fun AccessibilitySettingsScreen(
                 //    branches on this when generating chapter-header
                 //    announcements.
                 val speakModeOptions = listOf(
-                    SpeakChapterMode.Both to "Both",
-                    SpeakChapterMode.NumbersOnly to "Numbers only",
-                    SpeakChapterMode.TitlesOnly to "Titles only",
+                    SpeakChapterMode.Both to stringResource(R.string.settings_accessibility_speak_both),
+                    SpeakChapterMode.NumbersOnly to stringResource(R.string.settings_accessibility_speak_numbers),
+                    SpeakChapterMode.TitlesOnly to stringResource(R.string.settings_accessibility_speak_titles),
                 )
                 val speakSelectedIndex = speakModeOptions
                     .indexOfFirst { it.first == s.a11ySpeakChapterMode }
                     .coerceAtLeast(0)
                 SettingsSegmentedBlock(
-                    title = "Speak chapter numbers / titles",
-                    subtitle = "Controls how TalkBack reads chapter headers.",
+                    title = stringResource(R.string.settings_accessibility_speak_chapter_title),
+                    subtitle = stringResource(R.string.settings_accessibility_speak_chapter_subtitle),
                     options = speakModeOptions.map { it.second },
                     selectedIndex = speakSelectedIndex,
                     onSelected = { idx ->
@@ -216,18 +217,20 @@ fun AccessibilitySettingsScreen(
                 val fontMin = 0.85f
                 val fontMax = 1.5f
                 val fontValue = s.a11yFontScaleOverride.coerceIn(fontMin, fontMax)
+                val fontCd = stringResource(R.string.settings_accessibility_font_scale_cd)
+                val fontState = stringResource(R.string.settings_accessibility_font_scale_state, "%.2f".format(fontValue))
                 SettingsSliderBlock(
-                    title = "Font scale override",
-                    valueLabel = "${"%.2f".format(fontValue)}×",
-                    subtitle = "Multiplier on top of Android's system font scale.",
+                    title = stringResource(R.string.settings_accessibility_font_scale_title),
+                    valueLabel = stringResource(R.string.settings_accessibility_font_scale_value, "%.2f".format(fontValue)),
+                    subtitle = stringResource(R.string.settings_accessibility_font_scale_subtitle),
                     slider = {
                         Slider(
                             value = fontValue,
                             onValueChange = { viewModel.setA11yFontScaleOverride(it) },
                             valueRange = fontMin..fontMax,
                             modifier = Modifier.semantics {
-                                contentDescription = "Font scale override"
-                                stateDescription = "%.2f times".format(fontValue)
+                                contentDescription = fontCd
+                                stateDescription = fontState
                             },
                         )
                     },
@@ -237,16 +240,16 @@ fun AccessibilitySettingsScreen(
                 //    testing and locale-mismatch overrides. Phase 2 wires
                 //    this into LayoutDirection at the NavHost root.
                 val directionOptions = listOf(
-                    ReadingDirection.FollowSystem to "Follow system",
-                    ReadingDirection.ForceLtr to "Force LTR",
-                    ReadingDirection.ForceRtl to "Force RTL",
+                    ReadingDirection.FollowSystem to stringResource(R.string.settings_accessibility_direction_follow),
+                    ReadingDirection.ForceLtr to stringResource(R.string.settings_accessibility_direction_ltr),
+                    ReadingDirection.ForceRtl to stringResource(R.string.settings_accessibility_direction_rtl),
                 )
                 val directionSelectedIndex = directionOptions
                     .indexOfFirst { it.first == s.a11yReadingDirection }
                     .coerceAtLeast(0)
                 SettingsSegmentedBlock(
-                    title = "Override system reading direction",
-                    subtitle = "Escape hatch for RTL testing and locale-mismatch overrides.",
+                    title = stringResource(R.string.settings_accessibility_direction_title),
+                    subtitle = stringResource(R.string.settings_accessibility_direction_subtitle),
                     options = directionOptions.map { it.second },
                     selectedIndex = directionSelectedIndex,
                     onSelected = { idx ->
@@ -262,10 +265,8 @@ fun AccessibilitySettingsScreen(
             //    static help copy.
             SettingsGroupCard {
                 SettingsRow(
-                    title = "About these settings",
-                    subtitle = "These settings improve storyvox for users who rely on TalkBack, " +
-                        "Switch Access, or other accessibility tools. Most adapt automatically " +
-                        "when assistive services are detected.",
+                    title = stringResource(R.string.settings_accessibility_about_title),
+                    subtitle = stringResource(R.string.settings_accessibility_about_subtitle),
                 )
                 // a11y (#487): wired to the hosted accessibility doc.
                 // The page catalogs the audit + Phase 1 + Phase 2 fixes,
@@ -274,8 +275,8 @@ fun AccessibilitySettingsScreen(
                 // /docs/accessibility.md in the repo, hosted at the
                 // GitHub Pages site (storyvox.techempower.org).
                 SettingsLinkRow(
-                    title = "Learn more",
-                    subtitle = "Open the accessibility documentation in your browser.",
+                    title = stringResource(R.string.settings_accessibility_learn_more_title),
+                    subtitle = stringResource(R.string.settings_accessibility_learn_more_subtitle),
                     onClick = {
                         uriHandler.openUri("https://storyvox.techempower.org/accessibility")
                     },
@@ -310,8 +311,7 @@ fun AccessibilitySettingsScreen(
                             tint = MaterialTheme.colorScheme.primary,
                         )
                         Text(
-                            text = "TalkBack is active. The screen-reader-related " +
-                                "settings on this page are taking effect right now.",
+                            text = stringResource(R.string.settings_accessibility_talkback_active),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurface,
                             modifier = Modifier.weight(1f),
@@ -363,17 +363,14 @@ private fun TalkBackInstallNudge(
                         .padding(spacing.xs),
                 )
                 Text(
-                    text = "TalkBack isn't running",
+                    text = stringResource(R.string.settings_accessibility_talkback_nudge_title),
                     style = MaterialTheme.typography.titleSmall,
                     color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.weight(1f),
                 )
             }
             Text(
-                text = "The screen-reader-related settings below activate when you " +
-                    "turn on TalkBack in Android Settings → Accessibility. Some " +
-                    "devices ship with TalkBack pre-installed; on others you'll " +
-                    "need to install Android Accessibility Suite from the Play Store.",
+                text = stringResource(R.string.settings_accessibility_talkback_nudge_body),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.padding(top = spacing.xs),
@@ -385,7 +382,7 @@ private fun TalkBackInstallNudge(
                 horizontalArrangement = Arrangement.End,
             ) {
                 TextButton(onClick = onDismiss) {
-                    Text("Got it")
+                    Text(stringResource(R.string.settings_accessibility_talkback_nudge_dismiss))
                 }
             }
         }

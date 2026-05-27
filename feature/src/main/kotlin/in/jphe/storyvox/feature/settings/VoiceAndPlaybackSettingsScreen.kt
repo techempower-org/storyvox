@@ -8,11 +8,13 @@ import androidx.compose.material3.Slider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import `in`.jphe.storyvox.feature.R
 import `in`.jphe.storyvox.ui.theme.LocalSpacing
 
 /**
@@ -44,7 +46,7 @@ fun VoiceAndPlaybackSettingsScreen(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val spacing = LocalSpacing.current
 
-    SettingsSubscreenScaffold(title = "Voice & Playback", onBack = onBack) { padding ->
+    SettingsSubscreenScaffold(title = stringResource(R.string.settings_voice_title), onBack = onBack) { padding ->
         val s = state.settings ?: run {
             SettingsSkeleton(modifier = Modifier.fillMaxSize().padding(padding).padding(spacing.md))
             return@SettingsSubscreenScaffold
@@ -52,8 +54,8 @@ fun VoiceAndPlaybackSettingsScreen(
         SettingsSubscreenBody(padding) {
             SettingsGroupCard {
                 SettingsLinkRow(
-                    title = "Voice library",
-                    subtitle = "Pick a voice and hear samples.",
+                    title = stringResource(R.string.settings_voice_library_title),
+                    subtitle = stringResource(R.string.settings_voice_library_subtitle),
                     onClick = onOpenVoiceLibrary,
                 )
 
@@ -65,9 +67,12 @@ fun VoiceAndPlaybackSettingsScreen(
                 val speedMax = 4.0f
                 val naturalValue = 1.0f
                 val speedNaturalFraction = (naturalValue - speedMin) / (speedMax - speedMin)
+                val speedCd = stringResource(R.string.settings_voice_speed_cd)
+                val speedState = stringResource(R.string.settings_voice_speed_state, "%.2f".format(s.effectiveSpeed))
+                val naturalTickLabel = stringResource(R.string.settings_voice_tick_natural)
                 SettingsSliderBlock(
-                    title = "Speed",
-                    valueLabel = "${"%.2f".format(s.effectiveSpeed)}×",
+                    title = stringResource(R.string.settings_voice_speed_title),
+                    valueLabel = stringResource(R.string.settings_voice_speed_value, "%.2f".format(s.effectiveSpeed)),
                     slider = {
                         Column {
                             Slider(
@@ -75,12 +80,12 @@ fun VoiceAndPlaybackSettingsScreen(
                                 onValueChange = viewModel::setSpeed,
                                 valueRange = speedMin..speedMax,
                                 modifier = Modifier.semantics {
-                                    contentDescription = "Default speech speed"
-                                    stateDescription = "%.2f times".format(s.effectiveSpeed)
+                                    contentDescription = speedCd
+                                    stateDescription = speedState
                                 },
                             )
                             SliderTickLabels(
-                                ticks = listOf("▲ 1×" to speedNaturalFraction),
+                                ticks = listOf(naturalTickLabel to speedNaturalFraction),
                                 onTickTap = { viewModel.setSpeed(naturalValue) },
                             )
                         }
@@ -90,9 +95,11 @@ fun VoiceAndPlaybackSettingsScreen(
                 val pitchMin = 0.6f
                 val pitchMax = 1.4f
                 val pitchNaturalFraction = (naturalValue - pitchMin) / (pitchMax - pitchMin)
+                val pitchCd = stringResource(R.string.settings_voice_pitch_cd)
+                val pitchState = stringResource(R.string.settings_voice_pitch_state, "%.2f".format(s.effectivePitch))
                 SettingsSliderBlock(
-                    title = "Pitch",
-                    valueLabel = "${"%.2f".format(s.effectivePitch)}×",
+                    title = stringResource(R.string.settings_voice_pitch_title),
+                    valueLabel = stringResource(R.string.settings_voice_pitch_value, "%.2f".format(s.effectivePitch)),
                     slider = {
                         Column {
                             Slider(
@@ -100,12 +107,12 @@ fun VoiceAndPlaybackSettingsScreen(
                                 onValueChange = viewModel::setPitch,
                                 valueRange = pitchMin..pitchMax,
                                 modifier = Modifier.semantics {
-                                    contentDescription = "Default pitch"
-                                    stateDescription = "%.2f, neutral at one".format(s.effectivePitch)
+                                    contentDescription = pitchCd
+                                    stateDescription = pitchState
                                 },
                             )
                             SliderTickLabels(
-                                ticks = listOf("▲ 1×" to pitchNaturalFraction),
+                                ticks = listOf(naturalTickLabel to pitchNaturalFraction),
                                 onTickTap = { viewModel.setPitch(naturalValue) },
                             )
                         }
@@ -118,19 +125,19 @@ fun VoiceAndPlaybackSettingsScreen(
                 )
 
                 SettingsSwitchRow(
-                    title = "High-quality pitch interpolation",
+                    title = stringResource(R.string.settings_voice_hq_pitch_title),
                     subtitle = if (s.pitchInterpolationHighQuality) {
-                        "Smoother pitch-shifted audio. ~20% extra CPU per chapter render."
+                        stringResource(R.string.settings_voice_hq_pitch_on)
                     } else {
-                        "Faster pitch shifting. Some grittiness at non-neutral pitch."
+                        stringResource(R.string.settings_voice_hq_pitch_off)
                     },
                     checked = s.pitchInterpolationHighQuality,
                     onCheckedChange = viewModel::setPitchInterpolationHighQuality,
                 )
 
                 SettingsLinkRow(
-                    title = "Pronunciation",
-                    subtitle = "Teach the voice how to say specific names and words.",
+                    title = stringResource(R.string.settings_voice_pronunciation_title),
+                    subtitle = stringResource(R.string.settings_voice_pronunciation_subtitle),
                     onClick = onOpenPronunciationDict,
                 )
             }
@@ -150,9 +157,9 @@ fun VoiceAndPlaybackSettingsScreen(
                     .indexOfFirst { it == s.skipDistanceSec }
                     .let { if (it < 0) skipOptions.indexOf(30) else it }
                 SettingsSegmentedBlock(
-                    title = "Skip distance",
-                    subtitle = "Seconds the +N / -N buttons jump per tap.",
-                    options = skipOptions.map { "${it}s" },
+                    title = stringResource(R.string.settings_voice_skip_distance_title),
+                    subtitle = stringResource(R.string.settings_voice_skip_distance_subtitle),
+                    options = skipOptions.map { stringResource(R.string.settings_voice_skip_distance_option, it) },
                     selectedIndex = skipSelectedIndex,
                     onSelected = { idx -> viewModel.setSkipDistanceSec(skipOptions[idx]) },
                 )
@@ -168,12 +175,11 @@ fun VoiceAndPlaybackSettingsScreen(
                 val rewindSelectedIndex = rewindOptions
                     .indexOfFirst { it == s.rewindToStartThresholdSec }
                     .let { if (it < 0) rewindOptions.indexOf(3) else it }
+                val rewindOffLabel = stringResource(R.string.settings_voice_rewind_off)
                 SettingsSegmentedBlock(
-                    title = "Skip-back: jump to start when within",
-                    subtitle = "Past this point in a chapter, the prev-track button " +
-                        "rewinds to the start. Within it, jumps to the previous chapter. " +
-                        "Off (0s) always goes to the previous chapter.",
-                    options = rewindOptions.map { if (it == 0) "Off" else "${it}s" },
+                    title = stringResource(R.string.settings_voice_rewind_title),
+                    subtitle = stringResource(R.string.settings_voice_rewind_subtitle),
+                    options = rewindOptions.map { if (it == 0) rewindOffLabel else stringResource(R.string.settings_voice_rewind_option, it) },
                     selectedIndex = rewindSelectedIndex,
                     onSelected = { idx -> viewModel.setRewindToStartThresholdSec(rewindOptions[idx]) },
                 )
@@ -190,10 +196,9 @@ fun VoiceAndPlaybackSettingsScreen(
                     .indexOfFirst { it == s.sleepShakeExtendMinutes }
                     .let { if (it < 0) shakeOptions.indexOf(15) else it }
                 SettingsSegmentedBlock(
-                    title = "Sleep timer: shake-to-extend",
-                    subtitle = "Minutes the timer extends when you shake during the " +
-                        "10-second fade tail.",
-                    options = shakeOptions.map { "${it} min" },
+                    title = stringResource(R.string.settings_voice_shake_extend_title),
+                    subtitle = stringResource(R.string.settings_voice_shake_extend_subtitle),
+                    options = shakeOptions.map { stringResource(R.string.settings_voice_shake_extend_option, it) },
                     selectedIndex = shakeIndex,
                     onSelected = { idx ->
                         viewModel.setSleepShakeExtendMinutes(shakeOptions[idx])
