@@ -250,6 +250,51 @@ class SettingsRepositorySyncSnapshotTest {
         )
     }
 
+    @Test fun `issue 916 — previously per-device preferences now sync`() {
+        // JP's brief: "all preferences like all of them and anything a
+        // user would ever modify is synced." These were tagged
+        // "Per-device, NOT synced" before #916; they're explicit user
+        // settings (sliders / chip rows), not device-bound state.
+        val nowSynced = mapOf(
+            "pref_animation_speed_scale_v1" to SettingsRepositoryUiImpl.SyncedType.FLOAT,
+            "pref_particle_intensity_v1" to SettingsRepositoryUiImpl.SyncedType.STRING,
+            "pref_skeleton_style_v1" to SettingsRepositoryUiImpl.SyncedType.STRING,
+            "pref_brass_pulse_v1" to SettingsRepositoryUiImpl.SyncedType.STRING,
+            "pref_skip_distance_sec_v1" to SettingsRepositoryUiImpl.SyncedType.INT,
+            "pref_rewind_to_start_threshold_sec_v1" to SettingsRepositoryUiImpl.SyncedType.INT,
+            "pref_sleep_shake_extend_min_v1" to SettingsRepositoryUiImpl.SyncedType.INT,
+            "pref_prerender_chapter_count_v1" to SettingsRepositoryUiImpl.SyncedType.INT,
+            "pref_network_patience_v1" to SettingsRepositoryUiImpl.SyncedType.STRING,
+            "pref_auto_items_per_category_v1" to SettingsRepositoryUiImpl.SyncedType.INT,
+            // Plugin Manager voice bundles + the last per-source toggles.
+            "pref_voice_families_enabled_v1" to SettingsRepositoryUiImpl.SyncedType.STRING,
+            "pref_source_telegram_enabled" to SettingsRepositoryUiImpl.SyncedType.BOOLEAN,
+            "pref_source_notion_techempower_enabled" to SettingsRepositoryUiImpl.SyncedType.BOOLEAN,
+            "pref_source_notion_pat_enabled" to SettingsRepositoryUiImpl.SyncedType.BOOLEAN,
+            // Cross-device "seen / completed" flags.
+            "pref_a11y_talkback_nudge_dismissed" to SettingsRepositoryUiImpl.SyncedType.BOOLEAN,
+            "pref_onboarding_completed_v1" to SettingsRepositoryUiImpl.SyncedType.BOOLEAN,
+            "pref_sync_onboarding_dismissed" to SettingsRepositoryUiImpl.SyncedType.BOOLEAN,
+        )
+        for ((key, type) in nowSynced) {
+            assertTrue(
+                "$key must be in SYNC_ALLOWLIST after #916",
+                key in SettingsRepositoryUiImpl.SYNC_ALLOWLIST,
+            )
+            assertEquals(
+                "$key must declare its type in SYNC_KEY_TYPES",
+                type,
+                SettingsRepositoryUiImpl.SYNC_KEY_TYPES[key],
+            )
+        }
+    }
+
+    @Test fun `apply round-trips a newly-synced int preference`() = runTest {
+        repo.apply(mapOf("settings.pref_skip_distance_sec_v1" to "45"))
+        val v = store.data.first()[intPreferencesKey("pref_skip_distance_sec_v1")]
+        assertEquals(45, v)
+    }
+
     @Test fun `pronunciation dict key is NOT in SYNC_ALLOWLIST (handled by its own syncer)`() {
         assertFalse(
             "pronunciation dict must NOT be in the settings allowlist — it has its own syncer",

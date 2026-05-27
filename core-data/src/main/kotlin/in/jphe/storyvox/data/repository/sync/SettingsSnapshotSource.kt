@@ -45,9 +45,21 @@ package `in`.jphe.storyvox.data.repository.sync
  *    grounding flags, etc.).
  *  - Inbox per-source mute toggles.
  *
+ * Issue #916 widened the allowlist to "every user-modifiable
+ * preference" — the appearance / playback / Android-Auto sliders that
+ * were previously tagged per-device (animation speed, skip distance,
+ * particle / skeleton / brass styles, network patience, etc.), the
+ * remaining per-source toggles, the voice-bundles map, and the
+ * onboarding-completion gates all sync now.
+ *
  * **Explicitly excluded** (would cause confusing UX if synced):
- *  - `SIGNED_IN`, `LAST_WAS_PLAYING`, `V0500_MILESTONE_SEEN`,
- *    `V0500_CONFETTI_SHOWN` — device-local flags, not preferences.
+ *  - `SIGNED_IN`, `LAST_WAS_PLAYING` — device-local auth/playback
+ *    state (the InstantDB session + per-fiction positions carry the
+ *    real cross-device resume; see `PlaybackPositionSyncer`).
+ *  - `V0500_MILESTONE_SEEN`, `V0500_CONFETTI_SHOWN` — one-time
+ *    celebration easter-egg gates; a once-per-device moment is fine.
+ *  - Cache quota — genuinely device-specific (storage capacity varies
+ *    between a 32 GB phone and a 256 GB tablet).
  *  - `PRONUNCIATION_DICT` — handled by its own
  *    [PronunciationDictRepository] + [PronunciationDictSyncer].
  *

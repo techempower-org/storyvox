@@ -446,28 +446,27 @@ private object Keys {
     val VOICE_STEADY = booleanPreferencesKey("pref_voice_steady_v1")
 
     /** Issue #589 — global animation-speed master multiplier (Float).
-     *  Per-device, NOT synced. Default 1.0× preserves existing behavior
+     *  Synced as of #916. Default 1.0× preserves existing behavior
      *  on fresh installs. */
     val ANIMATION_SPEED_SCALE = floatPreferencesKey("pref_animation_speed_scale_v1")
 
-    /** Issue #593 — skip distance in seconds (Int). Per-device, NOT
-     *  synced. Default 30s matches Spotify / Apple Music / Pocket Casts. */
+    /** Issue #593 — skip distance in seconds (Int). Synced as of #916. Default 30s matches Spotify / Apple Music / Pocket Casts. */
     val SKIP_DISTANCE_SEC = intPreferencesKey("pref_skip_distance_sec_v1")
 
     /** Issue #594 — rewind-to-start threshold for SkipPrevious, in
      *  seconds (Int). 0 = disable rewind-to-start (always jump to
-     *  previous chapter). Per-device, NOT synced. Default 3s matches
+     *  previous chapter). Synced as of #916. Default 3s matches
      *  every major player. */
     val REWIND_TO_START_THRESHOLD_SEC = intPreferencesKey("pref_rewind_to_start_threshold_sec_v1")
 
     /** Issue #595 — sleep-timer shake-to-extend duration in minutes
-     *  (Int). Per-device, NOT synced. Default 15 matches the legacy
+     *  (Int). Synced as of #916. Default 15 matches the legacy
      *  `SHAKE_EXTEND_MINUTES` constant in StoryvoxPlaybackService. */
     val SLEEP_SHAKE_EXTEND_MINUTES =
         intPreferencesKey("pref_sleep_shake_extend_min_v1")
 
     /** Issue #596 — PCM-cache pre-render window size in chapters
-     *  (Int). Per-device, NOT synced. Default 5 matches the legacy
+     *  (Int). Synced as of #916. Default 5 matches the legacy
      *  `DEFAULT_PRERENDER_CHAPTERS` constant in PrerenderTriggers
      *  (bumped 3 → 5 in #558). */
     val PRERENDER_CHAPTER_COUNT =
@@ -475,30 +474,28 @@ private object Keys {
 
     /** Issue #590 — particle / confetti intensity preset, stored as
      *  the UiParticleIntensity enum's `name` ("None"/"Subtle"/"Lush").
-     *  Per-device, NOT synced. Default Subtle preserves the current
+     *  Synced as of #916. Default Subtle preserves the current
      *  6-ember overlay on a fresh install. */
     val PARTICLE_INTENSITY = stringPreferencesKey("pref_particle_intensity_v1")
 
     /** Issue #591 — skeleton-shimmer style preset, stored as the
-     *  UiSkeletonStyle enum's `name` ("Off"/"Pulse"/"Sigil"). Per-
-     *  device, NOT synced. Default Sigil preserves the v0.5.66
+     *  UiSkeletonStyle enum's `name` ("Off"/"Pulse"/"Sigil"). Synced as of #916. Default Sigil preserves the v0.5.66
      *  MagicSkeletonTile look on a fresh install. */
     val SKELETON_STYLE = stringPreferencesKey("pref_skeleton_style_v1")
 
     /** Issue #592 — brass alpha-pulse intensity preset, stored as
      *  the UiBrassPulseLevel enum's `name` ("Subtle"/"Standard"/
-     *  "Bold"). Per-device, NOT synced. Default Standard preserves
+     *  "Bold"). Synced as of #916. Default Standard preserves
      *  the current 0.55..1.0 pulse band. */
     val BRASS_PULSE_LEVEL = stringPreferencesKey("pref_brass_pulse_v1")
 
     /** Issue #597 — network-patience preset, stored as the
      *  UiNetworkPatience enum's `name` ("Aggressive"/"Default"/
-     *  "Patient"). Per-device, NOT synced. Default `Default`
+     *  "Patient"). Synced as of #916. Default `Default`
      *  preserves the 10 s baseline timeout budget. */
     val NETWORK_PATIENCE = stringPreferencesKey("pref_network_patience_v1")
 
-    /** Issue #598 — Android Auto bucket size in items (Int). Per-
-     *  device, NOT synced. Default 6 matches the HMI guideline + the
+    /** Issue #598 — Android Auto bucket size in items (Int). Synced as of #916. Default 6 matches the HMI guideline + the
      *  legacy `MAX_PER_CATEGORY` constant in
      *  StoryvoxAutoBrowserService. */
     val AUTO_ITEMS_PER_CATEGORY =
@@ -2127,6 +2124,7 @@ class SettingsRepositoryUiImpl(
             prefs[Keys.SOURCE_PLUGINS_ENABLED_JSON] =
                 `in`.jphe.storyvox.data.source.plugin.encodeSourcePluginsEnabledJson(current)
         }
+        stampSyncedWrite()
     }
 
     /**
@@ -2192,6 +2190,7 @@ class SettingsRepositoryUiImpl(
             prefs[Keys.VOICE_FAMILIES_ENABLED_JSON] =
                 `in`.jphe.storyvox.data.source.plugin.encodeVoiceFamiliesEnabledJson(current)
         }
+        stampSyncedWrite()
     }
     override suspend fun setNotionDatabaseId(id: String) {
         notionConfig.setDatabaseId(id)
@@ -2271,9 +2270,11 @@ class SettingsRepositoryUiImpl(
         // site (`setA11yTalkBackNudgeDismissed(true)` reads as "user
         // dismissed the card").
         store.edit { it[Keys.A11Y_TALKBACK_NUDGE_DISMISSED] = dismissed }
-        // Deliberately NOT stamped via [stampSyncedWrite]: nudge
-        // dismissal is per-install UX state and doesn't need to
-        // sync across the user's devices.
+        // Issue #916 — now stamped so the dismissal syncs. A user who
+        // dismissed the TalkBack nudge on their phone shouldn't be
+        // re-prompted on their tablet (same "seen" semantics as
+        // `pref_techempower_home_seen`).
+        stampSyncedWrite()
     }
 
     // ── Appearance (v0.5.59) ───────────────────────────────────────
@@ -2291,69 +2292,77 @@ class SettingsRepositoryUiImpl(
     }
 
     /**
-     * Issue #589 — animation-speed master multiplier. Per-device, NOT
-     * synced (different ergonomic targets per device). Snap to the
+     * Issue #589 — animation-speed master multiplier. Snap to the
      * supported chip values on write so the persisted state always
-     * matches a UI tier.
+     * matches a UI tier. Synced as of #916 (it's a user preference, not
+     * device-bound state).
      */
     override suspend fun setAnimationSpeedScale(scale: Float) {
         store.edit { it[Keys.ANIMATION_SPEED_SCALE] = snapAnimationSpeedScale(scale) }
+        stampSyncedWrite()
     }
 
-    /**
-     * Issue #593 — skip distance in seconds. Per-device, NOT synced.
-     */
+    /** Issue #593 — skip distance in seconds. Synced as of #916. */
     override suspend fun setSkipDistanceSec(seconds: Int) {
         store.edit { it[Keys.SKIP_DISTANCE_SEC] = snapSkipDistanceSec(seconds) }
+        stampSyncedWrite()
     }
 
     /**
      * Issue #594 — rewind-to-start threshold for SkipPrevious, in
-     * seconds. 0 = disable. Per-device, NOT synced.
+     * seconds. 0 = disable. Synced as of #916.
      */
     override suspend fun setRewindToStartThresholdSec(seconds: Int) {
         store.edit { it[Keys.REWIND_TO_START_THRESHOLD_SEC] = snapRewindToStartThresholdSec(seconds) }
+        stampSyncedWrite()
     }
 
-    /** Issue #595 — sleep-timer shake-to-extend in minutes. Per-device. */
+    /** Issue #595 — sleep-timer shake-to-extend in minutes. Synced as of #916. */
     override suspend fun setSleepShakeExtendMinutes(minutes: Int) {
         store.edit {
             it[Keys.SLEEP_SHAKE_EXTEND_MINUTES] = snapSleepShakeExtendMinutes(minutes)
         }
+        stampSyncedWrite()
     }
 
-    /** Issue #596 — PCM-cache pre-render window in chapters. Per-device. */
+    /** Issue #596 — PCM-cache pre-render window in chapters. Synced as of #916. */
     override suspend fun setPrerenderChapterCount(count: Int) {
         store.edit {
             it[Keys.PRERENDER_CHAPTER_COUNT] = snapPrerenderChapterCount(count)
         }
+        stampSyncedWrite()
     }
 
-    /** Issue #590 — particle / confetti intensity. Per-device. */
+    /** Issue #590 — particle / confetti intensity. Synced as of #916. */
     override suspend fun setParticleIntensity(intensity: UiParticleIntensity) {
         store.edit { it[Keys.PARTICLE_INTENSITY] = intensity.name }
+        stampSyncedWrite()
     }
 
-    /** Issue #591 — skeleton shimmer style. Per-device. */
+    /** Issue #591 — skeleton shimmer style. Synced as of #916. */
     override suspend fun setSkeletonStyle(style: UiSkeletonStyle) {
         store.edit { it[Keys.SKELETON_STYLE] = style.name }
+        stampSyncedWrite()
     }
 
-    /** Issue #592 — brass alpha-pulse intensity. Per-device. */
+    /** Issue #592 — brass alpha-pulse intensity. Synced as of #916. */
     override suspend fun setBrassPulseLevel(level: UiBrassPulseLevel) {
         store.edit { it[Keys.BRASS_PULSE_LEVEL] = level.name }
+        stampSyncedWrite()
     }
 
-    /** Issue #597 — network patience preset. Per-device. */
+    /** Issue #597 — network patience preset. Synced as of #916. */
     override suspend fun setNetworkPatience(patience: UiNetworkPatience) {
         store.edit { it[Keys.NETWORK_PATIENCE] = patience.name }
+        stampSyncedWrite()
     }
 
-    /** Issue #598 — Android Auto bucket size. Per-device. */
+    /** Issue #598 — Android Auto bucket size. Synced as of #916. */
     override suspend fun setAutoItemsPerCategory(count: Int) {
         store.edit {
             it[Keys.AUTO_ITEMS_PER_CATEGORY] = snapAutoItemsPerCategory(count)
         }
+        stampSyncedWrite()
     }
 
     // ── Azure Speech Services BYOK (#182, PR-3) ────────────────────
@@ -2627,14 +2636,15 @@ class SettingsRepositoryUiImpl(
     override val syncOnboardingDismissed: Flow<Boolean> =
         store.data.map { it[Keys.SYNC_ONBOARDING_DISMISSED] ?: false }
 
-    /** Flip the flag. Intentionally not synced via [stampSyncedWrite] —
-     *  the onboarding gate is a per-device first-launch experience, not
-     *  user-level state. A user signing in on a new device should see
-     *  the onboarding offer (their existing data will pull down) rather
-     *  than have the "you already dismissed this" flag inherited and
-     *  miss the welcome moment. */
+    /** Flip the flag. Synced as of #916. Sync only runs after sign-in,
+     *  so the dismissed flag can only pull down onto a device that has
+     *  already signed in — at which point re-showing the "sign in to
+     *  sync!" card would be pointless. Syncing it means a user who
+     *  dismissed the card on their phone isn't re-prompted after signing
+     *  in on their tablet. */
     override suspend fun markSyncOnboardingDismissed() {
         store.edit { it[Keys.SYNC_ONBOARDING_DISMISSED] = true }
+        stampSyncedWrite()
     }
 
     // ── Issue #599 — v1.0 first-launch onboarding flow ─────────────
@@ -2652,6 +2662,9 @@ class SettingsRepositoryUiImpl(
      *  three-screen welcome is one-shot. */
     override suspend fun markOnboardingCompletedV1() {
         store.edit { it[Keys.ONBOARDING_COMPLETED_V1] = true }
+        // Issue #916 — synced so a reinstall + sign-in doesn't drag the
+        // user back through the welcome flow they've already completed.
+        stampSyncedWrite()
     }
 
     /** Flip back to false — exposed via Settings → Advanced → "Reset
@@ -2900,7 +2913,18 @@ class SettingsRepositoryUiImpl(
             "pref_source_arxiv_enabled",
             "pref_source_plos_enabled",
             "pref_source_discord_enabled",
+            // Issue #916 — the remaining per-source toggles that were
+            // never added to the allowlist. Same cross-device intent as
+            // every other `pref_source_*_enabled` above: a backend the
+            // user turned on/off on one device should travel.
+            "pref_source_telegram_enabled",
+            "pref_source_notion_techempower_enabled",
+            "pref_source_notion_pat_enabled",
             "pref_source_plugins_enabled_v1",
+            // Issue #916 — Plugin Manager "Voice bundles" enabled map.
+            // Twin of `pref_source_plugins_enabled_v1`; which voice
+            // families the user enabled is cross-device intent.
+            "pref_voice_families_enabled_v1",
             // v0.5.76 — Browse-carousel favorites. Same family as the
             // enabled-plugins map: cross-device intent ("AO3 is my main
             // source") rides the sync.
@@ -2948,6 +2972,36 @@ class SettingsRepositoryUiImpl(
             // preference that users want mirrored across devices, same
             // rationale as `pref_theme_override`.
             "pref_cover_style",
+            // Issue #916 — JP wants EVERY user-modifiable preference
+            // synced. The keys below were previously tagged "Per-device,
+            // NOT synced" but they're all explicit user settings (sliders
+            // / chip rows in Settings → Appearance / Playback / Auto), not
+            // device-bound state. Storage capacity is the only genuinely
+            // device-specific knob (cache quota), and that stays excluded.
+            // Appearance.
+            "pref_animation_speed_scale_v1",
+            "pref_particle_intensity_v1",
+            "pref_skeleton_style_v1",
+            "pref_brass_pulse_v1",
+            // Playback / behaviour.
+            "pref_skip_distance_sec_v1",
+            "pref_rewind_to_start_threshold_sec_v1",
+            "pref_sleep_shake_extend_min_v1",
+            "pref_prerender_chapter_count_v1",
+            "pref_network_patience_v1",
+            // Android Auto.
+            "pref_auto_items_per_category_v1",
+            // Accessibility — cross-device "nudge seen" flag, same
+            // rationale as `pref_techempower_home_seen`: don't re-prompt
+            // on the tablet once dismissed on the phone.
+            "pref_a11y_talkback_nudge_dismissed",
+            // Onboarding completion — "I've already set this app up"
+            // carries the right cross-device semantics: a synced second
+            // device shouldn't drag the user back through onboarding.
+            // (The v0500 milestone/confetti easter-egg gates stay
+            // device-local — a once-per-device celebration is fine.)
+            "pref_onboarding_completed_v1",
+            "pref_sync_onboarding_dismissed",
         )
 
         /**
@@ -3024,6 +3078,11 @@ class SettingsRepositoryUiImpl(
             "pref_source_arxiv_enabled" to SyncedType.BOOLEAN,
             "pref_source_plos_enabled" to SyncedType.BOOLEAN,
             "pref_source_discord_enabled" to SyncedType.BOOLEAN,
+            // Issue #916 — remaining per-source toggles + voice bundles.
+            "pref_source_telegram_enabled" to SyncedType.BOOLEAN,
+            "pref_source_notion_techempower_enabled" to SyncedType.BOOLEAN,
+            "pref_source_notion_pat_enabled" to SyncedType.BOOLEAN,
+            "pref_voice_families_enabled_v1" to SyncedType.STRING,
             "pref_sleep_shake_to_extend_enabled" to SyncedType.BOOLEAN,
             "pref_azure_fallback_enabled" to SyncedType.BOOLEAN,
             "pref_show_debug_overlay" to SyncedType.BOOLEAN,
@@ -3046,6 +3105,20 @@ class SettingsRepositoryUiImpl(
             // v0.5.59 — Appearance: book-cover fallback style stored as
             // CoverStyle enum's `name` string ("Monogram"/"Branded"/"CoverOnly").
             "pref_cover_style" to SyncedType.STRING,
+            // Issue #916 — previously per-device preferences now synced.
+            "pref_animation_speed_scale_v1" to SyncedType.FLOAT,
+            "pref_particle_intensity_v1" to SyncedType.STRING,
+            "pref_skeleton_style_v1" to SyncedType.STRING,
+            "pref_brass_pulse_v1" to SyncedType.STRING,
+            "pref_skip_distance_sec_v1" to SyncedType.INT,
+            "pref_rewind_to_start_threshold_sec_v1" to SyncedType.INT,
+            "pref_sleep_shake_extend_min_v1" to SyncedType.INT,
+            "pref_prerender_chapter_count_v1" to SyncedType.INT,
+            "pref_network_patience_v1" to SyncedType.STRING,
+            "pref_auto_items_per_category_v1" to SyncedType.INT,
+            "pref_a11y_talkback_nudge_dismissed" to SyncedType.BOOLEAN,
+            "pref_onboarding_completed_v1" to SyncedType.BOOLEAN,
+            "pref_sync_onboarding_dismissed" to SyncedType.BOOLEAN,
         )
     }
 
