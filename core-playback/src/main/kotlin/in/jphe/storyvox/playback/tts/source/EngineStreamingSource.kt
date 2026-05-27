@@ -145,38 +145,7 @@ class EngineStreamingSource(
         fun generateAudioPCM(text: String, speed: Float, pitch: Float): ByteArray?
     }
 
-    /**
-     * Streaming-capable engine handle — emits PCM chunks as they
-     * arrive instead of buffering the full sentence. Today only
-     * Azure (HTTP source) implements this; Piper / Kokoro return
-     * the full sentence from a synchronous JNI call so streaming
-     * adds no value for them. The producer detects this interface
-     * and uses the streaming path when present, falling back to
-     * the per-sentence ByteArray path otherwise.
-     *
-     * Implementations MUST emit chunks in arrival order and complete
-     * the Flow when the sentence is done. Errors thrown from the
-     * Flow halt that sentence (the producer skips and moves on for
-     * non-terminal errors; AuthFailed propagates and stops the
-     * pipeline). Empty Flow is treated as "skip this sentence" the
-     * same way [generateAudioPCM] returning null is.
-     */
-    interface StreamingVoiceEngineHandle : VoiceEngineHandle {
-        fun generateAudioPCMStream(
-            text: String,
-            speed: Float,
-            pitch: Float,
-        ): kotlinx.coroutines.flow.Flow<ByteArray>
-    }
-
     override val sampleRate: Int = engine.sampleRate
-
-    /** True when this source will use the streaming producer path —
-     *  emit many small chunks per sentence as TLS records arrive.
-     *  v0.4.92 — false because streaming dispatch is disabled in
-     *  startProducer. Once re-enabled, this should match the dispatch
-     *  condition: `engine is StreamingVoiceEngineHandle && secondaryEngines.isEmpty()`. */
-    override val isStreaming: Boolean = false
 
     /**
      * #573 — Gapless: set true by the producer the moment it has
@@ -446,124 +415,9 @@ class EngineStreamingSource(
 
     private fun startProducer(fromIndex: Int): Job =
         when {
-            // v0.4.92 — streaming dispatch RE-DISABLED. v0.4.90/.91
-            // re-enabled it after diagnostic logs showed the producer/
-            // consumer pipeline running correctly (sentences flowing,
-            // headroom growing, AudioTrack state=started). But JP
-            // confirmed live: no audio output despite all signals
-            // green in logs. Without on-device debug capability we
-            // can't bisect the silent failure between track.write()
-            // and the speaker. Lookahead path (parallelSynthInstances
-            // >= 2) and buffered serial path (instances == 1) both
-            // produce real audio; streaming code is preserved on disk
-            // for offline reproduction. To re-enable when fixed:
-            //   engine is StreamingVoiceEngineHandle -> startStreamingSerialProducer(fromIndex)
             secondaryEngines.isNotEmpty() -> startParallelProducer(fromIndex)
             else -> startSerialProducer(fromIndex)
         }
-
-    /**
-     * Streaming serial producer — for engines that implement
-     * [StreamingVoiceEngineHandle] (today: Azure). Per-sentence loop
-     * is the same shape as [startSerialProducer]; the difference is
-     * the inner work: instead of buffering the full PCM ByteArray
-     * before queuing, we collect chunks from the engine's Flow and
-     * queue each chunk as its own [PcmChunk].
-     *
-     * Each chunk shares the sentence's [SentenceRange] so the
-     * highlight UI keeps tracking through the streamed sentence;
-     * [trailingSilenceBytes] lands on a final empty-PCM chunk after
-     * the flow completes (so the inter-sentence pause survives
-     * without corrupting individual streamed chunks).
-     *
-     * Result: AudioTrack.write() can fire on the first 8 KB chunk
-     * (~165 ms of audio) instead of waiting for the entire sentence
-     * body to land — the perceived "press play → first audio"
-     * latency drops from ~2-4 s (Dragon HD full render) to ~200-400 ms
-     * (TLS + first frame).
-     */
-    private fun startStreamingSerialProducer(fromIndex: Int): Job = scope.launch {
-        runCatching {
-            AndroidProcess.setThreadPriority(
-                AndroidProcess.THREAD_PRIORITY_URGENT_AUDIO,
-            )
-        }
-        val streaming = engine as StreamingVoiceEngineHandle
-        try {
-            for (i in fromIndex until sentences.size) {
-                if (!running.get()) return@launch
-                val s = sentences[i]
-                val spokenText = pronunciationDictApply(s.text)
-                val range = SentenceRange(s.index, s.startChar, s.endChar)
-                val mult = punctuationPauseMultiplier.coerceAtLeast(0f)
-                val basePauseMs =
-                    (trailingPauseMs(s.text) * mult) / speed.coerceAtLeast(0.5f)
-                // #486 / #488 — TalkBack a11y inter-sentence pad
-                // (streaming/Azure path).
-                val a11yPadMs = extraA11ySilenceMs.toFloat() / speed.coerceAtLeast(0.5f)
-                val silenceBytes = silenceBytesFor((basePauseMs + a11yPadMs).toInt(), sampleRate)
-
-                var emittedAny = false
-                try {
-                    engineMutex.withLock {
-                        if (!running.get()) return@withLock
-                        streaming.generateAudioPCMStream(
-                            spokenText, speed, pitch,
-                        ).collect { bytes ->
-                            if (!running.get()) {
-                                throw kotlinx.coroutines.CancellationException(
-                                    "pipeline stopped mid-stream",
-                                )
-                            }
-                            if (bytes.isEmpty()) return@collect
-                            emittedAny = true
-                            val chunk = PcmChunk(
-                                sentenceIndex = i,
-                                range = range,
-                                pcm = bytes,
-                                trailingSilenceBytes = 0,
-                            )
-                            runInterruptible { queue.put(Item(chunk)) }
-                            _bufferHeadroomMs.update {
-                                it + pcmDurationMs(bytes.size)
-                            }
-                        }
-                    }
-                } catch (e: kotlinx.coroutines.CancellationException) {
-                    throw e
-                } catch (_: Throwable) {
-                    // Non-terminal stream error — skip this sentence's
-                    // trailing silence and move on.
-                    continue
-                }
-
-                if (!running.get()) return@launch
-                if (emittedAny && silenceBytes > 0) {
-                    // Final silence-only chunk seals the sentence's
-                    // breathing room. Empty PCM is fine — the consumer's
-                    // writer handles 0-byte payloads.
-                    val tail = PcmChunk(
-                        sentenceIndex = i,
-                        range = range,
-                        pcm = ByteArray(0),
-                        trailingSilenceBytes = silenceBytes,
-                    )
-                    runInterruptible { queue.put(Item(tail)) }
-                    _bufferHeadroomMs.update { it + pcmDurationMs(silenceBytes) }
-                }
-            }
-            // #573 — Gapless: see startSerialProducer for the rationale.
-            producedAll = true
-            android.util.Log.i(
-                "EngineStreamingSource",
-                "streaming producer: natural end (all ${sentences.size} sentences streamed), " +
-                    "pushing END_PILL",
-            )
-            runInterruptible { queue.put(END_PILL) }
-        } catch (_: Throwable) {
-            // Cancelled (close, seek, voice swap) — silent.
-        }
-    }
 
     /**
      * Tier 3 (#88) — two-engine parallel producer. Sentences fan out

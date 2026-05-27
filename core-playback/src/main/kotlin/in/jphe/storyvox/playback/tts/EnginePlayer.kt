@@ -2409,7 +2409,6 @@ class EnginePlayer @AssistedInject constructor(
                     // way; the cached read is just for symmetry with the
                     // pause branch.
                     if (cachedCatchupPause &&
-                        !source.isStreaming &&
                         paused &&
                         source.bufferHeadroomMs.value >= BUFFER_RESUME_THRESHOLD_MS) {
                         runCatching { track.play() }
@@ -2536,18 +2535,12 @@ class EnginePlayer @AssistedInject constructor(
                         // queue (CacheFileSource reports
                         // producerQueueCapacity == 0; chunks come from a
                         // mmap'd file and inter-chunk gap risk is nil).
-                        // Skip on streaming sources too — they emit tiny
-                        // ~165 ms chunks where the depth count is a poor
-                        // proxy for "is there enough audio buffered to
-                        // outlast the next render", and Azure's first-
-                        // chunk latency is the dominant cost we don't want
-                        // to extend further.
                         //
                         // Honour pipelineRunning + userPaused inside the
                         // wait so a teardown / pause tap during the gate
                         // exits promptly (50 ms polling matches the
                         // userPaused park above).
-                        if (source.producerQueueCapacity() > 0 && !source.isStreaming) {
+                        if (source.producerQueueCapacity() > 0) {
                             val deadlineNanos =
                                 System.nanoTime() + PREBUFFER_TIMEOUT_MS * 1_000_000L
                             val target = PREBUFFER_TARGET_CHUNKS - 1
@@ -2624,7 +2617,6 @@ class EnginePlayer @AssistedInject constructor(
                     // very end of the producer) while skipping the
                     // doomed park on the final chunk.
                     if (cachedCatchupPause &&
-                        !source.isStreaming &&
                         !paused &&
                         !source.producedAllSentences &&
                         source.bufferHeadroomMs.value < BUFFER_UNDERRUN_THRESHOLD_MS) {
@@ -3002,7 +2994,7 @@ class EnginePlayer @AssistedInject constructor(
      *  test-friendly without depending on VoxSherpa AARs. */
     private fun activeVoiceEngineHandle(engineType: EngineType?): EngineStreamingSource.VoiceEngineHandle =
         when (engineType) {
-            is EngineType.Azure -> azureStreamingHandle(engineType)
+            is EngineType.Azure -> azureHandle(engineType)
             is EngineType.SystemTts -> systemTtsHandle(engineType)
             else -> object : EngineStreamingSource.VoiceEngineHandle {
                 // Issue #582 — same lock-contention guard as
@@ -3033,7 +3025,7 @@ class EnginePlayer @AssistedInject constructor(
         }
 
     /**
-     * #676 — handle for System TTS voices. Mirrors [azureStreamingHandle]
+     * #676 — handle for System TTS voices. Mirrors [azureHandle]
      * in that it adapts an instance-based engine ([SystemTtsEngine]) to
      * the [EngineStreamingSource.VoiceEngineHandle] contract.
      *
@@ -3064,35 +3056,16 @@ class EnginePlayer @AssistedInject constructor(
             }
         }
 
-    /**
-     * Streaming-capable Azure handle. Implements the streaming
-     * variant so [EngineStreamingSource] can take the
-     * startStreamingSerialProducer path when no Tier 3 secondaries
-     * are wired (i.e. parallelSynthInstances == 1). With secondaries
-     * the parallel path runs the non-streaming generateAudioPCM —
-     * lookahead wins over streaming when both could apply (the user
-     * gets sentences N+1..N+k pre-rendered in parallel; streaming
-     * helps sentence 1 alone).
-     */
-    private fun azureStreamingHandle(
+    private fun azureHandle(
         engineType: EngineType.Azure,
-    ): EngineStreamingSource.StreamingVoiceEngineHandle =
-        object : EngineStreamingSource.StreamingVoiceEngineHandle {
+    ): EngineStreamingSource.VoiceEngineHandle =
+        object : EngineStreamingSource.VoiceEngineHandle {
             override val sampleRate: Int = azureVoiceEngine.sampleRate
                 .takeIf { it > 0 } ?: DEFAULT_SAMPLE_RATE
 
             override fun generateAudioPCM(text: String, speed: Float, pitch: Float): ByteArray? {
                 AndroidProcess.setThreadPriority(AndroidProcess.THREAD_PRIORITY_URGENT_AUDIO)
                 return azureVoiceEngine.synthesize(text, engineType.voiceName, speed, pitch)
-            }
-
-            override fun generateAudioPCMStream(
-                text: String, speed: Float, pitch: Float,
-            ): kotlinx.coroutines.flow.Flow<ByteArray> {
-                AndroidProcess.setThreadPriority(AndroidProcess.THREAD_PRIORITY_URGENT_AUDIO)
-                return azureVoiceEngine.synthesizeStreaming(
-                    text, engineType.voiceName, speed, pitch,
-                )
             }
         }
 

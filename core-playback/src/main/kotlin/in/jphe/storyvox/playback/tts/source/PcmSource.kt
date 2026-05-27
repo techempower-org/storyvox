@@ -67,25 +67,6 @@ sealed interface PcmSource {
     fun decrementHeadroomForChunk(chunk: PcmChunk) = Unit
 
     /**
-     * v0.4.85 — true when this source produces audio incrementally via
-     * the engine's streaming path (today: Azure with parallelSynthInstances
-     * == 1). Streaming sources emit many small PcmChunks per sentence
-     * as TLS records arrive, which makes the consumer's catchup-pause
-     * thresholds (7s underrun / 10s resume — sized for full-sentence
-     * Piper / Kokoro chunks) fire spuriously: each streamed chunk is
-     * ~165 ms, so headroom never crosses the resume threshold without
-     * dozens of in-flight sentences.
-     *
-     * The consumer reads this and bypasses the catch-up-pause logic
-     * when set. Streaming sources don't suffer the sub-realtime
-     * producer problem catchup-pause was designed for — Azure's
-     * server-side render is roughly real-time, and OkHttp's connection
-     * pool keeps subsequent sentences low-latency. Default false
-     * preserves the buffered behavior for Piper / Kokoro / cache.
-     */
-    val isStreaming: Boolean get() = false
-
-    /**
      * Issue #290 — current count of chunks waiting in the producer-side
      * queue. Streaming sources back-fill this from their bounded queue;
      * cache sources have no queue and report 0. Read by the Debug
