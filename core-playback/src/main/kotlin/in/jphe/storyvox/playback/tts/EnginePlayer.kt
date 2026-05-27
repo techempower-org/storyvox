@@ -3338,9 +3338,6 @@ class EnginePlayer @AssistedInject constructor(
         // single owner: the consumer thread. main only pause()s to
         // unblock the parked write; pause() is idempotent w.r.t. the
         // consumer's subsequent flush()/release().
-        // #914 — cancel any in-flight pipeline setup so it doesn't
-        // create a new AudioTrack after we've torn everything down.
-        pipelineSetupJob?.cancel()
         pipelineRunning.set(false)
         // Issue #540 — also clear the user-pause flag so the consumer's
         // park branch exits promptly. The pipelineRunning=false above
