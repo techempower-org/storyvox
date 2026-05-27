@@ -182,23 +182,10 @@ class SettingsRepositorySweeperPrefsTest {
         assertEquals(10, repo.settings.first().rewindToStartThresholdSec)
     }
 
-    // ---- Sync intent — these prefs MUST NOT round-trip through sync ----
-
-    @Test
-    fun `sweeper prefs are NOT in SYNC_ALLOWLIST (per-device intent)`() {
-        val deviceLocal = setOf(
-            "pref_animation_speed_scale_v1",
-            "pref_skip_distance_sec_v1",
-            "pref_rewind_to_start_threshold_sec_v1",
-        )
-        for (key in deviceLocal) {
-            assertFalse(
-                "$key is a per-device pref and must NOT sync " +
-                    "(different ergonomic targets per device)",
-                key in SettingsRepositoryUiImpl.SYNC_ALLOWLIST,
-            )
-        }
-    }
+    // #916 — sweeper prefs were promoted to SYNC_ALLOWLIST by the
+    // expanded preference sync surface. The old "must NOT sync" assertion
+    // was removed because syncing playback ergonomics across devices is
+    // now the intended behavior.
 
     // FakeAuth / FakeHydrator / palace fakes live in [SettingsRepositoryTestSupport].
 }

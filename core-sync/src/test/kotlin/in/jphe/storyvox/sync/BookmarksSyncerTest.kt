@@ -179,5 +179,7 @@ class BookmarksSyncerTest {
         override suspend fun trimDownloadedBodies(fictionId: String, keepLast: Int) = error("not used")
         override suspend fun cacheUsage(): `in`.jphe.storyvox.data.db.dao.ChapterCacheUsageRow =
             error("not used")
+        override suspend fun chapterIdsForFiction(fictionId: String): List<String> = emptyList()
+        override suspend fun deleteByIds(ids: List<String>) = error("not used")
     }
 }

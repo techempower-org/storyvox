@@ -62,9 +62,6 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    kotlinOptions {
-        jvmTarget = "17"
-    }
 
     defaultConfig {
         // minSdk = 28 is the floor for Baseline Profile generation.
@@ -104,6 +101,12 @@ baselineProfile {
     // iterations on the Tab A7 Lite hot path is ~90 s; 5 would be ~150 s.
     // The BaselineProfileRule itself handles the stable-profile
     // convergence check.
+}
+
+kotlin {
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+    }
 }
 
 dependencies {

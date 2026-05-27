@@ -42,16 +42,17 @@ class SentenceChunkerTest {
         out.forEachIndexed { i, s -> assertEquals(i, s.index) }
     }
 
-    @Test fun `endChar minus startChar equals trimmed text length`() {
+    @Test fun `endChar spans to next sentence startChar (contiguous partitioning)`() {
         val text = "First sentence.   Second sentence after extra spaces. "
         val out = chunker.chunk(text, locale)
-        out.forEach { s ->
+        for (i in 0 until out.size - 1) {
             assertEquals(
-                "endChar-startChar must equal text length for $s",
-                s.text.length,
-                s.endChar - s.startChar,
+                "endChar of sentence $i must equal startChar of sentence ${i + 1}",
+                out[i + 1].startChar,
+                out[i].endChar,
             )
         }
+        assertEquals("last endChar must be text.length", text.length, out.last().endChar)
     }
 
     @Test fun `startChar points at first non-whitespace of trimmed sentence`() {
@@ -63,14 +64,14 @@ class SentenceChunkerTest {
         assertEquals(text.indexOf("Second."), out[1].startChar)
     }
 
-    @Test fun `text slice at startChar matches sentence text`() {
+    @Test fun `text slice at startChar starts with sentence text`() {
         val text = "Alpha is first. Bravo is second. Charlie is third."
         val out = chunker.chunk(text, locale)
         out.forEach { s ->
-            assertEquals(
-                "substring(${s.startChar}, ${s.endChar}) should equal sentence text",
-                s.text,
-                text.substring(s.startChar, s.endChar),
+            val slice = text.substring(s.startChar, s.endChar)
+            assertTrue(
+                "slice '$slice' should start with sentence text '${s.text}'",
+                slice.startsWith(s.text),
             )
         }
     }

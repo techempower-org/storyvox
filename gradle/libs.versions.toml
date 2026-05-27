@@ -1,8 +1,8 @@
 [versions]
 # Build tools
-agp = "8.13.2"
-kotlin = "2.2.21"
-ksp = "2.2.21-2.0.5"
+agp = "9.2.0"
+kotlin = "2.3.21"
+ksp = "2.3.9"
 # Triple-T gradle-play-publisher — `./gradlew publishReleaseBundle` uploads
 # the signed AAB to Play Console without the browser. Requires a Google
 # Cloud service-account JSON with Play Console "Release manager"
@@ -20,21 +20,21 @@ startup = "1.2.0"
 security-crypto = "1.1.0"
 
 # Compose
-compose-bom = "2026.05.00"
-compose-material-icons = "1.7.5"
+compose-bom = "2026.05.01"
+compose-material-icons = "1.7.8"
 
 # Hilt + Hilt-Work
-hilt = "2.57.2"
+hilt = "2.59.2"
 hilt-navigation-compose = "1.3.0"
 hilt-work = "1.3.0"
 
 # Persistence + work
-room = "2.7.2"
+room = "2.8.4"
 work = "2.11.2"
 datastore = "1.2.1"
 
 # Media3 (playback / session / Auto)
-media3 = "1.10.0"
+media3 = "1.10.1"
 
 # Networking + parsing
 okhttp = "4.12.0"
@@ -51,7 +51,7 @@ androidx-browser = "1.8.0"
 coroutines = "1.11.0"
 
 # Serialization
-kotlinx-serialization = "1.10.0"
+kotlinx-serialization = "1.11.0"
 
 # Image loading
 coil = "3.4.0"
@@ -60,14 +60,14 @@ coil = "3.4.0"
 androidx-media = "1.7.0"
 
 # Wear
-wear-compose = "1.4.0"
+wear-compose = "1.6.2"
 wear-tooling = "1.0.0"
 play-services-wearable = "18.2.0"
 
 # Test
 junit = "4.13.2"
 androidx-junit = "1.2.1"
-espresso = "3.6.1"
+espresso = "3.7.0"
 robolectric = "4.16.1"
 
 # Baseline Profile / Macrobenchmark (#409 — cold-launch hot-path AOT).
@@ -89,7 +89,7 @@ baselineprofile-gradle = "1.4.1"
 desugar = "2.1.5"
 
 # Storage Access Framework helpers (#235 EPUB import)
-documentfile = "1.0.1"
+documentfile = "1.1.0"
 
 [libraries]
 # AndroidX core
@@ -194,8 +194,8 @@ androidx-test-uiautomator = { module = "androidx.test.uiautomator:uiautomator", 
 # androidx.test.runner / rules — pulled in transitively by uiautomator but
 # declared explicitly so the BaselineProfileGenerator test classpath has
 # a stable handle on AndroidJUnit4 + the test runner.
-androidx-test-runner = { module = "androidx.test:runner", version = "1.6.2" }
-androidx-test-rules = { module = "androidx.test:rules", version = "1.6.1" }
+androidx-test-runner = { module = "androidx.test:runner", version = "1.7.0" }
+androidx-test-rules = { module = "androidx.test:rules", version = "1.7.0" }
 androidx-test-ext-junit = { module = "androidx.test.ext:junit", version.ref = "androidx-junit" }
 # ProfileVerifier surfaces a compile-status check inside the StartupBenchmark
 # — it'll fail the test if the profile isn't actually compiled at run time,

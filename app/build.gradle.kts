@@ -178,7 +178,7 @@ android {
         // properties are pushed there) still produces a working APK.
         if (hasReleaseKeystore) {
             create("release") {
-                storeFile = file(releaseStoreFilePath)
+                storeFile = file(releaseStoreFilePath!!)
                 storePassword = releaseStorePassword
                 keyAlias = releaseKeyAlias
                 keyPassword = releaseKeyPassword
@@ -324,9 +324,6 @@ android {
         isCoreLibraryDesugaringEnabled = true
     }
 
-    kotlinOptions {
-        jvmTarget = "17"
-    }
 
     buildFeatures {
         compose = true
@@ -401,15 +398,16 @@ android {
     // `app-debug.apk` so a developer running `./gradlew installDebug`
     // sees AGP's default naming and can't confuse the dev APK with the
     // shipped one.
-    applicationVariants.all {
-        val variantName = name
-        if (variantName == "release" || variantName == "benchmark") {
-            val versionLabel = versionName
-            outputs.all {
-                val output = this as
-                    com.android.build.gradle.internal.api.BaseVariantOutputImpl
-                val suffix = if (variantName == "benchmark") "-benchmark" else ""
-                output.outputFileName = "storyvox-v$versionLabel$suffix.apk"
+}
+
+androidComponents {
+    onVariants { variant ->
+        if (variant.name == "release" || variant.name == "benchmark") {
+            val suffix = if (variant.name == "benchmark") "-benchmark" else ""
+            variant.outputs.forEach { output ->
+                output.outputFileName.set(
+                    "storyvox-v${android.defaultConfig.versionName}$suffix.apk"
+                )
             }
         }
     }
@@ -455,6 +453,12 @@ play {
     // half-uploaded edit from a prior run is hanging around, we override
     // it rather than failing the new release.
     resolutionStrategy.set(com.github.triplet.gradle.androidpublisher.ResolutionStrategy.IGNORE)
+}
+
+kotlin {
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+    }
 }
 
 dependencies {

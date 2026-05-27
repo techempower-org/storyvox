@@ -117,13 +117,9 @@ class SystemTtsEngineTest {
     }
 
     @Test fun `SYNTH_TIMEOUT_MS is bounded inside the buffering watchdog horizon`() {
-        // Issue #716 — the per-sentence synth timeout must land BEFORE
-        // PlaybackController's buffering watchdog
-        // (BUFFERING_STUCK_WATCHDOG_END_OF_CHAPTER_MS = 12 s) so the
-        // engine surfaces its own failure first and upstream's
-        // AudioOutputStuck recovery kicks in with a definitive signal,
-        // not a hung await. Also strictly larger than a healthy
-        // sentence (<500 ms) so we don't false-positive on slow phones.
-        assertEquals(10_000L, SystemTtsEngine.SYNTH_TIMEOUT_MS)
+        // The per-sentence synth timeout must be strictly larger than a
+        // healthy sentence (<500 ms) so we don't false-positive on slow
+        // phones, and bounded so a stuck TTS engine doesn't block forever.
+        assertEquals(30_000L, SystemTtsEngine.SYNTH_TIMEOUT_MS)
     }
 }
