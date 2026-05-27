@@ -25,6 +25,10 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withStyle
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.outlined.Clear
+import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.AccountCircle
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.AutoStories
@@ -39,6 +43,8 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.material3.Divider
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -94,6 +100,7 @@ import `in`.jphe.storyvox.feature.settings.components.StatusPill
 import `in`.jphe.storyvox.feature.settings.components.StatusTone
 import `in`.jphe.storyvox.ui.component.BrassButton
 import `in`.jphe.storyvox.ui.component.BrassButtonVariant
+import `in`.jphe.storyvox.ui.component.MagicTitleBar
 import `in`.jphe.storyvox.ui.component.SkeletonBlock
 import `in`.jphe.storyvox.ui.theme.LocalSpacing
 import android.widget.Toast
@@ -121,6 +128,10 @@ fun SettingsScreen(
      *  brass-edged card with toggle + capability chips + details
      *  sheet. Default no-op is preview/test-only. */
     onOpenPluginManager: () -> Unit = {},
+    /** #802 — back arrow in the search-bearing top bar. Default no-op
+     *  keeps preview/test callsites compiling; production wires it to
+     *  `navController.popBackStack()`. */
+    onNavigateBack: () -> Unit = {},
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -136,11 +147,78 @@ fun SettingsScreen(
         return
     }
 
-    Scaffold { padding ->
+    // #802 — search affordance for the legacy long page. The bar
+    // expands from a top-bar icon; an active query filters whole
+    // sections in/out via [matchesSettingsQuery] against the
+    // [SettingsSearchSections] index. Scroll state is hoisted here so
+    // clearing the search lands the user back where they were rather
+    // than at the top.
+    var searchExpanded by remember { mutableStateOf(false) }
+    var query by remember { mutableStateOf("") }
+    val scrollState = rememberScrollState()
+    val sectionVisible: (String) -> Boolean = { label ->
+        val section = SettingsSearchSections.firstOrNull { it.label == label }
+        section == null || matchesSettingsQuery(query, section)
+    }
+    Scaffold(
+        topBar = {
+            MagicTitleBar(
+                title = "All settings",
+                navigationIcon = {
+                    IconButton(onClick = onNavigateBack) {
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back",
+                        )
+                    }
+                },
+                actions = {
+                    IconButton(
+                        onClick = {
+                            searchExpanded = !searchExpanded
+                            if (!searchExpanded) query = ""
+                        },
+                    ) {
+                        Icon(
+                            imageVector = if (searchExpanded) Icons.Outlined.Close else Icons.Outlined.Search,
+                            contentDescription = if (searchExpanded) "Close search" else "Search settings",
+                        )
+                    }
+                },
+            )
+        },
+    ) { padding ->
     Column(
-        modifier = Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(spacing.md),
+        modifier = Modifier.fillMaxSize().padding(padding).verticalScroll(scrollState).padding(spacing.md),
         verticalArrangement = Arrangement.spacedBy(spacing.lg),
     ) {
+        // #802 — the search field only occupies space when expanded so
+        // the unfiltered page is unchanged from before this feature.
+        if (searchExpanded) {
+            OutlinedTextField(
+                value = query,
+                onValueChange = { query = it },
+                label = { Text("Search settings") },
+                singleLine = true,
+                leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null) },
+                trailingIcon = {
+                    if (query.isNotEmpty()) {
+                        IconButton(onClick = { query = "" }) {
+                            Icon(Icons.Outlined.Clear, contentDescription = "Clear search")
+                        }
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+            )
+            if (query.isNotBlank() && SettingsSearchSections.none { matchesSettingsQuery(query, it) }) {
+                Text(
+                    text = "No settings match “$query”.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(spacing.md),
+                )
+            }
+        }
         // ── 1. Voice & Playback ──────────────────────────────────────
         // The auditory knobs a listener touches *for this story, this
         // session*: which voice, how fast, how pitched, how to say
@@ -151,6 +229,7 @@ fun SettingsScreen(
         // from Performance & buffering — it's a *voice* preference, not
         // a perf knob. Section now answers "how does this voice sound?"
         // end-to-end.
+        if (sectionVisible("Voice & Playback")) {
         SectionHeading(
             label = "Voice & Playback",
             icon = Icons.Outlined.RecordVoiceOver,
@@ -265,6 +344,7 @@ fun SettingsScreen(
                 onClick = onOpenPronunciationDict,
             )
         }
+        }
 
         // ── 2. Reading ───────────────────────────────────────────────
         // Visual reading knobs. Theme today; future home for font size
@@ -272,6 +352,7 @@ fun SettingsScreen(
         // Sleep-shake also lives here for now (set-once switch); when
         // a dedicated Sleep & timers section materializes the
         // shake-to-extend toggle migrates there.
+        if (sectionVisible("Reading")) {
         SectionHeading(
             label = "Reading",
             icon = Icons.AutoMirrored.Outlined.MenuBook,
@@ -296,6 +377,7 @@ fun SettingsScreen(
                 onCheckedChange = viewModel::setSleepShakeToExtendEnabled,
             )
         }
+        }
 
         // ── 3. Performance & buffering ───────────────────────────────
         // Daily knobs visible up top; advanced/experimental knobs tucked
@@ -310,6 +392,7 @@ fun SettingsScreen(
         // either set-once preferences (warm-up, determinism) or deeply
         // experimental (parallel synth, #88). Punctuation cadence
         // moved to Voice & Playback in the same overhaul.
+        if (sectionVisible("Performance & buffering")) {
         SectionHeading(
             label = "Performance & buffering",
             icon = Icons.Outlined.Speed,
@@ -409,11 +492,13 @@ fun SettingsScreen(
                 )
             }
         }
+        }
 
         // ── 4. AI ────────────────────────────────────────────────────
         // Smart features — Recap, character lookup, Q&A chat in Reader.
         // Configure-once-per-provider; positioned between perf (engine
         // tuning) and library (network syncing).
+        if (sectionVisible("AI")) {
         SectionHeading(
             label = "AI",
             icon = Icons.Outlined.AutoAwesome,
@@ -470,6 +555,7 @@ fun SettingsScreen(
             onClick = onOpenAiSessions,
         )
         }
+        }
 
         // ── 5. Library & Sync ────────────────────────────────────────
         // Network preferences for keeping the library current. Renamed
@@ -487,6 +573,7 @@ fun SettingsScreen(
         // is gone; the section descriptor now carries that meaning,
         // and per-row subtitles convey actually-useful per-backend
         // hints (auth scope, file location).
+        if (sectionVisible("Library & Sync")) {
         SectionHeading(
             label = "Library & Sync",
             icon = Icons.AutoMirrored.Outlined.LibraryBooks,
@@ -605,11 +692,13 @@ fun SettingsScreen(
                 },
             )
         }
+        }
 
         // ── 6. Account ───────────────────────────────────────────────
         // Sign-in surfaces for fiction sources. Renamed from "Sources" —
         // the sources themselves don't have settings worth listing here
         // anymore (the feature is sign-in / sign-out + OAuth state).
+        if (sectionVisible("Account")) {
         SectionHeading(
             label = "Account",
             icon = Icons.Outlined.AccountCircle,
@@ -675,11 +764,13 @@ fun SettingsScreen(
                 onSetPrivateReposEnabled = viewModel::setGitHubPrivateReposEnabled,
             )
         }
+        }
 
         // ── 7. Memory Palace ─────────────────────────────────────────
         // Post-spec section — the palace is a fiction source with its
         // own host/key config (substantial enough to keep separate from
         // Account, which is just sign-in flows).
+        if (sectionVisible("Memory Palace")) {
         SectionHeading(
             label = "Memory Palace",
             icon = Icons.Outlined.AutoStories,
@@ -696,12 +787,14 @@ fun SettingsScreen(
                 onTest = viewModel::testPalaceConnection,
             )
         }
+        }
 
         // ── 8. Cloud Voices (#182) ───────────────────────────────────
         // BYOK config for Azure HD voices. Voice rows in the picker
         // stay greyed-out until PR-4 (the engine wiring) lands; this
         // section ships first as a "preparation" release so users can
         // configure their key ahead of the engine.
+        if (sectionVisible("Cloud voices")) {
         SectionHeading(
             label = "Cloud voices",
             icon = Icons.Outlined.Cloud,
@@ -723,6 +816,7 @@ fun SettingsScreen(
                 onSetFallbackVoice = viewModel::setAzureFallbackVoiceId,
             )
         }
+        }
 
         // ── 9. Developer ─────────────────────────────────────────────
         // Vesper (v0.4.97) — power-user diagnostics. The overlay master
@@ -732,6 +826,7 @@ fun SettingsScreen(
         // before About because both are "you only look here when
         // something's wrong" surfaces, and About is the very last
         // bookend.
+        if (sectionVisible("Developer")) {
         SectionHeading(
             label = "Developer",
             icon = Icons.Outlined.BugReport,
@@ -766,6 +861,7 @@ fun SettingsScreen(
                 onClick = { viewModel.resetOnboarding() },
             )
         }
+        }
 
         // ── 10. About ────────────────────────────────────────────────
         // Realm-sigil "name" is deterministic adjective+noun from the
@@ -773,6 +869,7 @@ fun SettingsScreen(
         // hash → same name across rebuilds. The brass sigil name is
         // the visual sign-off — full-width below the version line so
         // it doesn't crowd narrow screens.
+        if (sectionVisible("About")) {
         SectionHeading(
             label = "About",
             icon = Icons.Outlined.Info,
@@ -815,6 +912,7 @@ fun SettingsScreen(
                     MilestoneBadgePill()
                 }
             }
+        }
         }
 
         Box(modifier = Modifier.fillMaxWidth().padding(top = spacing.lg))

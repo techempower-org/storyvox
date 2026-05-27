@@ -998,6 +998,7 @@ private fun StoryvoxNavHostContent(
                     onOpenAiSessions = { navController.navigate(StoryvoxRoutes.SETTINGS_AI_SESSIONS) },
                     onOpenDebug = { navController.navigate(StoryvoxRoutes.SETTINGS_DEBUG) },
                     onOpenPluginManager = { navController.navigate(StoryvoxRoutes.SETTINGS_PLUGINS) },
+                    onNavigateBack = { navController.popBackStack() },
                 )
             }
             composable(
