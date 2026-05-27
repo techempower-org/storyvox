@@ -102,6 +102,22 @@ internal class WikisourceSource @Inject constructor(
      * to en.wikisource.org via [WikisourceApi.BASE_URL]. Replaced with
      * a real sort dimension since MediaWiki full-text search supports
      * `srsort` (relevance, newest, oldest).
+     *
+     * Issue #797 — Wikisource is a category-organized wiki. Surface its
+     * tree as filters:
+     *  - **Form** (`Category:Plays`, `Category:Novels`, …) drives the
+     *    browse category-walk away from the default quality tier toward
+     *    a genre slice.
+     *  - **Author** (`Author:Shakespeare`) walks the author namespace
+     *    category for that writer's transcribed works.
+     *  - **include_proofread** widens the quality tier from the curated
+     *    `Validated_texts` to also include `Proofread_texts` (~5x more
+     *    works, slightly lower transcription polish).
+     *
+     * The Form / Author selections resolve to a MediaWiki category walk
+     * inside [search]; they don't feed MediaWiki full-text search (which
+     * has no `Category:`/`Author:` keyword). [applyFilters] threads the
+     * resolved directives through [SearchQuery.tags] for [search] to read.
      */
     override fun filterDimensions(): List<FilterDimension> = listOf(
         FilterDimension.Sort(
@@ -111,47 +127,101 @@ internal class WikisourceSource @Inject constructor(
                 FilterDimension.SortOption("oldest", "Oldest"),
             ),
         ),
+        FilterDimension.Select(
+            key = FILTER_FORM,
+            label = "Form",
+            options = FORM_CATEGORIES,
+        ),
+        FilterDimension.Text(
+            key = FILTER_AUTHOR,
+            label = "Author",
+            placeholder = "e.g. Shakespeare, Dickens",
+        ),
+        FilterDimension.Toggle(
+            key = FILTER_INCLUDE_PROOFREAD,
+            label = "Include proofread (not yet validated) texts",
+            default = false,
+        ),
     )
 
     /**
-     * Translate the Sort filter into [SearchQuery.orderBy] / [direction].
-     * The [search] method reads them below to thread `srsort` through
-     * to the MediaWiki search API. Term is left untouched — pre-fix
-     * this was the bug.
+     * Translate the filters into a [SearchQuery]:
+     *  - **Sort** → [SearchQuery.orderBy] / [direction], threaded to
+     *    MediaWiki `srsort` in [search]. Term is left untouched —
+     *    pre-#809 stuffing the term was the bug.
+     *  - **Form / Author / include_proofread** → directive tokens stashed
+     *    in [SearchQuery.tags] (`form:Plays`, `author:Shakespeare`,
+     *    `proofread`). [search] reads these to pick a category walk over
+     *    full-text search. Tags is a free-form `Set<String>` carrier —
+     *    Wikisource has no Royal-Road-style tag search, so reusing it
+     *    here is unambiguous.
      */
     override fun applyFilters(base: SearchQuery, state: FilterState): SearchQuery {
-        val sort = state.stringVal("sort") ?: return base
-        return when (sort) {
-            "newest" -> base.copy(
+        var q = base
+        when (state.stringVal("sort")) {
+            "newest" -> q = q.copy(
                 orderBy = `in`.jphe.storyvox.data.source.model.SearchOrder.LAST_UPDATE,
                 direction = `in`.jphe.storyvox.data.source.model.SortDirection.DESC,
             )
-            "oldest" -> base.copy(
+            "oldest" -> q = q.copy(
                 orderBy = `in`.jphe.storyvox.data.source.model.SearchOrder.LAST_UPDATE,
                 direction = `in`.jphe.storyvox.data.source.model.SortDirection.ASC,
             )
-            else -> base // relevance is the default
+            // relevance / null → default, no change
         }
+
+        val directives = mutableSetOf<String>()
+        state.stringVal(FILTER_FORM)
+            ?.takeIf { it.isNotBlank() }
+            ?.let { directives += "form:$it" }
+        state.stringVal(FILTER_AUTHOR)
+            ?.trim()
+            ?.takeIf { it.isNotEmpty() }
+            ?.let { directives += "author:${it.replace(' ', '_')}" }
+        if (state.boolVal(FILTER_INCLUDE_PROOFREAD) == true) directives += "proofread"
+
+        return if (directives.isEmpty()) q else q.copy(tags = q.tags + directives)
     }
 
     // ─── browse ────────────────────────────────────────────────────────
 
-    override suspend fun popular(page: Int): FictionResult<ListPage<FictionSummary>> {
-        // Validated_texts isn't paginated for v1; a 50-entry first page
-        // covers the curated landing comfortably. Pages > 1 return empty
-        // so the paginator stops cleanly without a second network hop.
+    override suspend fun popular(page: Int): FictionResult<ListPage<FictionSummary>> =
+        // Unfiltered browse landing — the curated `Validated_texts`
+        // quality tier. Filtered browse routes through `search` (the UI
+        // wraps an active FilterState in BrowseSource.Filtered →
+        // applyFilters → search), so this stays the no-filter default.
+        categoryWalk(categories = listOf(VALIDATED_CATEGORY), page = page)
+
+    /**
+     * Issue #797 — fetch one or more categories and flatten into a single
+     * browse page. Multiple categories (the include_proofread union) are
+     * de-duplicated by fiction id so a work in both tiers shows once.
+     *
+     * Pages > 1 return empty so the non-paginated category landing stops
+     * the paginator cleanly without a second network hop.
+     */
+    private suspend fun categoryWalk(
+        categories: List<String>,
+        page: Int,
+    ): FictionResult<ListPage<FictionSummary>> {
         if (page > 1) return FictionResult.Success(ListPage(emptyList(), page, hasNext = false))
-        return when (val r = api.categoryMembers()) {
-            is FictionResult.Success ->
-                FictionResult.Success(
-                    ListPage(
-                        items = r.value.map { it.toSummary() },
-                        page = 1,
-                        hasNext = false,
-                    ),
-                )
-            is FictionResult.Failure -> r
+        val seen = LinkedHashMap<String, FictionSummary>()
+        for (category in categories) {
+            when (val r = api.categoryMembers(category = category)) {
+                is FictionResult.Success ->
+                    r.value.forEach { m ->
+                        val summary = m.toSummary()
+                        seen.putIfAbsent(summary.id, summary)
+                    }
+                // First category failing is fatal; a later category
+                // failing after we already have results degrades to
+                // whatever we collected rather than discarding it.
+                is FictionResult.Failure -> if (seen.isEmpty()) return r
+            }
         }
+        return FictionResult.Success(
+            ListPage(items = seen.values.toList(), page = 1, hasNext = false),
+        )
     }
 
     override suspend fun latestUpdates(page: Int): FictionResult<ListPage<FictionSummary>> =
@@ -173,8 +243,22 @@ internal class WikisourceSource @Inject constructor(
         FictionResult.Success(emptyList())
 
     override suspend fun search(query: SearchQuery): FictionResult<ListPage<FictionSummary>> {
-        val term = query.term.trim()
-        if (term.isEmpty()) return popular(1)
+        // Issue #797 — Form / quality-tier filters resolve to a category
+        // walk (MediaWiki full-text search has no `Category:` keyword).
+        // `applyFilters` stashed them in `tags` as `form:<Cat>` /
+        // `proofread` directives. Form wins over Author when both are set
+        // — the two can't intersect server-side (issue scope).
+        val categories = resolveFilterCategories(query.tags)
+        if (categories.isNotEmpty()) return categoryWalk(categories, query.page)
+
+        // Author has no reliable category, so it rides full-text search:
+        // fold the author name into the term alongside any typed query.
+        val author = resolveAuthorTerm(query.tags)
+        val term = listOfNotNull(query.term.trim().ifBlank { null }, author)
+            .joinToString(" ")
+            .trim()
+
+        if (term.isEmpty()) return popular(query.page)
         // Translate orderBy → MediaWiki srsort value. Only LAST_UPDATE
         // varies the default (relevance) — every other SearchOrder
         // collapses back to relevance because Wikisource search has no
@@ -355,6 +439,70 @@ internal class WikisourceSource @Inject constructor(
         followed: Boolean,
     ): FictionResult<Unit> = FictionResult.Success(Unit)
 }
+
+// ─── filter resolution (#797) ───────────────────────────────────────────
+
+internal const val FILTER_FORM: String = "form"
+internal const val FILTER_AUTHOR: String = "author"
+internal const val FILTER_INCLUDE_PROOFREAD: String = "include_proofread"
+
+/** The curated quality tier — every page double-proofread. Unfiltered
+ *  browse landing and the validated half of the proofread union. */
+internal const val VALIDATED_CATEGORY: String = "Category:Validated_texts"
+
+/** The broader quality tier — single-proofread, ~5x the breadth of
+ *  [VALIDATED_CATEGORY] at slightly lower transcription polish. Opt-in
+ *  via the include_proofread toggle. */
+internal const val PROOFREAD_CATEGORY: String = "Category:Proofread_texts"
+
+/** Form options surfaced by the Form Select dimension. Underscored to
+ *  match the Wikisource category slug; the UI label is the same string
+ *  with the underscore reading as a space ("Short stories"). */
+internal val FORM_CATEGORIES: List<String> =
+    listOf("Plays", "Novels", "Poetry", "Short_stories", "Essays", "Letters")
+
+/**
+ * Resolve the `applyFilters`-stashed directive tokens (in
+ * [SearchQuery.tags]) into the ordered list of MediaWiki categories to
+ * walk. Returns empty when no category-shaped filter is active (the
+ * caller then falls through to full-text search / the popular landing).
+ *
+ *  - `form:<Form>` → `[Category:<Form>]`. Wikisource gathers works of a
+ *    form (Plays, Novels, …) under a single mainspace category, so this
+ *    is a clean category walk.
+ *  - `proofread` (no form) → widen the default landing from the curated
+ *    `Validated_texts` to also include `Proofread_texts`.
+ *
+ * Author is deliberately *not* resolved here: Wikisource has no
+ * consistent "works by <author>" category (the `Author:` namespace page
+ * gathers a writer's works via templates, not a category), so author
+ * filtering rides MediaWiki full-text search via [SearchQuery.term]
+ * instead — see [WikisourceSource.search]. Form + Author can't intersect
+ * server-side, so when both are set the form category walk wins (issue
+ * #797 scope note).
+ */
+internal fun resolveFilterCategories(tags: Set<String>): List<String> {
+    val form = tags.firstOrNull { it.startsWith("form:") }
+        ?.removePrefix("form:")
+        ?.takeIf { it.isNotBlank() }
+    val proofread = "proofread" in tags
+
+    return when {
+        form != null -> listOf("Category:$form")
+        proofread -> listOf(VALIDATED_CATEGORY, PROOFREAD_CATEGORY)
+        else -> emptyList()
+    }
+}
+
+/** Pull the author name out of the `author:<Name>` directive token, if
+ *  present. Underscores (the slug form `applyFilters` stored) are
+ *  restored to spaces for the full-text query. */
+internal fun resolveAuthorTerm(tags: Set<String>): String? =
+    tags.firstOrNull { it.startsWith("author:") }
+        ?.removePrefix("author:")
+        ?.replace('_', ' ')
+        ?.trim()
+        ?.takeIf { it.isNotEmpty() }
 
 // ─── id encoding ──────────────────────────────────────────────────────
 

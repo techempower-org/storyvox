@@ -1,5 +1,12 @@
 package `in`.jphe.storyvox.source.wikisource
 
+import `in`.jphe.storyvox.data.source.filter.FilterDimension
+import `in`.jphe.storyvox.data.source.filter.FilterState
+import `in`.jphe.storyvox.data.source.filter.FilterValue
+import `in`.jphe.storyvox.data.source.model.SearchOrder
+import `in`.jphe.storyvox.data.source.model.SearchQuery
+import `in`.jphe.storyvox.data.source.model.SortDirection
+import `in`.jphe.storyvox.source.wikisource.net.WikisourceApi
 import `in`.jphe.storyvox.source.wikisource.net.WikisourceAllPagesEntry
 import `in`.jphe.storyvox.source.wikisource.net.WikisourceAllPagesQuery
 import `in`.jphe.storyvox.source.wikisource.net.WikisourceAllPagesResponse
@@ -254,6 +261,142 @@ class WikisourceSourceTest {
         assertEquals(null, "wikipedia:Hamlet".toWikisourceTitle())
         assertEquals(null, "royalroad:12345".toWikisourceTitle())
         assertEquals(null, "".toWikisourceTitle())
+    }
+
+    // ─── Filter dimensions & resolution (#797) ───────────────────────
+
+    // filterDimensions / applyFilters don't touch the network — a source
+    // backed by a bare API client is enough to exercise them.
+    private fun source(): WikisourceSource =
+        WikisourceSource(WikisourceApi(okhttp3.OkHttpClient()))
+
+    @Test
+    fun `filterDimensions exposes Sort, Form, Author and proofread toggle`() {
+        val dims = source().filterDimensions()
+        val keys = dims.map { it.key }
+        assertTrue(keys.contains("sort"))
+        assertTrue(keys.contains(FILTER_FORM))
+        assertTrue(keys.contains(FILTER_AUTHOR))
+        assertTrue(keys.contains(FILTER_INCLUDE_PROOFREAD))
+
+        val form = dims.first { it.key == FILTER_FORM } as FilterDimension.Select
+        assertEquals(
+            listOf("Plays", "Novels", "Poetry", "Short_stories", "Essays", "Letters"),
+            form.options,
+        )
+        val author = dims.first { it.key == FILTER_AUTHOR }
+        assertTrue(author is FilterDimension.Text)
+        val proofread = dims.first { it.key == FILTER_INCLUDE_PROOFREAD } as FilterDimension.Toggle
+        assertFalse(proofread.default)
+    }
+
+    @Test
+    fun `applyFilters threads form selection into tags`() {
+        val state = FilterState().with(FILTER_FORM, FilterValue.StringVal("Poetry"))
+        val q = source().applyFilters(SearchQuery(), state)
+        assertTrue(q.tags.contains("form:Poetry"))
+    }
+
+    @Test
+    fun `applyFilters slugifies author and threads it into tags`() {
+        val state = FilterState().with(FILTER_AUTHOR, FilterValue.StringVal("Walt Whitman"))
+        val q = source().applyFilters(SearchQuery(), state)
+        assertTrue(q.tags.contains("author:Walt_Whitman"))
+    }
+
+    @Test
+    fun `applyFilters threads proofread toggle into tags only when on`() {
+        val on = source().applyFilters(
+            SearchQuery(),
+            FilterState().with(FILTER_INCLUDE_PROOFREAD, FilterValue.BoolVal(true)),
+        )
+        assertTrue(on.tags.contains("proofread"))
+
+        val off = source().applyFilters(
+            SearchQuery(),
+            FilterState().with(FILTER_INCLUDE_PROOFREAD, FilterValue.BoolVal(false)),
+        )
+        assertFalse(off.tags.contains("proofread"))
+    }
+
+    @Test
+    fun `applyFilters still maps Sort newest and oldest to LAST_UPDATE`() {
+        val newest = source().applyFilters(
+            SearchQuery(),
+            FilterState().with("sort", FilterValue.StringVal("newest")),
+        )
+        assertEquals(SearchOrder.LAST_UPDATE, newest.orderBy)
+        assertEquals(SortDirection.DESC, newest.direction)
+
+        val oldest = source().applyFilters(
+            SearchQuery(),
+            FilterState().with("sort", FilterValue.StringVal("oldest")),
+        )
+        assertEquals(SearchOrder.LAST_UPDATE, oldest.orderBy)
+        assertEquals(SortDirection.ASC, oldest.direction)
+    }
+
+    @Test
+    fun `applyFilters with no active filters leaves the query untouched`() {
+        val base = SearchQuery(term = "hamlet")
+        assertEquals(base, source().applyFilters(base, FilterState()))
+    }
+
+    @Test
+    fun `resolveFilterCategories maps form to a single category`() {
+        assertEquals(
+            listOf("Category:Plays"),
+            resolveFilterCategories(setOf("form:Plays")),
+        )
+    }
+
+    @Test
+    fun `resolveFilterCategories unions quality tiers when only proofread is set`() {
+        assertEquals(
+            listOf("Category:Validated_texts", "Category:Proofread_texts"),
+            resolveFilterCategories(setOf("proofread")),
+        )
+    }
+
+    @Test
+    fun `resolveFilterCategories favors form over proofread when both present`() {
+        // Form already spans both tiers, so the proofread toggle is a
+        // no-op alongside an explicit form selection.
+        assertEquals(
+            listOf("Category:Novels"),
+            resolveFilterCategories(setOf("form:Novels", "proofread")),
+        )
+    }
+
+    @Test
+    fun `resolveFilterCategories ignores author and returns empty for full-text routing`() {
+        // Author has no reliable category — it must fall through to
+        // full-text search, so the category resolver returns nothing.
+        assertTrue(resolveFilterCategories(setOf("author:Walt_Whitman")).isEmpty())
+        assertTrue(resolveFilterCategories(emptySet()).isEmpty())
+    }
+
+    @Test
+    fun `resolveAuthorTerm un-slugifies the author back to a search term`() {
+        assertEquals("Walt Whitman", resolveAuthorTerm(setOf("author:Walt_Whitman")))
+        assertEquals(null, resolveAuthorTerm(setOf("form:Poetry")))
+        assertEquals(null, resolveAuthorTerm(emptySet()))
+    }
+
+    @Test
+    fun `end-to-end form plus author resolves to form category walk`() {
+        // Select form=Poetry + author=Whitman. Form + Author can't
+        // intersect server-side, so the form category walk wins and the
+        // author is dropped (issue #797 scope note). Verify the resolved
+        // SearchQuery the search path would act on.
+        val state = FilterState()
+            .with(FILTER_FORM, FilterValue.StringVal("Poetry"))
+            .with(FILTER_AUTHOR, FilterValue.StringVal("Whitman"))
+        val q = source().applyFilters(SearchQuery(), state)
+        assertEquals(listOf("Category:Poetry"), resolveFilterCategories(q.tags))
+        // The author token is still present for completeness, but the
+        // category walk short-circuits before it's consulted.
+        assertEquals("Whitman", resolveAuthorTerm(q.tags))
     }
 
     // ─── Wire-model defaults ─────────────────────────────────────────
