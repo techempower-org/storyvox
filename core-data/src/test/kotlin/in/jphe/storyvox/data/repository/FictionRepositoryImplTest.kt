@@ -119,6 +119,14 @@ class FictionRepositoryImplTest {
             publish(fiction.id)
         }
 
+        override suspend fun upsertMany(fictions: List<Fiction>) {
+            for (f in fictions) {
+                callLog += "upsertMany(${f.id})"
+                rows[f.id] = f
+                publish(f.id)
+            }
+        }
+
         override suspend fun update(fiction: Fiction) {
             rows[fiction.id] = fiction
             publish(fiction.id)
