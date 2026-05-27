@@ -2952,13 +2952,23 @@ class EnginePlayer @AssistedInject constructor(
                             break
                         }
                     }
+                    // #877 — no flush() on the natural-end path. The
+                    // drain loop above either proved every frame reached
+                    // the speaker (playbackHeadPosition >= targetFrames)
+                    // or broke because stopPlaybackPipeline raced ahead
+                    // and already paused+flushed our track. In the first
+                    // case flush() would discard the final ~5-10 ms of
+                    // PCM the HW hadn't quite finished latching, clipping
+                    // the last word of the chapter; in the second it's
+                    // redundant. pause() before release() is enough —
+                    // releasing a drained (or already-flushed) track is
+                    // idempotent.
                     runCatching { track.pause() }
-                    runCatching { track.flush() }
                     runCatching { track.release() }
                     android.util.Log.i(
                         "EnginePlayer",
                         "post-finally: HW buffer drained, AudioTrack released " +
-                            "(target=$targetFrames frames, naturalEnd path)",
+                            "(target=$targetFrames frames, naturalEnd path, no flush #877)",
                     )
                     return@Thread
                 }
