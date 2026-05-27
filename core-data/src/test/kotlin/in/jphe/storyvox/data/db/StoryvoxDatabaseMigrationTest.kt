@@ -12,6 +12,7 @@ import `in`.jphe.storyvox.data.db.migration.MIGRATION_5_6
 import `in`.jphe.storyvox.data.db.migration.MIGRATION_6_7
 import `in`.jphe.storyvox.data.db.migration.MIGRATION_7_8
 import `in`.jphe.storyvox.data.db.migration.MIGRATION_8_9
+import `in`.jphe.storyvox.data.db.migration.MIGRATION_9_10
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
@@ -130,10 +131,18 @@ class StoryvoxDatabaseMigrationTest {
         // bumped, so opening the file without the v8 → v9 migration
         // would fail.
         helper.runMigrationsAndValidate(dbName, 9, true, MIGRATION_8_9).close()
+        // #890/#889/#884 — v10 adds the missing query indexes. Chain
+        // through so the Room.databaseBuilder below (targeting the
+        // latest version) can open the file without a missing-migration
+        // failure.
+        helper.runMigrationsAndValidate(dbName, 10, true, MIGRATION_9_10).close()
 
         val ctx = org.robolectric.RuntimeEnvironment.getApplication() as android.content.Context
         val db = Room.databaseBuilder(ctx, StoryvoxDatabase::class.java, dbName)
-            .addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
+            .addMigrations(
+                MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8,
+                MIGRATION_8_9, MIGRATION_9_10,
+            )
             .build()
 
         try {
@@ -287,10 +296,15 @@ class StoryvoxDatabaseMigrationTest {
         // #217 — chain through v9 (fiction_memory_entry) so the
         // Room.databaseBuilder below can open at the latest version.
         helper.runMigrationsAndValidate(dbName, 9, true, MIGRATION_8_9).close()
+        // #890/#889/#884 — chain through v10 (missing query indexes).
+        helper.runMigrationsAndValidate(dbName, 10, true, MIGRATION_9_10).close()
 
         val ctx = org.robolectric.RuntimeEnvironment.getApplication() as android.content.Context
         val db = Room.databaseBuilder(ctx, StoryvoxDatabase::class.java, dbName)
-            .addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
+            .addMigrations(
+                MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8,
+                MIGRATION_8_9, MIGRATION_9_10,
+            )
             .build()
 
         try {
@@ -363,6 +377,62 @@ class StoryvoxDatabaseMigrationTest {
                 indexes.any { it == "index_fiction_memory_entry_fictionId" },
             )
         }
+
+        db.close()
+    }
+
+    /**
+     * Issues #890 / #889 / #884 — v10 adds the missing composite query
+     * indexes that previously forced full-table scans:
+     *  - `fiction(inLibrary, addedToLibraryAt)` — `observeLibrary`
+     *  - `fiction(followedRemotely, lastUpdatedAt)` — `observeFollowsRemote`
+     *  - `chapter(fictionId, userMarkedRead)` — `unreadChapters`
+     *  - `inbox_event(sourceId, fictionId)` — Inbox source/fiction lookup
+     *
+     * Purely additive — no tables or rows touched. The test chains a
+     * fresh v4 db up to v9, then validates the 9→10 step and asserts
+     * each index exists on its table.
+     */
+    @Test fun `migrate v9 to v10 creates missing query indexes`() {
+        val dbName = "missing-indexes-migration-test.db"
+        helper.createDatabase(dbName, 4).close()
+        helper.runMigrationsAndValidate(dbName, 5, true, MIGRATION_4_5).close()
+        helper.runMigrationsAndValidate(dbName, 6, true, MIGRATION_5_6).close()
+        helper.runMigrationsAndValidate(dbName, 7, true, MIGRATION_6_7).close()
+        helper.runMigrationsAndValidate(dbName, 8, true, MIGRATION_7_8).close()
+        helper.runMigrationsAndValidate(dbName, 9, true, MIGRATION_8_9).close()
+
+        val db = helper.runMigrationsAndValidate(
+            dbName,
+            10,
+            /* validateDroppedTables = */ true,
+            MIGRATION_9_10,
+        )
+
+        fun indexesOn(table: String): List<String> =
+            db.query(
+                "SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='$table'",
+            ).use { c ->
+                buildList { while (c.moveToNext()) add(c.getString(0)) }
+            }
+
+        val fictionIdx = indexesOn("fiction")
+        assertTrue(
+            "index_fiction_inLibrary_addedToLibraryAt must exist (observeLibrary)",
+            fictionIdx.any { it == "index_fiction_inLibrary_addedToLibraryAt" },
+        )
+        assertTrue(
+            "index_fiction_followedRemotely_lastUpdatedAt must exist (observeFollowsRemote)",
+            fictionIdx.any { it == "index_fiction_followedRemotely_lastUpdatedAt" },
+        )
+        assertTrue(
+            "index_chapter_fictionId_userMarkedRead must exist (unreadChapters)",
+            indexesOn("chapter").any { it == "index_chapter_fictionId_userMarkedRead" },
+        )
+        assertTrue(
+            "index_inbox_event_sourceId_fictionId must exist (Inbox lookup)",
+            indexesOn("inbox_event").any { it == "index_inbox_event_sourceId_fictionId" },
+        )
 
         db.close()
     }

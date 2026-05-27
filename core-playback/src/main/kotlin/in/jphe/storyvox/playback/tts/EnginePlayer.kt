@@ -2952,13 +2952,23 @@ class EnginePlayer @AssistedInject constructor(
                             break
                         }
                     }
+                    // #877 — no flush() on the natural-end path. The
+                    // drain loop above either proved every frame reached
+                    // the speaker (playbackHeadPosition >= targetFrames)
+                    // or broke because stopPlaybackPipeline raced ahead
+                    // and already paused+flushed our track. In the first
+                    // case flush() would discard the final ~5-10 ms of
+                    // PCM the HW hadn't quite finished latching, clipping
+                    // the last word of the chapter; in the second it's
+                    // redundant. pause() before release() is enough —
+                    // releasing a drained (or already-flushed) track is
+                    // idempotent.
                     runCatching { track.pause() }
-                    runCatching { track.flush() }
                     runCatching { track.release() }
                     android.util.Log.i(
                         "EnginePlayer",
                         "post-finally: HW buffer drained, AudioTrack released " +
-                            "(target=$targetFrames frames, naturalEnd path)",
+                            "(target=$targetFrames frames, naturalEnd path, no flush #877)",
                     )
                     return@Thread
                 }
@@ -2967,7 +2977,14 @@ class EnginePlayer @AssistedInject constructor(
                 // for the JNI-safety reason in the pre-#573 comment:
                 // releasing from Main while a write() is in flight on
                 // this consumer thread races and can JNI-crash.
-                runCatching { track.pause() }
+                //
+                // #904 — pause() is NOT called here: this path is only
+                // reached after stopPlaybackPipeline flipped
+                // pipelineRunning=false, and that same call already
+                // pause()d the track (its unblock primitive). Calling
+                // pause() again would be a second owner of pause() on a
+                // track main already paused. flush() + release() are
+                // owned solely by this thread.
                 runCatching { track.flush() }
                 runCatching { track.release() }
                 if (paused) {
@@ -3141,17 +3158,33 @@ class EnginePlayer @AssistedInject constructor(
     private fun stopPlaybackPipeline() {
         // Shutdown handshake:
         //  1. Signal stop via the run flag.
-        //  2. Pause + flush the AudioTrack so any currently-blocked
-        //     write() returns immediately (ring buffer has space again).
+        //  2. pause() the AudioTrack so any currently-blocked write()
+        //     returns immediately (a paused track stops draining its
+        //     ring buffer, which unblocks the blocking-mode write() the
+        //     consumer is parked in). pause() is the *only* track method
+        //     main touches; it is the unblock primitive. We deliberately
+        //     do NOT flush()/release() here — see #904.
         //  3. Close the source (cancels its producer; offers the END
         //     pill so the consumer's nextChunk returns null promptly).
         //  4. Interrupt + join the consumer thread (so a runBlocking
         //     parked inside nextChunk wakes up).
-        //  5. The consumer's own finally block does the AudioTrack
-        //     release — *not* main thread — so we can't race a write().
-        //     If join times out we still don't release ourselves; the
-        //     consumer will finish its current write and clean up
-        //     whenever it gets there.
+        //  5. The consumer's own finally block does flush() + release()
+        //     — *not* main thread — so we can't race a write() and, per
+        //     #904, can't race the consumer's release() with a main-side
+        //     flush() on the same dying handle. If join times out we
+        //     still don't touch the track ourselves; the consumer will
+        //     finish its current write and clean up whenever it gets
+        //     there.
+        //
+        // #904 — flush() previously ran here too, but it raced the
+        // consumer's finally-block release() on the natural-end drain
+        // path (both threads operating on the same AudioTrack, with the
+        // consumer's release() invalidating the handle out from under
+        // main's flush(), costing a swallowed IllegalStateException +
+        // logcat noise on every concurrent shutdown). flush() now has a
+        // single owner: the consumer thread. main only pause()s to
+        // unblock the parked write; pause() is idempotent w.r.t. the
+        // consumer's subsequent flush()/release().
         pipelineRunning.set(false)
         // Issue #540 — also clear the user-pause flag so the consumer's
         // park branch exits promptly. The pipelineRunning=false above
@@ -3164,7 +3197,6 @@ class EnginePlayer @AssistedInject constructor(
         audioTrack = null
         track?.let {
             runCatching { it.pause() }
-            runCatching { it.flush() }
         }
 
         val src = pcmSource

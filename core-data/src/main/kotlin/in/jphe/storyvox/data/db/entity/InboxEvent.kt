@@ -42,6 +42,7 @@ import androidx.room.PrimaryKey
     indices = [
         Index(value = ["ts"]),
         Index(value = ["isRead"]),
+        Index(value = ["sourceId", "fictionId"]),
     ],
 )
 data class InboxEvent(

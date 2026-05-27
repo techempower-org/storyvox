@@ -16,6 +16,8 @@ import `in`.jphe.storyvox.data.source.model.FictionStatus
         Index(value = ["inLibrary"]),
         Index(value = ["followedRemotely"]),
         Index(value = ["sourceId", "lastUpdatedAt"]),
+        Index(value = ["inLibrary", "addedToLibraryAt"]),
+        Index(value = ["followedRemotely", "lastUpdatedAt"]),
     ],
 )
 data class Fiction(

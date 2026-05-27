@@ -322,6 +322,15 @@ class FictionRepositoryImplTest {
             publishInfo(fictionId)
         }
 
+        override suspend fun chapterIdsForFiction(fictionId: String): List<String> =
+            rows.values.filter { it.fictionId == fictionId }.map { it.id }
+
+        override suspend fun deleteByIds(ids: List<String>) {
+            callLog += "deleteByIds($ids)"
+            val affected = ids.mapNotNull { rows.remove(it)?.fictionId }.toSet()
+            affected.forEach(::publishInfo)
+        }
+
         override suspend fun insertAll(chapters: List<Chapter>) {
             callLog += "insertAll(${chapters.map { it.id }})"
             chapters.forEach { rows[it.id] = it }
@@ -581,18 +590,23 @@ class FictionRepositoryImplTest {
         assertEquals("chapter 0", merged.title)
     }
 
-    @Test fun `refreshDetail deletes existing chapters before insert (issues #349, #652)`() = runTest {
+    @Test fun `refreshDetail prunes chapters dropped from the feed (issues #349, #652, #879)`() = runTest {
         // Issues #349 / #652 — RSS feeds reorder; a chapter permanently
         // dropped from a feed used to leave an orphan parked row that
         // eventually collided with a live row on its next refresh
         // (tablet R83W80CAFZB Notion Guides v0.5.65 crash, issue #652).
-        // The fix is DELETE-then-INSERT inside @Transaction: every
-        // refresh fully replaces the per-fiction chapter list, so
-        // orphan rows can never accumulate to trigger the UNIQUE
-        // constraint. Verify the repository hits that path instead of
-        // a bare upsertAll — the body merge happens in [upsertDetail]
-        // before this DAO call, so dropped-then-readded chapters keep
-        // their body via the per-PK lookup, not via the DAO.
+        //
+        // #879 reworked the original DELETE-then-INSERT into a diff-based
+        // park → upsert → prune inside @Transaction: surviving ids are
+        // upserted in place (so a chapter still in the feed keeps its
+        // downloaded body / read flags), and only ids that genuinely
+        // vanished from the feed are deleted. This both fixes the orphan
+        // accumulation #652 cared about and stops the gratuitous
+        // delete/cascade of still-present rows.
+        //
+        // Seed two chapters, return a one-chapter feed: c0 survives
+        // (upserted), c1 is gone (pruned). Verify the prune targets only
+        // the dropped id and runs after the upsert.
         val src = FakeSource(SourceIds.ROYAL_ROAD).apply {
             detailResult = FictionResult.Success(detail("99", chapterCount = 1))
         }
@@ -601,13 +615,26 @@ class FictionRepositoryImplTest {
             id = "99-c0", fictionId = "99", sourceChapterId = "src-0",
             index = 0, title = "existing", downloadState = ChapterDownloadState.NOT_DOWNLOADED,
         )
+        chapterDao.rows["99-c1"] = Chapter(
+            id = "99-c1", fictionId = "99", sourceChapterId = "src-1",
+            index = 1, title = "dropped", downloadState = ChapterDownloadState.NOT_DOWNLOADED,
+        )
 
         r.refreshDetail("99")
 
-        val deleteIdx = chapterDao.callLog.indexOfFirst { it == "deleteByFictionId(99)" }
-        val insertIdx = chapterDao.callLog.indexOfFirst { it.startsWith("insertAll(") }
-        assertTrue("deleteByFictionId must run", deleteIdx >= 0)
-        assertTrue("insertAll must run after delete", insertIdx > deleteIdx)
+        val upsertIdx = chapterDao.callLog.indexOfFirst { it.startsWith("upsertAll(") }
+        val deleteIdx = chapterDao.callLog.indexOfFirst { it.startsWith("deleteByIds(") }
+        assertTrue("upsertAll must run", upsertIdx >= 0)
+        assertTrue("dropped chapter must be pruned via deleteByIds", deleteIdx >= 0)
+        assertTrue("prune of stale ids happens after the upsert", deleteIdx > upsertIdx)
+        assertTrue(
+            "only the dropped chapter is pruned, not the surviving one",
+            chapterDao.callLog.any {
+                it.startsWith("deleteByIds(") && it.contains("99-c1") && !it.contains("99-c0")
+            },
+        )
+        assertTrue("surviving chapter stays in the table", chapterDao.rows.containsKey("99-c0"))
+        assertTrue("dropped chapter is removed from the table", !chapterDao.rows.containsKey("99-c1"))
     }
 
     // -- refreshRemoteFollows ---------------------------------------------------

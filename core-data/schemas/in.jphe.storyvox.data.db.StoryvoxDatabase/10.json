@@ -1,0 +1,974 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 10,
+    "identityHash": "7a0d0a27a4d73bee3df940517f0628db",
+    "entities": [
+      {
+        "tableName": "fiction",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `sourceId` TEXT NOT NULL, `title` TEXT NOT NULL, `author` TEXT NOT NULL, `authorId` TEXT, `coverUrl` TEXT, `description` TEXT, `genres` TEXT NOT NULL, `tags` TEXT NOT NULL, `status` TEXT NOT NULL, `chapterCount` INTEGER NOT NULL, `wordCount` INTEGER, `rating` REAL, `views` INTEGER, `followers` INTEGER, `lastUpdatedAt` INTEGER, `firstSeenAt` INTEGER NOT NULL, `metadataFetchedAt` INTEGER NOT NULL, `inLibrary` INTEGER NOT NULL, `addedToLibraryAt` INTEGER, `followedRemotely` INTEGER NOT NULL, `downloadMode` TEXT, `pinnedVoiceId` TEXT, `pinnedVoiceLocale` TEXT, `notesEverSeen` INTEGER NOT NULL, `lastSeenRevision` TEXT, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sourceId",
+            "columnName": "sourceId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "title",
+            "columnName": "title",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "author",
+            "columnName": "author",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "authorId",
+            "columnName": "authorId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "coverUrl",
+            "columnName": "coverUrl",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "description",
+            "columnName": "description",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "genres",
+            "columnName": "genres",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "tags",
+            "columnName": "tags",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "status",
+            "columnName": "status",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "chapterCount",
+            "columnName": "chapterCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "wordCount",
+            "columnName": "wordCount",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "rating",
+            "columnName": "rating",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "views",
+            "columnName": "views",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "followers",
+            "columnName": "followers",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "lastUpdatedAt",
+            "columnName": "lastUpdatedAt",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "firstSeenAt",
+            "columnName": "firstSeenAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "metadataFetchedAt",
+            "columnName": "metadataFetchedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "inLibrary",
+            "columnName": "inLibrary",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "addedToLibraryAt",
+            "columnName": "addedToLibraryAt",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "followedRemotely",
+            "columnName": "followedRemotely",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "downloadMode",
+            "columnName": "downloadMode",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "pinnedVoiceId",
+            "columnName": "pinnedVoiceId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "pinnedVoiceLocale",
+            "columnName": "pinnedVoiceLocale",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "notesEverSeen",
+            "columnName": "notesEverSeen",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastSeenRevision",
+            "columnName": "lastSeenRevision",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_fiction_inLibrary",
+            "unique": false,
+            "columnNames": [
+              "inLibrary"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_fiction_inLibrary` ON `${TABLE_NAME}` (`inLibrary`)"
+          },
+          {
+            "name": "index_fiction_followedRemotely",
+            "unique": false,
+            "columnNames": [
+              "followedRemotely"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_fiction_followedRemotely` ON `${TABLE_NAME}` (`followedRemotely`)"
+          },
+          {
+            "name": "index_fiction_sourceId_lastUpdatedAt",
+            "unique": false,
+            "columnNames": [
+              "sourceId",
+              "lastUpdatedAt"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_fiction_sourceId_lastUpdatedAt` ON `${TABLE_NAME}` (`sourceId`, `lastUpdatedAt`)"
+          },
+          {
+            "name": "index_fiction_inLibrary_addedToLibraryAt",
+            "unique": false,
+            "columnNames": [
+              "inLibrary",
+              "addedToLibraryAt"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_fiction_inLibrary_addedToLibraryAt` ON `${TABLE_NAME}` (`inLibrary`, `addedToLibraryAt`)"
+          },
+          {
+            "name": "index_fiction_followedRemotely_lastUpdatedAt",
+            "unique": false,
+            "columnNames": [
+              "followedRemotely",
+              "lastUpdatedAt"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_fiction_followedRemotely_lastUpdatedAt` ON `${TABLE_NAME}` (`followedRemotely`, `lastUpdatedAt`)"
+          }
+        ]
+      },
+      {
+        "tableName": "chapter",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `fictionId` TEXT NOT NULL, `sourceChapterId` TEXT NOT NULL, `index` INTEGER NOT NULL, `title` TEXT NOT NULL, `publishedAt` INTEGER, `wordCount` INTEGER, `htmlBody` TEXT, `plainBody` TEXT, `bodyFetchedAt` INTEGER, `bodyChecksum` TEXT, `downloadState` TEXT NOT NULL, `lastDownloadAttemptAt` INTEGER, `lastDownloadError` TEXT, `notesAuthor` TEXT, `notesAuthorPosition` TEXT, `userMarkedRead` INTEGER NOT NULL, `firstReadAt` INTEGER, `bookmarkCharOffset` INTEGER, `audioUrl` TEXT, PRIMARY KEY(`id`), FOREIGN KEY(`fictionId`) REFERENCES `fiction`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fictionId",
+            "columnName": "fictionId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sourceChapterId",
+            "columnName": "sourceChapterId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "index",
+            "columnName": "index",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "title",
+            "columnName": "title",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "publishedAt",
+            "columnName": "publishedAt",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "wordCount",
+            "columnName": "wordCount",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "htmlBody",
+            "columnName": "htmlBody",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "plainBody",
+            "columnName": "plainBody",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "bodyFetchedAt",
+            "columnName": "bodyFetchedAt",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "bodyChecksum",
+            "columnName": "bodyChecksum",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "downloadState",
+            "columnName": "downloadState",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastDownloadAttemptAt",
+            "columnName": "lastDownloadAttemptAt",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "lastDownloadError",
+            "columnName": "lastDownloadError",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "notesAuthor",
+            "columnName": "notesAuthor",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "notesAuthorPosition",
+            "columnName": "notesAuthorPosition",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "userMarkedRead",
+            "columnName": "userMarkedRead",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "firstReadAt",
+            "columnName": "firstReadAt",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "bookmarkCharOffset",
+            "columnName": "bookmarkCharOffset",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "audioUrl",
+            "columnName": "audioUrl",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_chapter_fictionId",
+            "unique": false,
+            "columnNames": [
+              "fictionId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_chapter_fictionId` ON `${TABLE_NAME}` (`fictionId`)"
+          },
+          {
+            "name": "index_chapter_fictionId_index",
+            "unique": true,
+            "columnNames": [
+              "fictionId",
+              "index"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_chapter_fictionId_index` ON `${TABLE_NAME}` (`fictionId`, `index`)"
+          },
+          {
+            "name": "index_chapter_downloadState",
+            "unique": false,
+            "columnNames": [
+              "downloadState"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_chapter_downloadState` ON `${TABLE_NAME}` (`downloadState`)"
+          },
+          {
+            "name": "index_chapter_fictionId_userMarkedRead",
+            "unique": false,
+            "columnNames": [
+              "fictionId",
+              "userMarkedRead"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_chapter_fictionId_userMarkedRead` ON `${TABLE_NAME}` (`fictionId`, `userMarkedRead`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "fiction",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "fictionId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "playback_position",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`fictionId` TEXT NOT NULL, `chapterId` TEXT NOT NULL, `charOffset` INTEGER NOT NULL, `paragraphIndex` INTEGER NOT NULL, `playbackSpeed` REAL NOT NULL, `durationEstimateMs` INTEGER NOT NULL, `updatedAt` INTEGER NOT NULL, PRIMARY KEY(`fictionId`), FOREIGN KEY(`fictionId`) REFERENCES `fiction`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE , FOREIGN KEY(`chapterId`) REFERENCES `chapter`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "fictionId",
+            "columnName": "fictionId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "chapterId",
+            "columnName": "chapterId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "charOffset",
+            "columnName": "charOffset",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "paragraphIndex",
+            "columnName": "paragraphIndex",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "playbackSpeed",
+            "columnName": "playbackSpeed",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "durationEstimateMs",
+            "columnName": "durationEstimateMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAt",
+            "columnName": "updatedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "fictionId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_playback_position_chapterId",
+            "unique": false,
+            "columnNames": [
+              "chapterId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_playback_position_chapterId` ON `${TABLE_NAME}` (`chapterId`)"
+          },
+          {
+            "name": "index_playback_position_updatedAt",
+            "unique": false,
+            "columnNames": [
+              "updatedAt"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_playback_position_updatedAt` ON `${TABLE_NAME}` (`updatedAt`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "fiction",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "fictionId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          },
+          {
+            "table": "chapter",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "chapterId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "auth_cookie",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`sourceId` TEXT NOT NULL, `userDisplayName` TEXT, `userId` TEXT, `capturedAt` INTEGER NOT NULL, `expiresAt` INTEGER, `lastVerifiedAt` INTEGER NOT NULL, PRIMARY KEY(`sourceId`))",
+        "fields": [
+          {
+            "fieldPath": "sourceId",
+            "columnName": "sourceId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "userDisplayName",
+            "columnName": "userDisplayName",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "userId",
+            "columnName": "userId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "capturedAt",
+            "columnName": "capturedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "expiresAt",
+            "columnName": "expiresAt",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "lastVerifiedAt",
+            "columnName": "lastVerifiedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "sourceId"
+          ]
+        }
+      },
+      {
+        "tableName": "llm_session",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `name` TEXT NOT NULL, `provider` TEXT NOT NULL, `model` TEXT NOT NULL, `systemPrompt` TEXT, `createdAt` INTEGER NOT NULL, `lastUsedAt` INTEGER NOT NULL, `featureKind` TEXT, `anchorFictionId` TEXT, `anchorChapterId` TEXT, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "provider",
+            "columnName": "provider",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "model",
+            "columnName": "model",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "systemPrompt",
+            "columnName": "systemPrompt",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "createdAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastUsedAt",
+            "columnName": "lastUsedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "featureKind",
+            "columnName": "featureKind",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "anchorFictionId",
+            "columnName": "anchorFictionId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "anchorChapterId",
+            "columnName": "anchorChapterId",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        }
+      },
+      {
+        "tableName": "llm_message",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `sessionId` TEXT NOT NULL, `role` TEXT NOT NULL, `content` TEXT NOT NULL, `createdAt` INTEGER NOT NULL, FOREIGN KEY(`sessionId`) REFERENCES `llm_session`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sessionId",
+            "columnName": "sessionId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "role",
+            "columnName": "role",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "content",
+            "columnName": "content",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "createdAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_llm_message_sessionId",
+            "unique": false,
+            "columnNames": [
+              "sessionId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_llm_message_sessionId` ON `${TABLE_NAME}` (`sessionId`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "llm_session",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "sessionId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "fiction_shelf",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`fictionId` TEXT NOT NULL, `shelf` TEXT NOT NULL, `addedAt` INTEGER NOT NULL, PRIMARY KEY(`fictionId`, `shelf`), FOREIGN KEY(`fictionId`) REFERENCES `fiction`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "fictionId",
+            "columnName": "fictionId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "shelf",
+            "columnName": "shelf",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "addedAt",
+            "columnName": "addedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "fictionId",
+            "shelf"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_fiction_shelf_shelf",
+            "unique": false,
+            "columnNames": [
+              "shelf"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_fiction_shelf_shelf` ON `${TABLE_NAME}` (`shelf`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "fiction",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "fictionId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "chapter_history",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`fictionId` TEXT NOT NULL, `chapterId` TEXT NOT NULL, `openedAt` INTEGER NOT NULL, `completed` INTEGER NOT NULL, `fractionRead` REAL, PRIMARY KEY(`fictionId`, `chapterId`), FOREIGN KEY(`fictionId`) REFERENCES `fiction`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE , FOREIGN KEY(`chapterId`) REFERENCES `chapter`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "fictionId",
+            "columnName": "fictionId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "chapterId",
+            "columnName": "chapterId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "openedAt",
+            "columnName": "openedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "completed",
+            "columnName": "completed",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fractionRead",
+            "columnName": "fractionRead",
+            "affinity": "REAL"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "fictionId",
+            "chapterId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_chapter_history_openedAt",
+            "unique": false,
+            "columnNames": [
+              "openedAt"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_chapter_history_openedAt` ON `${TABLE_NAME}` (`openedAt`)"
+          },
+          {
+            "name": "index_chapter_history_chapterId",
+            "unique": false,
+            "columnNames": [
+              "chapterId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_chapter_history_chapterId` ON `${TABLE_NAME}` (`chapterId`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "fiction",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "fictionId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          },
+          {
+            "table": "chapter",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "chapterId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "inbox_event",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `sourceId` TEXT NOT NULL, `fictionId` TEXT, `chapterId` TEXT, `title` TEXT NOT NULL, `body` TEXT, `ts` INTEGER NOT NULL, `isRead` INTEGER NOT NULL, `deepLinkUri` TEXT)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sourceId",
+            "columnName": "sourceId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fictionId",
+            "columnName": "fictionId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "chapterId",
+            "columnName": "chapterId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "title",
+            "columnName": "title",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "body",
+            "columnName": "body",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "ts",
+            "columnName": "ts",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isRead",
+            "columnName": "isRead",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "deepLinkUri",
+            "columnName": "deepLinkUri",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_inbox_event_ts",
+            "unique": false,
+            "columnNames": [
+              "ts"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_inbox_event_ts` ON `${TABLE_NAME}` (`ts`)"
+          },
+          {
+            "name": "index_inbox_event_isRead",
+            "unique": false,
+            "columnNames": [
+              "isRead"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_inbox_event_isRead` ON `${TABLE_NAME}` (`isRead`)"
+          },
+          {
+            "name": "index_inbox_event_sourceId_fictionId",
+            "unique": false,
+            "columnNames": [
+              "sourceId",
+              "fictionId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_inbox_event_sourceId_fictionId` ON `${TABLE_NAME}` (`sourceId`, `fictionId`)"
+          }
+        ]
+      },
+      {
+        "tableName": "fiction_memory_entry",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`fictionId` TEXT NOT NULL, `entityType` TEXT NOT NULL, `name` TEXT NOT NULL, `summary` TEXT NOT NULL, `firstSeenChapterIndex` INTEGER, `lastUpdated` INTEGER NOT NULL, `userEdited` INTEGER NOT NULL, PRIMARY KEY(`fictionId`, `name`))",
+        "fields": [
+          {
+            "fieldPath": "fictionId",
+            "columnName": "fictionId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "entityType",
+            "columnName": "entityType",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "summary",
+            "columnName": "summary",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "firstSeenChapterIndex",
+            "columnName": "firstSeenChapterIndex",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "lastUpdated",
+            "columnName": "lastUpdated",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "userEdited",
+            "columnName": "userEdited",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "fictionId",
+            "name"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_fiction_memory_entry_name",
+            "unique": false,
+            "columnNames": [
+              "name"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_fiction_memory_entry_name` ON `${TABLE_NAME}` (`name`)"
+          },
+          {
+            "name": "index_fiction_memory_entry_fictionId",
+            "unique": false,
+            "columnNames": [
+              "fictionId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_fiction_memory_entry_fictionId` ON `${TABLE_NAME}` (`fictionId`)"
+          }
+        ]
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '7a0d0a27a4d73bee3df940517f0628db')"
+    ]
+  }
+}

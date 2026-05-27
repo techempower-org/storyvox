@@ -132,6 +132,14 @@ class ChapterRepositoryImplTest {
             }
         }
 
+        override suspend fun chapterIdsForFiction(fictionId: String): List<String> =
+            rows.values.filter { it.fictionId == fictionId }.map { it.id }
+
+        override suspend fun deleteByIds(ids: List<String>) {
+            callLog += "deleteByIds($ids)"
+            ids.forEach { id -> rows.remove(id); publishRow(id) }
+        }
+
         override suspend fun insertAll(chapters: List<Chapter>) {
             callLog += "insertAll(${chapters.map { it.id }})"
             chapters.forEach { rows[it.id] = it; publishRow(it.id) }

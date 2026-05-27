@@ -50,7 +50,7 @@ import `in`.jphe.storyvox.data.db.entity.PlaybackPosition
         // a book you no longer have."
         FictionMemoryEntry::class,
     ],
-    version = 9,
+    version = 10,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)

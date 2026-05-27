@@ -330,6 +330,91 @@ class EngineStreamingSourceTest {
 
         source.close()
     }
+
+    @Test
+    fun `close settles headroom for a dequeued-but-undecremented chunk`() = runBlocking {
+        // #906 — a consumer that dequeues a chunk and then aborts before
+        // calling decrementHeadroomForChunk (pipeline torn down mid-write)
+        // used to leave the producer's enqueue increment on the books
+        // forever. With #540 fast-pause reusing the same source, that
+        // phantom headroom accumulated across pause-resume cycles. close()
+        // must now settle the in-flight chunk so headroom returns to 0.
+        val sentences = listOf(
+            Sentence(0, 0, 10, "One."),
+            Sentence(1, 11, 20, "Two."),
+        )
+        val fakeEngine = FakeVoiceEngine(22050) { _ -> ByteArray(44100) }
+        val source = EngineStreamingSource(sentences, 0, fakeEngine, 1f, 1f, Mutex())
+
+        val deadline = System.currentTimeMillis() + 2_000
+        while (System.currentTimeMillis() < deadline &&
+            source.bufferHeadroomMs.value < 2_000) {
+            delay(10)
+        }
+
+        // Dequeue one chunk and DON'T decrement it — this models the
+        // consumer aborting between dequeue and its post-write decrement.
+        val taken = source.nextChunk()!!
+        assertEquals(0, taken.sentenceIndex)
+        val beforeClose = source.bufferHeadroomMs.value
+        assert(beforeClose > 0) {
+            "precondition: headroom should be non-zero before close"
+        }
+        // The duration the dequeued (in-flight) chunk contributed — this is
+        // exactly what close() should reclaim. Derive it the same way the
+        // source does (pcmDurationMs floors per-segment) so the assertion
+        // doesn't depend on a hand-computed value that ignores int rounding.
+        val sr = source.sampleRate.toLong()
+        fun durMs(bytes: Int) = bytes.toLong() * 1000L / (sr * 2L)
+        val inFlightDurMs = durMs(taken.pcm.size) + durMs(taken.trailingSilenceBytes)
+
+        source.close()
+
+        // close() settles ONLY the in-flight (dequeued) chunk; chunks still
+        // sitting in the queue are discarded with the pipeline and their
+        // counter contribution goes away with the source. The observable
+        // invariant: headroom dropped by exactly the in-flight chunk's
+        // duration — the phantom increment #906 used to leak is gone.
+        assertEquals(beforeClose - inFlightDurMs, source.bufferHeadroomMs.value)
+    }
+
+    @Test
+    fun `decrementHeadroomForChunk is idempotent for the same chunk`() = runBlocking {
+        // #906 — a double decrement (e.g. the consumer's post-write call
+        // racing close()'s settle call) must not subtract the chunk's
+        // duration twice. The identity guard against inFlightChunk makes the
+        // second call a no-op.
+        val sentences = listOf(
+            Sentence(0, 0, 10, "One."),
+            Sentence(1, 11, 20, "Two."),
+        )
+        val fakeEngine = FakeVoiceEngine(22050) { _ -> ByteArray(44100) }
+        val source = EngineStreamingSource(sentences, 0, fakeEngine, 1f, 1f, Mutex())
+
+        val deadline = System.currentTimeMillis() + 2_000
+        while (System.currentTimeMillis() < deadline &&
+            source.bufferHeadroomMs.value < 2_000) {
+            delay(10)
+        }
+        val before = source.bufferHeadroomMs.value
+
+        val chunk = source.nextChunk()!!
+        source.decrementHeadroomForChunk(chunk)
+        val afterOnce = source.bufferHeadroomMs.value
+        // Second call for the same chunk must change nothing.
+        source.decrementHeadroomForChunk(chunk)
+        val afterTwice = source.bufferHeadroomMs.value
+
+        assertEquals(
+            "double decrement of the same chunk must be a no-op",
+            afterOnce, afterTwice,
+        )
+        assert(afterOnce < before) {
+            "first decrement should have lowered headroom ($before → $afterOnce)"
+        }
+
+        source.close()
+    }
 }
 
 private class FakeVoiceEngine(

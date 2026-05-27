@@ -25,6 +25,7 @@ import `in`.jphe.storyvox.data.source.model.NotePosition
         Index(value = ["fictionId"]),
         Index(value = ["fictionId", "index"], unique = true),
         Index(value = ["downloadState"]),
+        Index(value = ["fictionId", "userMarkedRead"]),
     ],
 )
 data class Chapter(

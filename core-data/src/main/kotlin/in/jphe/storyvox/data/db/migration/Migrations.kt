@@ -265,6 +265,42 @@ val MIGRATION_8_9: Migration = object : Migration(8, 9) {
     }
 }
 
+/**
+ * v10 — issues #890, #889, #884: missing query indexes causing full-table
+ * scans. Purely additive — three composite indexes, no data touched:
+ *  - `fiction(inLibrary, addedToLibraryAt)` for `observeLibrary` (#890),
+ *    which filters `inLibrary = 1` then orders by `addedToLibraryAt`.
+ *  - `fiction(followedRemotely, lastUpdatedAt)` for `observeFollowsRemote`
+ *    (#890), the same shape over the remote-follow flag.
+ *  - `chapter(fictionId, userMarkedRead)` for `unreadChapters` (#889),
+ *    which scopes to a fiction then counts/filters on the read flag.
+ *  - `inbox_event(sourceId, fictionId)` for the per-source/-fiction Inbox
+ *    coalescing + lookup (#884).
+ *
+ * Index names match Room's default `index_<table>_<col>_<col>` convention
+ * so the exported-schema diff stays clean against the generated schema.
+ */
+val MIGRATION_9_10: Migration = object : Migration(9, 10) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS `index_fiction_inLibrary_addedToLibraryAt` " +
+                "ON `fiction` (`inLibrary`, `addedToLibraryAt`)",
+        )
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS `index_fiction_followedRemotely_lastUpdatedAt` " +
+                "ON `fiction` (`followedRemotely`, `lastUpdatedAt`)",
+        )
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS `index_chapter_fictionId_userMarkedRead` " +
+                "ON `chapter` (`fictionId`, `userMarkedRead`)",
+        )
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS `index_inbox_event_sourceId_fictionId` " +
+                "ON `inbox_event` (`sourceId`, `fictionId`)",
+        )
+    }
+}
+
 val ALL_MIGRATIONS: Array<Migration> = arrayOf(
     MIGRATION_1_2,
     MIGRATION_2_3,
@@ -274,4 +310,5 @@ val ALL_MIGRATIONS: Array<Migration> = arrayOf(
     MIGRATION_6_7,
     MIGRATION_7_8,
     MIGRATION_8_9,
+    MIGRATION_9_10,
 )
