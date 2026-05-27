@@ -45,6 +45,9 @@ interface FictionDao {
     @Upsert
     suspend fun upsert(fiction: Fiction)
 
+    @Upsert
+    suspend fun upsertMany(fictions: List<Fiction>)
+
     @Update
     suspend fun update(fiction: Fiction)
 
@@ -84,9 +87,18 @@ interface FictionDao {
     suspend fun upsertAllPreservingUserState(fictions: List<Fiction>) {
         // Listing pages don't know about library/follow state — preserve the
         // user-owned columns so a browse-page upsert never silently un-libraries.
-        for (incoming in fictions) {
-            val existing = get(incoming.id)
-            val merged = if (existing == null) incoming else incoming.copy(
+        //
+        // Batch-fetch existing rows instead of O(N) individual get() calls.
+        // SQLite has a 999-variable limit for IN clauses, so chunk if needed.
+        val existingMap: Map<String, Fiction> = fictions
+            .map { it.id }
+            .chunked(900)
+            .flatMap { chunk -> getMany(chunk) }
+            .associateBy { it.id }
+
+        val merged = fictions.map { incoming ->
+            val existing = existingMap[incoming.id]
+            if (existing == null) incoming else incoming.copy(
                 inLibrary = existing.inLibrary,
                 addedToLibraryAt = existing.addedToLibraryAt,
                 followedRemotely = existing.followedRemotely,
@@ -100,8 +112,8 @@ interface FictionDao {
                 // upsert doesn't reset the cheap-poll state.
                 lastSeenRevision = existing.lastSeenRevision,
             )
-            upsert(merged)
         }
+        upsertMany(merged)
     }
 
     @Query("DELETE FROM fiction WHERE id = :id AND inLibrary = 0 AND followedRemotely = 0")

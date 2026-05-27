@@ -19,6 +19,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavBackStackEntry
+import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -455,7 +456,16 @@ private fun StoryvoxNavHostContent(
             HomeTab.Voices -> StoryvoxRoutes.VOICE_LIBRARY
             HomeTab.Settings -> StoryvoxRoutes.SETTINGS_HUB
         }
-        if (target != currentRoute) {
+        // Issue #918 — strip query-parameter suffixes before comparing.
+        // The Library route is registered as "library?sharedUrl={...}"
+        // so `destination.route` includes the query template. Without
+        // stripping, tapping Library while on Library would re-navigate
+        // (target "library" != currentRoute "library?sharedUrl={...}").
+        // More critically, the mismatch caused `popUpTo` with the bare
+        // route string to silently fail on drill-down stacks (Library →
+        // FictionDetail → Reader), making bottom-nav tabs unresponsive.
+        val baseRoute = currentRoute?.substringBefore("?")
+        if (target != baseRoute) {
             // Pop everything above the start destination so tab
             // switches don't accumulate, then push the target.
             // `launchSingleTop` collapses repeated taps on the active
@@ -469,6 +479,16 @@ private fun StoryvoxNavHostContent(
             // the standard Compose bottom-nav pattern from the Now in
             // Android reference app and the official navigation docs.
             //
+            // Issue #918 — use `findStartDestination().id` instead of
+            // the bare route string for `popUpTo`. The Library composable
+            // is registered with an optional query parameter
+            // ("library?sharedUrl={sharedUrl}") so the destination's
+            // route pattern differs from the `StoryvoxRoutes.LIBRARY`
+            // constant ("library"). Using the destination ID bypasses
+            // route-string matching entirely and reliably finds the
+            // start destination in the back stack — the same pattern the
+            // Now in Android reference app uses.
+            //
             // Library is the start destination and always lives at the
             // bottom of the back stack — its NavBackStackEntry (and
             // ViewModel / composable state) persist naturally. Using
@@ -478,7 +498,7 @@ private fun StoryvoxNavHostContent(
             // of the Library grid. Disable restoreState for Library;
             // other tabs restore normally.
             navController.navigate(target) {
-                popUpTo(StoryvoxRoutes.LIBRARY) {
+                popUpTo(navController.graph.findStartDestination().id) {
                     saveState = true
                 }
                 launchSingleTop = true
@@ -642,8 +662,10 @@ private fun StoryvoxNavHostContent(
                         // sub-tab. We open BROWSE directly here so the
                         // CTA's verb still matches its destination
                         // exactly.
+                        // Issue #918 — use findStartDestination().id for
+                        // popUpTo (see onSelectTab comment for rationale).
                         navController.navigate(StoryvoxRoutes.BROWSE) {
-                            popUpTo(StoryvoxRoutes.LIBRARY) {
+                            popUpTo(navController.graph.findStartDestination().id) {
                                 saveState = true
                             }
                             launchSingleTop = true
@@ -658,7 +680,7 @@ private fun StoryvoxNavHostContent(
                     onBack = {
                         if (!navController.popBackStack()) {
                             navController.navigate(StoryvoxRoutes.LIBRARY) {
-                                popUpTo(StoryvoxRoutes.LIBRARY) { inclusive = true }
+                                popUpTo(navController.graph.findStartDestination().id) { inclusive = true }
                                 launchSingleTop = true
                             }
                         }
@@ -812,9 +834,11 @@ private fun StoryvoxNavHostContent(
                     // no-op `{}` made both buttons dead — the user finished
                     // a book via FictionDetail → Reader and had no path to
                     // Browse without OS-backing out first.
+                    // Issue #918 — use findStartDestination().id for
+                    // popUpTo (see onSelectTab comment for rationale).
                     onBrowse = {
                         navController.navigate(StoryvoxRoutes.BROWSE) {
-                            popUpTo(StoryvoxRoutes.LIBRARY) {
+                            popUpTo(navController.graph.findStartDestination().id) {
                                 saveState = true
                             }
                             launchSingleTop = true
@@ -827,7 +851,7 @@ private fun StoryvoxNavHostContent(
                     onBack = {
                         if (!navController.popBackStack()) {
                             navController.navigate(StoryvoxRoutes.LIBRARY) {
-                                popUpTo(StoryvoxRoutes.LIBRARY) { inclusive = true }
+                                popUpTo(navController.graph.findStartDestination().id) { inclusive = true }
                                 launchSingleTop = true
                             }
                         }
@@ -853,9 +877,11 @@ private fun StoryvoxNavHostContent(
                     onOpenChat = { fId, prefill -> navController.navigate(StoryvoxRoutes.chat(fId, prefill)) },
                     // Issue #677 follow-up — same onBrowse wiring as the
                     // READER route above. See the comment there.
+                    // Issue #918 — use findStartDestination().id for
+                    // popUpTo (see onSelectTab comment for rationale).
                     onBrowse = {
                         navController.navigate(StoryvoxRoutes.BROWSE) {
-                            popUpTo(StoryvoxRoutes.LIBRARY) {
+                            popUpTo(navController.graph.findStartDestination().id) {
                                 saveState = true
                             }
                             launchSingleTop = true
@@ -868,7 +894,7 @@ private fun StoryvoxNavHostContent(
                     onBack = {
                         if (!navController.popBackStack()) {
                             navController.navigate(StoryvoxRoutes.LIBRARY) {
-                                popUpTo(StoryvoxRoutes.LIBRARY) { inclusive = true }
+                                popUpTo(navController.graph.findStartDestination().id) { inclusive = true }
                                 launchSingleTop = true
                             }
                         }
@@ -1295,8 +1321,10 @@ private fun StoryvoxNavHostContent(
                         // so users land on TechEmpower's four-fiction
                         // tile set (Guides / Resources / About /
                         // Donate) immediately.
+                        // Issue #918 — use findStartDestination().id for
+                        // popUpTo (see onSelectTab comment for rationale).
                         navController.navigate(StoryvoxRoutes.BROWSE) {
-                            popUpTo(StoryvoxRoutes.LIBRARY) {
+                            popUpTo(navController.graph.findStartDestination().id) {
                                 saveState = true
                             }
                             launchSingleTop = true

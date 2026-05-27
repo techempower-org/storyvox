@@ -351,7 +351,7 @@ fun LibraryScreen(
                             state = state,
                             dedupedFictions = dedupedFictions,
                             onResume = viewModel::resume,
-                            onTapFiction = viewModel::resumeOrOpenFiction,
+                            onTapFiction = viewModel::openFiction,
                             onLongPress = viewModel::openManageShelves,
                             onOpenTechEmpower = onOpenTechEmpower,
                         )
@@ -739,10 +739,11 @@ private fun LibraryGridBody(
     dedupedFictions: List<FictionSummary>,
     onResume: () -> Unit,
     /**
-     * Issue #827 — tap on a grid item. The ViewModel routes the tap
-     * to resume-playback when a saved position exists and to
-     * fiction-detail when it doesn't, so this single callback covers
-     * both "continue listening" and "open a new book" paths.
+     * Issue #908 — tap on a grid item always opens fiction-detail
+     * (chapter list, metadata, description). The NowPlayingDock
+     * already provides reader access for the currently-playing book;
+     * routing taps to the reader was a shortcut that skipped the
+     * detail page (see #827 revert rationale).
      */
     onTapFiction: (String) -> Unit,
     onLongPress: (FictionSummary) -> Unit,
@@ -835,10 +836,10 @@ private fun LibraryGridBody(
                     author = fiction.author,
                     sourceFamily = coverSourceFamilyFor(fiction.sourceId),
                     // Long-press → manage-shelves bottom sheet (#116).
-                    // Tap → resume-or-open (#827): when the fiction has
-                    // a saved playback position, tap resumes playback
-                    // like the ResumeCard hero; otherwise it falls
-                    // back to opening fiction detail.
+                    // Tap → fiction detail (#908): always opens the
+                    // detail page (chapter list, metadata). The #827
+                    // resume-or-open shortcut was reverted because it
+                    // skipped the detail page unexpectedly.
                     modifier = Modifier
                         .fillMaxWidth()
                         .combinedClickable(

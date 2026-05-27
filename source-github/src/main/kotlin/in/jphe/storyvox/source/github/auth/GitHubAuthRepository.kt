@@ -2,12 +2,10 @@ package `in`.jphe.storyvox.source.github.auth
 
 import android.content.SharedPreferences
 import androidx.core.content.edit
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -124,15 +122,12 @@ internal class GitHubAuthRepositoryImpl @Inject constructor(
         // stays intact so the next captureSession() restores cleanly. The
         // in-memory state flips so the interceptor stops attaching the
         // dead token to subsequent requests.
+        //
+        // #871 — MutableStateFlow.value= is thread-safe and notifies
+        // subscribers immediately; the previous CoroutineScope(IO).launch
+        // was redundant and leaked an unscoped coroutine.
         if (state.value is GitHubSession.Expired) return
         state.value = GitHubSession.Expired
-        // Best-effort fan-out so background machinery (Settings, etc.)
-        // doesn't keep showing "signed in" when the token's actually dead.
-        // Doesn't await: the StateFlow update above is the source of truth.
-        CoroutineScope(Dispatchers.IO).launch {
-            // No-op other than yielding to ensure subscribers wake up.
-            state.value = GitHubSession.Expired
-        }
     }
 
     companion object {

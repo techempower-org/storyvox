@@ -1338,7 +1338,7 @@ class EnginePlayer @AssistedInject constructor(
         // brass spinner immediately. Sherpa-onnx Kokoro init can take 30+s
         // on modest hardware; without this the screen sits blank that long.
         val text = chapter.text
-        sentences = chunker.chunk(text)
+        sentences = chunker.chunk(text, detectLocale(text))
         // Issue #442 — Gutenberg-derived plain text can be "stripTags(htmlBody)"-
         // empty for spine entries that are pure-HTML wrappers (front-matter,
         // PG header pages, image-only inserts). When that happens the
@@ -2495,13 +2495,14 @@ class EnginePlayer @AssistedInject constructor(
                         // window — once true, always true for the
                         // source's lifetime.
                         naturalEnd = source.producedAllSentences
-                        android.util.Log.i(
-                            "EnginePlayer",
+                        // #867 — was always-on Log.i; string formatting
+                        // on URGENT_AUDIO is unnecessary in release.
+                        DebugLog.i("EnginePlayer") {
                             "end-of-pcm: naturalEnd=$naturalEnd " +
                                 "producedAll=${source.producedAllSentences} " +
                                 "pipelineRunning=${pipelineRunning.get()} " +
-                                "userPaused=${userPaused.get()}",
-                        )
+                                "userPaused=${userPaused.get()}"
+                        }
                         break
                     }
                     val chunk = chunkOrNull
@@ -2512,9 +2513,19 @@ class EnginePlayer @AssistedInject constructor(
                     // which is the whole reason we left coroutines.
                     // #883 — skip on a pause-resume: the listener is still
                     // inside this same sentence, the range is already live.
-                    if (!resumedFromPause) {
+                    //
+                    // #865 — gate on sentence-index change. Pre-fix this
+                    // launched a new coroutine on EVERY chunk, even when
+                    // successive chunks belong to the same sentence (same
+                    // range, same charOffset). Each launch allocates a
+                    // coroutine object + dispatches to Main — unnecessary
+                    // work on the URGENT_AUDIO thread. Move the volatile
+                    // write of currentSentenceIndex to this thread (single
+                    // writer, volatile read elsewhere is safe) and only
+                    // launch when the index actually changes.
+                    if (!resumedFromPause && chunk.sentenceIndex != currentSentenceIndex) {
+                        currentSentenceIndex = chunk.sentenceIndex
                         scope.launch {
-                            currentSentenceIndex = chunk.sentenceIndex
                             _observableState.update {
                                 it.copy(
                                     currentSentenceRange = chunk.range,
@@ -2574,16 +2585,16 @@ class EnginePlayer @AssistedInject constructor(
                                     break
                                 }
                             }
-                            runCatching {
-                                android.util.Log.i(
-                                    "EnginePlayer",
-                                    "#862 prebuffer-gate: depth=${source.producerQueueDepth()} " +
-                                        "target=$target producedAll=${source.producedAllSentences} " +
-                                        "elapsedMs=${
-                                            (System.nanoTime() - (deadlineNanos -
-                                                PREBUFFER_TIMEOUT_MS * 1_000_000L)) / 1_000_000L
-                                        }",
-                                )
+                            // #867 — was always-on Log.i; string formatting
+                            // (nanoTime arithmetic + interpolation) is free
+                            // when verbose logging is off.
+                            DebugLog.i("EnginePlayer") {
+                                "#862 prebuffer-gate: depth=${source.producerQueueDepth()} " +
+                                    "target=$target producedAll=${source.producedAllSentences} " +
+                                    "elapsedMs=${
+                                        (System.nanoTime() - (deadlineNanos -
+                                            PREBUFFER_TIMEOUT_MS * 1_000_000L)) / 1_000_000L
+                                    }"
                             }
                         }
 
@@ -2837,13 +2848,14 @@ class EnginePlayer @AssistedInject constructor(
                         source.producerQueueDepth() <= 1
                     ) {
                         naturalEnd = true
-                        android.util.Log.i(
-                            "EnginePlayer",
+                        // #867 — was always-on Log.i on the URGENT_AUDIO
+                        // thread; gated behind DebugLog for release builds.
+                        DebugLog.i("EnginePlayer") {
                             "end-of-pcm (post-write fast path): naturalEnd=true " +
                                 "producedAll=true queueDepth=${source.producerQueueDepth()} " +
                                 "pipelineRunning=${pipelineRunning.get()} — " +
-                                "skipping the END_PILL round-trip (#573 gapless)",
-                        )
+                                "skipping the END_PILL round-trip (#573 gapless)"
+                        }
                         break
                     }
                 }
@@ -2882,12 +2894,12 @@ class EnginePlayer @AssistedInject constructor(
                 // chapter N+1's audio starts ≤300 ms later — Spotify-
                 // style gapless on cached Notion sources.
                 if (naturalEnd) {
-                    android.util.Log.i(
-                        "EnginePlayer",
+                    // #867 — was always-on Log.i on URGENT_AUDIO thread.
+                    DebugLog.i("EnginePlayer") {
                         "post-finally: naturalEnd=true producedAll=${source.producedAllSentences} " +
                             "pipelineRunning=${pipelineRunning.get()} — dispatching handleChapterDone " +
-                            "and draining HW buffer (#573 gapless)",
-                    )
+                            "and draining HW buffer (#573 gapless)"
+                    }
                     // PR-D (#86) — finalize the cache on natural end so
                     // the index sidecar lands and the cache is complete
                     // for next play. Must happen BEFORE the chapter-done
@@ -2983,11 +2995,11 @@ class EnginePlayer @AssistedInject constructor(
                     // idempotent.
                     runCatching { track.pause() }
                     runCatching { track.release() }
-                    android.util.Log.i(
-                        "EnginePlayer",
+                    // #867 — was always-on Log.i.
+                    DebugLog.i("EnginePlayer") {
                         "post-finally: HW buffer drained, AudioTrack released " +
-                            "(target=$targetFrames frames, naturalEnd path, no flush #877)",
-                    )
+                            "(target=$targetFrames frames, naturalEnd path, no flush #877)"
+                    }
                     return@Thread
                 }
                 // Non-natural-end path (user pause, voice swap, seek,
@@ -3010,12 +3022,12 @@ class EnginePlayer @AssistedInject constructor(
                         _observableState.update { it.copy(isBuffering = false) }
                     }
                 }
-                android.util.Log.i(
-                    "EnginePlayer",
+                // #867 — was always-on Log.i.
+                DebugLog.i("EnginePlayer") {
                     "post-finally: naturalEnd=false producedAll=${source.producedAllSentences} " +
                         "pipelineRunning=${pipelineRunning.get()} — non-natural exit " +
-                        "(pause/swap/seek), AudioTrack released",
-                )
+                        "(pause/swap/seek), AudioTrack released"
+                }
             }
         }, "storyvox-audio-out").apply {
             isDaemon = true
@@ -4187,19 +4199,14 @@ class EnginePlayer @AssistedInject constructor(
     }
 
     fun releaseEngine() {
-        // #790 — releaseEngine is invoked from StoryvoxPlaybackService.onDestroy
-        // on the main thread. persistPosition does a Room @Upsert; a naked
-        // runBlocking here either janks the main thread or trips Android's
-        // StrictMode disk-IO-on-main detector. Launch the write fire-and-
-        // forget on the scope (already Dispatchers.Main + the suspend body
-        // hops to IO inside Room), then park the main thread for at most
-        // 500ms waiting for it. If the join times out the write keeps
-        // running until scope.cancel() below drops it — the worst case is
-        // a missed position checkpoint, not a lost user gesture.
-        val persistJob = scope.launch { persistPosition() }
-        kotlinx.coroutines.runBlocking {
-            kotlinx.coroutines.withTimeoutOrNull(500L) { persistJob.join() }
-        }
+        // #873 — releaseEngine is invoked from StoryvoxPlaybackService.onDestroy
+        // on the main thread. persistPosition does a Room @Upsert whose suspend
+        // body hops to IO inside the DAO. Fire-and-forget: the scope stays alive
+        // until scope.cancel() below, which gives the IO dispatcher time to flush
+        // the write. Worst case the cancel races the upsert and a position
+        // checkpoint is lost — acceptable, since the previous checkpoint from the
+        // periodic save is at most a few seconds stale.
+        scope.launch { persistPosition() }
         stopRecapPipeline()
         stopPlaybackPipeline()
         stopAudioStreamPlayer()
@@ -4531,7 +4538,7 @@ class EnginePlayer @AssistedInject constructor(
         if (text.isBlank()) return
         stopRecapPipeline()
         if (!ensureVoiceLoaded()) return
-        val recapSentences = chunker.chunk(text)
+        val recapSentences = chunker.chunk(text, detectLocale(text))
         if (recapSentences.isEmpty()) return
         startRecapPipeline(recapSentences)
     }
