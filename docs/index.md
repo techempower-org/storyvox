@@ -401,7 +401,7 @@ image: /screenshots/03-reader.png
     (#462), Palace Project (#502), Slack (#454), Matrix (#457); home-screen widget with
     Continue Listening + Play/Pause; <strong>beautiful Notion covers</strong> with body-image
     fallback and brass-edged synthetic tiles; AO3 auth PR1 landed.
-    <a href="https://github.com/techempower-org/storyvox/releases/tag/v0.5.98">Full release notes →</a>
+    <a href="https://github.com/techempower-org/storyvox/releases/tag/v0.7.3">Full release notes →</a>
   </p>
   <p>
     <strong>Earlier in v0.5:</strong> <strong>twenty-one fiction backends</strong> behind a
