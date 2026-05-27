@@ -4666,6 +4666,23 @@ class EnginePlayer @AssistedInject constructor(
      *    advance, no position persistence.
      */
     private fun startRecapPipeline(recapSentences: List<Sentence>) {
+        // Issue #905 — claim audio focus BEFORE creating the recap
+        // AudioTrack, mirroring [startPlaybackPipeline]'s #560 fix. The
+        // main pipeline holds focus on a Play, but a cold-start recap
+        // (reader opened, Play never tapped, user taps "Read recap
+        // aloud") has no prior focus — without this the framework can
+        // silently refuse to drain the track and the recap is swallowed.
+        // Idempotent on the singleton focus request, so a recap fired
+        // while the chapter is already playing reuses the held focus.
+        val focusGranted = runCatching { audioFocus.acquire() }.getOrDefault(false)
+        if (!focusGranted) {
+            android.util.Log.w(
+                "EnginePlayer",
+                "#905 startRecapPipeline: audio focus was NOT granted; recap will be silent " +
+                    "until another app yields focus",
+            )
+        }
+
         val engineType = activeEngineType
         // Issue #582 — startRecapPipeline is reachable from main-thread
         // Compose handlers (the "play recap" button in the reader). Use
@@ -4705,7 +4722,14 @@ class EnginePlayer @AssistedInject constructor(
 
         recapConsumerThread = Thread({
             AndroidProcess.setThreadPriority(AndroidProcess.THREAD_PRIORITY_URGENT_AUDIO)
-            var firstSentence = true
+            // Issue #905 — live volume mirror, mirroring the main consumer's
+            // change-detection. Pre-fix the recap consumer hardcoded
+            // setVolume(1f) on the first sentence, ignoring the sleep
+            // timer's volumeRamp: a recap fired while the timer was fading
+            // played at full volume — louder than the chapter audio the
+            // listener was last hearing. Now we read volumeRamp.current per
+            // write and skip the JNI setVolume when the ramp is idle.
+            var lastVol = -1f
             try {
                 runCatching { track.play() }
                 while (recapPipelineRunning.get()) {
@@ -4715,19 +4739,24 @@ class EnginePlayer @AssistedInject constructor(
                         null
                     } ?: break
 
-                    if (firstSentence) {
-                        runCatching { track.setVolume(1f) }
-                        firstSentence = false
-                    }
-
                     var written = 0
                     while (written < chunk.pcm.size && recapPipelineRunning.get()) {
+                        val v = volumeRamp.current
+                        if (v != lastVol) {
+                            runCatching { track.setVolume(v) }
+                            lastVol = v
+                        }
                         val n = track.write(chunk.pcm, written, chunk.pcm.size - written)
                         if (n < 0) break
                         written += n
                     }
                     var remaining = chunk.trailingSilenceBytes
                     while (remaining > 0 && recapPipelineRunning.get()) {
+                        val v = volumeRamp.current
+                        if (v != lastVol) {
+                            runCatching { track.setVolume(v) }
+                            lastVol = v
+                        }
                         val sz = remaining.coerceAtMost(SILENCE_CHUNK.size)
                         val n = track.write(SILENCE_CHUNK, 0, sz)
                         if (n < 0) break
