@@ -289,17 +289,24 @@ class SystemTtsEngine(
         // earlier scattered per-branch deletes missed the truncated-output
         // early returns and leaked header-only WAVs into cacheDir.
         try {
-            // #716 — bound the await so an engine that swallows the
+            // #716/#902 — bound the await so an engine that swallows the
             // utterance (no onDone, no onError — observed on stock Samsung
             // TTS firmware after a mid-synth engine-package crash) can't
-            // park this thread forever. A healthy sentence synthesizes
-            // in <500 ms even on slow phones; SYNTH_TIMEOUT_MS (10 s) is
-            // well outside the healthy band and matches the buffering
-            // watchdog window in PlaybackController so upstream's
-            // AudioOutputStuck recovery kicks in at the same horizon.
+            // park this thread forever. SYNTH_TIMEOUT_MS (30 s) is sized
+            // for the slowest devices we support — Samsung TTS on Helio P22T
+            // tablets takes 8-15 s for ~500-char sentences — so a real
+            // sentence never trips it; only a genuinely stuck engine does.
+            // See the constant's kdoc for why this is decoupled from the
+            // 12 s buffering watchdog in PlaybackController.
+            val synthStart = System.currentTimeMillis()
             val ok = gate.awaitBlocking(SYNTH_TIMEOUT_MS)
             if (ok == null) {
-                Log.w(TAG, "synth timed out after ${SYNTH_TIMEOUT_MS}ms text.len=${text.length}")
+                val elapsed = System.currentTimeMillis() - synthStart
+                Log.w(
+                    TAG,
+                    "synth timed out after ${elapsed}ms (limit ${SYNTH_TIMEOUT_MS}ms) " +
+                        "text.len=${text.length} — sentence skipped",
+                )
                 return null
             }
             if (!ok) {
@@ -424,14 +431,31 @@ class SystemTtsEngine(
         /**
          * Upper bound on how long we'll wait for the
          * `UtteranceProgressListener` to fire `onDone`/`onError` for a
-         * single sentence (#716). A healthy sentence synthesizes in
-         * <500 ms even on slow phones; 10 s matches the buffering
-         * watchdog horizon in `PlaybackController`
-         * (BUFFERING_STUCK_WATCHDOG_END_OF_CHAPTER_MS = 12 s), so a
-         * timeout here lands fractionally before upstream's
-         * AudioOutputStuck recovery — exactly the sequence we want.
+         * single sentence (#716, #902).
+         *
+         * Originally 10 s, chosen to land just before the
+         * `BUFFERING_STUCK_WATCHDOG_END_OF_CHAPTER_MS` (12 s) horizon in
+         * `PlaybackController`. That coupling turned out to be wrong: on
+         * low-spec hardware, System TTS legitimately takes far longer than
+         * the "healthy <500 ms" assumption. Samsung TTS on Helio P22T
+         * tablets needs 8-15 s to synthesize a ~500-char sentence, so a
+         * 10 s cap fired on *real* sentences — the engine then returned
+         * null and the sentence was silently skipped (audible gap +
+         * highlight jump), the exact symptom in #902.
+         *
+         * Now 30 s — matching the chapter-body-wait timeout used elsewhere
+         * — and deliberately *decoupled* from the 12 s buffering watchdog.
+         * This is a hung-engine backstop, not a pacing knob: it should only
+         * fire when an engine has genuinely swallowed the utterance, never
+         * on a slow-but-progressing synth. The buffering watchdog upstream
+         * handles the audio-stall UX on its own shorter horizon; letting
+         * synth run past it is fine because a 12 s stall on a 15 s sentence
+         * is buffering-bound, not a dead engine, and recovering by skipping
+         * the sentence (the old behavior) is worse than waiting it out.
+         * When this 30 s limit *does* trip, the call site logs length +
+         * elapsed time so the skip is visible rather than silent.
          */
-        const val SYNTH_TIMEOUT_MS: Long = 10_000
+        const val SYNTH_TIMEOUT_MS: Long = 30_000
 
         /** Android TTS documented setSpeechRate bounds. */
         private const val MIN_RATE: Float = 0.1f
