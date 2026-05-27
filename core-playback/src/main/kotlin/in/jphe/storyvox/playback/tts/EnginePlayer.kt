@@ -713,7 +713,14 @@ class EnginePlayer @AssistedInject constructor(
                 val s = _observableState.value
                 val fictionId = s.currentFictionId
                 val chapterId = s.currentChapterId
-                if (fictionId == null || chapterId == null) return@collect
+                if (fictionId == null || chapterId == null) {
+                    DebugLog.d("EnginePlayer") {
+                        "observeActiveVoice: voice=$newId but no chapter loaded " +
+                            "(fiction=$fictionId chapter=$chapterId) — swap deferred " +
+                            "to next loadAndPlay, which reads activeVoice itself"
+                    }
+                    return@collect
+                }
                 if (s.isPlaying) {
                     // Live swap. Tear down the current pipeline FIRST so the
                     // old generator can't keep pushing old-voice PCM into
@@ -722,7 +729,27 @@ class EnginePlayer @AssistedInject constructor(
                     // the user hears 5–10 s of stale audio before silence
                     // and finally the new voice.
                     stopPlaybackPipeline()
-                    loadAndPlay(fictionId, chapterId, s.charOffset)
+                    // loadAndPlay can throw (network fetch, OOM on Kokoro model
+                    // load). An uncaught throw here cancels this collect on the
+                    // scope, after which voice swaps are silently ignored until
+                    // the player is recreated. runCatching keeps the collector
+                    // alive so the *next* swap still gets a chance. (#878)
+                    runCatching {
+                        loadAndPlay(fictionId, chapterId, s.charOffset)
+                    }.onFailure { t ->
+                        // Never swallow cancellation — that would let the
+                        // collector keep running after the scope is torn down,
+                        // breaking structured concurrency. Only transient
+                        // load failures should be logged-and-survived.
+                        if (t is kotlin.coroutines.cancellation.CancellationException) throw t
+                        android.util.Log.e(
+                            "EnginePlayer",
+                            "observeActiveVoice: live voice swap to $newId failed " +
+                                "(fiction=$fictionId chapter=$chapterId); collector " +
+                                "kept alive for next swap",
+                            t,
+                        )
+                    }
                 } else {
                     voiceReloadPending = true
                     stopPlaybackPipeline()
