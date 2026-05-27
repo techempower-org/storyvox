@@ -135,6 +135,21 @@ class EngineStreamingSource(
      * the same monotonic stream of sentence indices either way.
      */
     private val secondaryEngines: List<VoiceEngineHandle> = emptyList(),
+    /**
+     * Issue #801 — when `true`, the producer thread(s) run at
+     * [AndroidProcess.THREAD_PRIORITY_BACKGROUND] instead of
+     * [AndroidProcess.THREAD_PRIORITY_URGENT_AUDIO]. The consumer
+     * thread is NOT affected — it keeps URGENT_AUDIO because audio
+     * glitches (underruns) are worse than battery drain. The net
+     * effect is that TTS synthesis yields more readily to other
+     * processes, reducing CPU contention while the OS is explicitly
+     * trying to conserve battery.
+     *
+     * Snapshot at construction time from [PowerSaveMonitor.isPowerSaveMode];
+     * a mid-pipeline power-save toggle takes effect on next pipeline
+     * rebuild (matches the other live-config knobs like speed/pitch).
+     */
+    private val powerSaveMode: Boolean = false,
 ) : PcmSource {
 
     /** SAM-style handle so tests can fake the engine without pulling the
@@ -144,6 +159,16 @@ class EngineStreamingSource(
         val sampleRate: Int
         fun generateAudioPCM(text: String, speed: Float, pitch: Float): ByteArray?
     }
+
+    /**
+     * Issue #801 — thread priority for the producer side. In power-save
+     * mode the producer drops to BACKGROUND so TTS synthesis yields to
+     * other processes; normally it stays at URGENT_AUDIO for minimum
+     * inter-sentence jitter.
+     */
+    private val producerThreadPriority: Int =
+        if (powerSaveMode) AndroidProcess.THREAD_PRIORITY_BACKGROUND
+        else AndroidProcess.THREAD_PRIORITY_URGENT_AUDIO
 
     override val sampleRate: Int = engine.sampleRate
 
@@ -624,10 +649,12 @@ class EngineStreamingSource(
         // pool guarantees this thread is dedicated; calls into the
         // engine don't suspend (they're synchronized JNI calls), so
         // the priority sticks for the worker's lifetime.
+        //
+        // Issue #801 — in power-save mode, use BACKGROUND priority
+        // instead of URGENT_AUDIO so parallel workers yield to other
+        // processes while the OS is conserving battery.
         runCatching {
-            AndroidProcess.setThreadPriority(
-                AndroidProcess.THREAD_PRIORITY_URGENT_AUDIO,
-            )
+            AndroidProcess.setThreadPriority(producerThreadPriority)
         }
         try {
             for (i in jobChan) {
@@ -669,10 +696,12 @@ class EngineStreamingSource(
         // single-threaded; coroutine suspends resume on the same OS
         // thread so the priority survives the engineMutex.withLock
         // and queue.put suspension points.
+        //
+        // Issue #801 — in power-save mode, use BACKGROUND priority
+        // instead of URGENT_AUDIO so TTS synthesis yields to other
+        // processes while the OS is conserving battery.
         runCatching {
-            AndroidProcess.setThreadPriority(
-                AndroidProcess.THREAD_PRIORITY_URGENT_AUDIO,
-            )
+            AndroidProcess.setThreadPriority(producerThreadPriority)
         }
         try {
             for (i in fromIndex until sentences.size) {

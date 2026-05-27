@@ -21,12 +21,14 @@ import `in`.jphe.storyvox.feature.api.PlaybackControllerUi
 import `in`.jphe.storyvox.feature.api.UiAddByUrlResult
 import `in`.jphe.storyvox.feature.api.UiRouteCandidate
 import javax.inject.Inject
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
@@ -128,6 +130,8 @@ data class LibraryUiState(
     val filter: ShelfFilter = ShelfFilter.All,
     /** Issue #793 — current Library "All" shelf sort mode. */
     val sortMode: LibrarySortMode = LibrarySortMode.DEFAULT,
+    /** Issue #785 — current search query text (empty = no search active). */
+    val searchQuery: String = "",
     val isLoading: Boolean = true,
 )
 
@@ -187,7 +191,7 @@ sealed interface AddByUrlSheetState {
 }
 
 @HiltViewModel
-@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class, FlowPreview::class)
 class LibraryViewModel @Inject constructor(
     fictionRepo: FictionRepository,
     private val positionRepo: PlaybackPositionRepository,
@@ -222,6 +226,22 @@ class LibraryViewModel @Inject constructor(
 
     private val _manageShelves = MutableStateFlow<ManageShelvesSheetState>(ManageShelvesSheetState.Hidden)
     val manageShelvesState: StateFlow<ManageShelvesSheetState> = _manageShelves.asStateFlow()
+
+    /**
+     * Issue #785 — raw search query text from the search bar. Debounced
+     * to [_debouncedSearch] at 300ms so rapid keystrokes don't trigger
+     * a refilter on every character.
+     */
+    private val _searchQuery = MutableStateFlow("")
+
+    /**
+     * Issue #785 — debounced search query. 300ms is long enough to
+     * swallow burst-typing but short enough that the list feels
+     * responsive once the user pauses. The initial empty-string value
+     * emits immediately (no delay for the no-search cold start).
+     */
+    private val _debouncedSearch = _searchQuery.debounce(300L)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "")
 
     /**
      * The fiction list flow swaps between the full library and a
@@ -284,16 +304,20 @@ class LibraryViewModel @Inject constructor(
         positionRepo.observeMostRecentContinueListening(),
         historyRepo.observeAll(),
         tabSnapshot,
-    ) { library, resume, history, snap ->
+        _debouncedSearch,
+    ) { library, resume, history, snap, query ->
+        val sorted = sortLibrary(library, snap.sortMode)
+        val filtered = filterBySearch(sorted, query)
         LibraryUiState(
             resume = resume,
-            fictions = sortLibrary(library, snap.sortMode),
+            fictions = filtered,
             history = history,
             inbox = snap.inboxEvents,
             inboxUnreadCount = snap.inboxUnreadCount,
             tab = snap.tab,
             filter = snap.filter,
             sortMode = snap.sortMode,
+            searchQuery = query,
             isLoading = false,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), LibraryUiState())
@@ -365,6 +389,18 @@ class LibraryViewModel @Inject constructor(
     /** Dropdown menu pick — persisted via [LibrarySortStore]. */
     fun selectSortMode(mode: LibrarySortMode) {
         viewModelScope.launch { sortStore.set(mode) }
+    }
+
+    // ─── search (#785) ─────────────────────────────────────────────────────
+
+    /** Issue #785 — update the search query as the user types. */
+    fun onSearchQueryChange(query: String) {
+        _searchQuery.value = query
+    }
+
+    /** Issue #785 — clear the search bar. */
+    fun clearSearch() {
+        _searchQuery.value = ""
     }
 
     // ─── manage-shelves bottom sheet (#116) ───────────────────────────────
@@ -652,6 +688,26 @@ internal fun sortLibrary(
             .thenBy { it.title.lowercase() }
             .thenBy { it.id },
     )
+}
+
+/**
+ * Issue #785 — client-side search filter. Case-insensitive substring
+ * match against fiction title and author. Returns the full list when
+ * the query is blank so an empty search bar shows everything.
+ *
+ * Exposed `internal` so unit tests can exercise the matching without
+ * spinning up the full ViewModel graph.
+ */
+internal fun filterBySearch(
+    fictions: List<FictionSummary>,
+    query: String,
+): List<FictionSummary> {
+    if (query.isBlank()) return fictions
+    val terms = query.trim().lowercase()
+    return fictions.filter { fiction ->
+        fiction.title.lowercase().contains(terms) ||
+            fiction.author.lowercase().contains(terms)
+    }
 }
 
 internal fun isLikelyAddByUrl(raw: String): Boolean {

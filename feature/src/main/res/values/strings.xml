@@ -221,6 +221,16 @@
     <string name="reader_chapters">Chapters</string>
     <string name="reader_couldnt_load_chapter">Couldn\'t load this chapter</string>
     <string name="reader_couldnt_load_message">The voice or chapter text is taking longer than expected. Try again, or pick a different voice — some take a moment to warm up.</string>
+
+    <!-- Issue #805 — typed playback error banner -->
+    <string name="reader_error_retry">Retry</string>
+    <string name="reader_error_dismiss">Dismiss error</string>
+    <string name="reader_error_title_auth">Sign in required</string>
+    <string name="reader_error_title_network">No connection</string>
+    <string name="reader_error_title_throttled">Too many requests</string>
+    <string name="reader_error_title_server">Server issue</string>
+    <string name="reader_error_title_engine">Voice not available</string>
+    <string name="reader_error_title_generic">Something went wrong</string>
     <string name="reader_sleep_step_by_sentence">Step by sentence</string>
     <string name="reader_sleep_timer">Sleep timer</string>
     <string name="reader_sleep_off">Off</string>
@@ -247,6 +257,11 @@
     <string name="library_shelf_all">All</string>
     <string name="library_add_by_url_label">URL</string>
     <string name="library_add_by_url_placeholder">https://…</string>
+    <!-- Issue #785 — Library search bar. -->
+    <string name="library_search_placeholder">Search by title or author</string>
+    <string name="library_search_clear_cd">Clear search</string>
+    <string name="library_search_no_results_title">No matches</string>
+    <string name="library_search_no_results_body">Try a different search term or clear the search to see your full library.</string>
     <!-- Issue #793 — Library sort dropdown. -->
     <string name="library_sort_chip_cd">Sort library</string>
     <string name="library_sort_title">Title</string>

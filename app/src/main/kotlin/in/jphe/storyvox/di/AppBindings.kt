@@ -946,6 +946,12 @@ internal class RealPlaybackControllerUi(
      *  add a stale duplication seam. */
     override val events: Flow<PlaybackUiEvent> = controller.events
 
+    /** Issue #805 — forward the typed engine state to the feature layer
+     *  so the reader can show distinct error banners (auth / network /
+     *  throttle / generic) rather than collapsing everything to a string. */
+    override val engineState: Flow<`in`.jphe.storyvox.playback.EngineState> =
+        controller.engineState
+
     /** "Why are we waiting?" — forward the AudioOutputMonitor's
      *  diagnostic flow through the UI contract. The monitor lives in
      *  core-playback as a Singleton; this adapter doesn't transform the

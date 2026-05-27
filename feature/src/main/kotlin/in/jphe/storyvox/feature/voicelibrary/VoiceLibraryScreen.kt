@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -24,9 +25,15 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.Cloud
 import androidx.compose.material.icons.outlined.ExpandLess
 import androidx.compose.material.icons.outlined.ExpandMore
+import androidx.compose.material.icons.outlined.Mic
+import androidx.compose.material.icons.outlined.MusicNote
+import androidx.compose.material.icons.outlined.Pets
+import androidx.compose.material.icons.outlined.RecordVoiceOver
 import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.outlined.SmartToy
 import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.PaddingValues as ComposePaddingValues
@@ -36,6 +43,7 @@ import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -53,6 +61,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -62,7 +75,9 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import `in`.jphe.storyvox.feature.R
@@ -302,12 +317,24 @@ fun VoiceLibraryScreen(
             }
 
             if (filteredIsEmpty) {
-                Box(
+                // #912 — polished filter-empty state with a decorative
+                // icon and softer copy. The centered layout with a muted
+                // search icon reads as "nothing found" without feeling
+                // like an error.
+                Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(spacing.md),
-                    contentAlignment = Alignment.Center,
+                        .padding(spacing.lg),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
                 ) {
+                    Icon(
+                        imageVector = Icons.Outlined.RecordVoiceOver,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f),
+                        modifier = Modifier.size(56.dp),
+                    )
+                    Spacer(modifier = Modifier.height(spacing.md))
                     // Empty-state text reflects whichever filter
                     // dimension the user is actually engaging — query
                     // text wins when present (it's the more specific
@@ -316,16 +343,24 @@ fun VoiceLibraryScreen(
                     // chips being active.
                     val emptyLabel = when {
                         rawQuery.trim().isNotEmpty() ->
-                            "No voices match \"${rawQuery.trim()}\"."
+                            "No voices match \"${rawQuery.trim()}\""
                         selectedLanguage != null ->
-                            "No voices match \"$selectedLanguage\"."
+                            "No voices match \"$selectedLanguage\""
                         else ->
-                            "No voices match the current filters."
+                            "No voices match the current filters"
                     }
                     Text(
                         emptyLabel,
-                        style = MaterialTheme.typography.bodyMedium,
+                        style = MaterialTheme.typography.titleSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                    )
+                    Spacer(modifier = Modifier.height(spacing.xs))
+                    Text(
+                        "Try adjusting your search or filters.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                        textAlign = TextAlign.Center,
                     )
                 }
                 return@Column
@@ -402,12 +437,22 @@ fun VoiceLibraryScreen(
             item { SectionHeader("Installed", count = installedTotal) }
             if (installedTotal == 0) {
                 item {
-                    Text(
-                        "No voices installed yet. Pick one below to get started.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(vertical = spacing.sm),
-                    )
+                    // #912 — friendlier empty-installed nudge with a
+                    // subtle container background so it reads as a
+                    // callout rather than orphaned body text.
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(MaterialTheme.colorScheme.surfaceContainerLow)
+                            .padding(spacing.sm),
+                    ) {
+                        Text(
+                            "No voices installed yet — pick one below to get started.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
             } else {
                 installedByEngine.forEach { (engine, tiers) ->
@@ -574,42 +619,71 @@ fun VoiceLibraryScreen(
  *  and the remaining 52 then activate instantly. Inference is heavier
  *  than Piper, so on modest hardware a small inter-sentence pause is
  *  expected. Heading off both UX surprises upfront. */
+/** #912 — polished Kokoro bundle note with a leading icon and more
+ *  structured layout. The brass border-left accent visually ties it to
+ *  the engine sub-header above while the icon + structured text makes
+ *  the two key points (shared bundle + inference cost) scannable. */
 @Composable
 private fun KokoroBundleNote() {
     val spacing = LocalSpacing.current
-    val outline = MaterialTheme.colorScheme.outlineVariant
-    Box(
+    val brass = MaterialTheme.colorScheme.primary
+    Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(8.dp))
             .background(MaterialTheme.colorScheme.surfaceContainerLow)
-            .border(1.dp, outline.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
-            .padding(spacing.sm),
+            .drawBehind {
+                // Brass accent line on the leading edge.
+                drawRoundRect(
+                    color = brass.copy(alpha = 0.6f),
+                    size = androidx.compose.ui.geometry.Size(
+                        width = 3.dp.toPx(),
+                        height = size.height,
+                    ),
+                    cornerRadius = CornerRadius(2.dp.toPx()),
+                )
+            }
+            .padding(start = spacing.sm + 3.dp, end = spacing.sm, top = spacing.sm, bottom = spacing.sm),
+        horizontalArrangement = Arrangement.spacedBy(spacing.sm),
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Icon(
+            imageVector = Icons.Outlined.SmartToy,
+            contentDescription = null,
+            tint = brass.copy(alpha = 0.7f),
+            modifier = Modifier
+                .size(20.dp)
+                .padding(top = 2.dp),
+        )
+        Column(verticalArrangement = Arrangement.spacedBy(spacing.xxs)) {
             Text(
-                "🌐 Kokoro voices share one bundle",
+                "Kokoro voices share one bundle",
                 style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.primary,
+                color = brass,
                 fontWeight = FontWeight.SemiBold,
             )
             Text(
-                "All 53 Kokoro speakers (English, Spanish, French, Hindi, Italian, Japanese, Portuguese, Chinese) share one ~380 MB bundle (model + speakers + tokens). The first Kokoro voice you pick downloads it; every Kokoro voice after that activates instantly.",
+                "All 53 Kokoro speakers share a single ~380 MB bundle. The first voice you pick downloads it; every voice after that activates instantly.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Text(
-                "Kokoro inference is heavier than Piper — on modest hardware you may notice a small pause between sentences while the next chunk renders.",
+                "Kokoro inference is heavier than Piper — on modest hardware expect a brief pause between sentences.",
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
             )
         }
     }
 }
 
+/** #912 — polished section header with a brass divider line and count
+ *  badge. The visual read order is: brass accent line → section label →
+ *  count badge. The line extends from the label's trailing edge to the
+ *  screen edge, creating a ruled-notebook aesthetic that fits the
+ *  literary/realm theme. */
 @Composable
 private fun SectionHeader(label: String, count: Int, dim: Boolean = false) {
     val color = if (dim) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary
+    val spacing = LocalSpacing.current
     // Issue #651 — TalkBack pre-fix focused this row but read nothing
     // (empty default contentDescription). Wrap the Row in a semantics
     // block that announces the section name + count as one phrase, and
@@ -618,30 +692,66 @@ private fun SectionHeader(label: String, count: Int, dim: Boolean = false) {
     // by Compose's default semantics, so we use [clearAndSetSemantics]
     // to consolidate them into a single TalkBack announcement instead
     // of three separate ones ("AVAILABLE", " · ", "204").
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.clearAndSetSemantics {
-            contentDescription = "$label section, $count voices"
-            role = Role.Image // Compose Material lacks Role.Header;
-            // Image is the closest neutral role that lets TalkBack
-            // read the contentDescription without claiming "Button"
-            // (no tap target) or "Tab" (not a tab). Custom roles
-            // require a CustomAccessibilityAction — overkill for a
-            // static header.
-        },
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clearAndSetSemantics {
+                contentDescription = "$label section, $count voices"
+                role = Role.Image // Compose Material lacks Role.Header;
+                // Image is the closest neutral role that lets TalkBack
+                // read the contentDescription without claiming "Button"
+                // (no tap target) or "Tab" (not a tab). Custom roles
+                // require a CustomAccessibilityAction — overkill for a
+                // static header.
+            },
     ) {
-        Text(
-            label.uppercase(),
-            style = MaterialTheme.typography.labelLarge,
-            color = color,
-            fontWeight = FontWeight.SemiBold,
-        )
-        Text(
-            "  ·  $count",
-            style = MaterialTheme.typography.labelMedium,
-            color = color.copy(alpha = 0.7f),
-        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(
+                label.uppercase(),
+                style = MaterialTheme.typography.titleSmall,
+                color = color,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 1.2.sp,
+            )
+            Spacer(modifier = Modifier.width(spacing.sm))
+            // Count badge — brass pill with the voice count.
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(50))
+                    .background(color.copy(alpha = 0.12f))
+                    .padding(horizontal = spacing.xs, vertical = 2.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    "$count",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = color,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
+            Spacer(modifier = Modifier.width(spacing.sm))
+            // Ruled line extending to the trailing edge.
+            HorizontalDivider(
+                modifier = Modifier.weight(1f),
+                thickness = 1.dp,
+                color = color.copy(alpha = 0.25f),
+            )
+        }
     }
+}
+
+/** #912 — Engine icon for the sub-header. Each engine gets a distinctive
+ *  Material icon so the user can instantly identify the voice backend at
+ *  a glance — no need to parse the text label. */
+private fun engineIcon(engine: VoiceEngine): ImageVector = when (engine) {
+    VoiceEngine.SystemTts -> Icons.Outlined.RecordVoiceOver
+    VoiceEngine.Piper -> Icons.Outlined.MusicNote
+    VoiceEngine.Kokoro -> Icons.Outlined.Mic
+    VoiceEngine.Kitten -> Icons.Outlined.Pets
+    VoiceEngine.Azure -> Icons.Outlined.Cloud
 }
 
 /** Engine label + count rendered under a [SectionHeader] (Piper /
@@ -654,7 +764,10 @@ private fun SectionHeader(label: String, count: Int, dim: Boolean = false) {
  *  the trailing chevron flips between [Icons.Outlined.ExpandMore]
  *  (collapsed) and [Icons.Outlined.ExpandLess] (expanded). The
  *  chevron lives at the row's end via a `Spacer(weight = 1f)` so
- *  the label/count stay left-aligned even on wide screens. */
+ *  the label/count stay left-aligned even on wide screens.
+ *
+ *  #912 — added a leading engine icon + subtle container background so
+ *  engine sections read as distinct visual blocks. */
 @Composable
 private fun EngineSubHeader(
     engine: VoiceEngine,
@@ -668,6 +781,7 @@ private fun EngineSubHeader(
     } else {
         MaterialTheme.colorScheme.primary
     }
+    val spacing = LocalSpacing.current
     val label = when (engine) {
         // #676 — System TTS sub-header. "System TTS" is the
         // shortest accurate label — the family card subtitle
@@ -687,6 +801,12 @@ private fun EngineSubHeader(
         // emoji to know what's cloud vs local.
         VoiceEngine.Azure -> "Azure (Cloud)"
     }
+    val reducedMotion = LocalReducedMotion.current
+    val chevronRotation by animateFloatAsState(
+        targetValue = if (isCollapsed) 0f else 180f,
+        animationSpec = tween(durationMillis = if (reducedMotion) 0 else 200),
+        label = "engine-chevron-$label",
+    )
     // a11y (#481): engine sub-header expand/collapse — Role.Button with
     // an explicit click label so TalkBack reads "Expand <label>" /
     // "Collapse <label>" rather than the generic "double tap".
@@ -694,13 +814,22 @@ private fun EngineSubHeader(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .background(baseColor.copy(alpha = 0.06f))
             .clickable(
                 role = Role.Button,
                 onClickLabel = if (isCollapsed) "Expand $label" else "Collapse $label",
                 onClick = onToggle,
             )
-            .padding(top = 6.dp, bottom = 2.dp),
+            .padding(horizontal = spacing.sm, vertical = spacing.xs),
     ) {
+        Icon(
+            imageVector = engineIcon(engine),
+            contentDescription = null,
+            tint = baseColor.copy(alpha = 0.85f),
+            modifier = Modifier.size(18.dp),
+        )
+        Spacer(modifier = Modifier.width(spacing.xs))
         Text(
             label,
             style = MaterialTheme.typography.labelLarge,
@@ -714,17 +843,21 @@ private fun EngineSubHeader(
         )
         Spacer(modifier = Modifier.weight(1f))
         Icon(
-            imageVector = if (isCollapsed) Icons.Outlined.ExpandMore else Icons.Outlined.ExpandLess,
+            imageVector = Icons.Outlined.ExpandMore,
             contentDescription = if (isCollapsed) "Expand $label" else "Collapse $label",
             tint = baseColor.copy(alpha = 0.7f),
-            modifier = Modifier.size(20.dp),
+            modifier = Modifier
+                .size(20.dp)
+                .rotate(chevronRotation),
         )
     }
 }
 
-/** Tier label + count rendered under an [EngineSubHeader] (Studio /
- *  High / Medium / Low). Visually quieter than the engine sub-header so
- *  the Section → Engine grouping reads first; the tier label is a
+/** #912 — Tier label + count rendered under an [EngineSubHeader]
+ *  (Studio / High / Medium / Low). Each tier gets a small colored dot
+ *  that encodes quality at a glance — brass-gold for Studio, a calmer
+ *  tint for the lower tiers. Visually quieter than the engine sub-header
+ *  so the Section → Engine grouping reads first; the tier label is a
  *  refinement, not a peer. */
 @Composable
 private fun TierSubHeader(tier: QualityLevel, count: Int, dim: Boolean = false) {
@@ -733,18 +866,21 @@ private fun TierSubHeader(tier: QualityLevel, count: Int, dim: Boolean = false) 
     } else {
         MaterialTheme.colorScheme.onSurface
     }
-    val (label, accent) = tierDisplay(tier)
+    val spacing = LocalSpacing.current
+    val (label, _) = tierDisplay(tier)
+    val dotColor = tierDotColor(tier)
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.padding(top = 4.dp, bottom = 2.dp),
+        modifier = Modifier.padding(top = spacing.xs, bottom = 2.dp, start = spacing.xs),
     ) {
-        if (accent.isNotEmpty()) {
-            Text(
-                accent,
-                style = MaterialTheme.typography.labelMedium,
-            )
-            Spacer(modifier = Modifier.size(4.dp))
-        }
+        // Quality dot — small colored circle indicating the tier.
+        Box(
+            modifier = Modifier
+                .size(8.dp)
+                .clip(CircleShape)
+                .background(dotColor),
+        )
+        Spacer(modifier = Modifier.width(spacing.xs))
         Text(
             label,
             style = MaterialTheme.typography.labelMedium,
@@ -767,6 +903,17 @@ private fun tierDisplay(tier: QualityLevel): Pair<String, String> = when (tier) 
     QualityLevel.High -> "High" to ""
     QualityLevel.Medium -> "Medium" to ""
     QualityLevel.Low -> "Low" to ""
+}
+
+/** #912 — color for the quality-tier dot. Uses theme-relative colors so
+ *  both dark and light modes produce correct contrast. Studio gets the
+ *  primary brass; lower tiers dim progressively. */
+@Composable
+private fun tierDotColor(tier: QualityLevel): Color = when (tier) {
+    QualityLevel.Studio -> MaterialTheme.colorScheme.primary
+    QualityLevel.High -> MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
+    QualityLevel.Medium -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+    QualityLevel.Low -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
 }
 
 @Composable
@@ -839,15 +986,39 @@ private fun VoiceRow(
         if (isActive) append(", currently active")
         if (isAvailable) append(", not yet downloaded")
     }
+    // #912 — active voice gets a subtle gradient border glow to stand
+    // out as the "current narrator". The gradient runs from primary at
+    // the top-start to a complementary brass-muted tone at the bottom-
+    // end, creating a warm metallic frame effect.
+    val activeBorderBrush = Brush.linearGradient(
+        colors = listOf(
+            brass.copy(alpha = 0.9f),
+            brass.copy(alpha = 0.4f),
+        ),
+    )
     Box(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
             .background(containerColor)
-            .border(
-                width = if (isActive) 1.5.dp else 1.dp,
-                color = borderColor,
-                shape = RoundedCornerShape(12.dp),
+            .then(
+                if (isActive) {
+                    Modifier.drawBehind {
+                        drawRoundRect(
+                            brush = activeBorderBrush,
+                            cornerRadius = CornerRadius(12.dp.toPx()),
+                            style = androidx.compose.ui.graphics.drawscope.Stroke(
+                                width = 2.dp.toPx(),
+                            ),
+                        )
+                    }
+                } else {
+                    Modifier.border(
+                        width = 1.dp,
+                        color = borderColor,
+                        shape = RoundedCornerShape(12.dp),
+                    )
+                },
             )
             .combinedClickable(
                 onClick = onTap,
@@ -866,6 +1037,14 @@ private fun VoiceRow(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(spacing.sm),
             ) {
+                // #912 — Voice avatar: a circular initial badge that
+                // gives each voice a distinctive visual identity. The
+                // background tint is derived from the engine type so
+                // the user can scan by engine color at a glance.
+                VoiceAvatar(
+                    voice = voice,
+                    isActive = isActive,
+                )
                 FavoriteToggle(
                     isFavorite = isFavorite,
                     onToggle = onToggleFavorite,
@@ -1127,29 +1306,90 @@ private fun FavoriteToggle(
     }
 }
 
+/** #912 — Voice avatar: a circular badge showing the voice's initial
+ *  letter on a tinted background. The tint is engine-derived so the
+ *  user can identify voice backends by color at a glance — warm brass
+ *  for Piper, a cooler purple for Kokoro, etc. The active voice gets
+ *  a brass border ring. */
+@Composable
+private fun VoiceAvatar(
+    voice: UiVoiceInfo,
+    isActive: Boolean,
+) {
+    val brass = MaterialTheme.colorScheme.primary
+    val avatarBg = engineAvatarColor(voice.engineType)
+    val initial = voice.displayName.firstOrNull()?.uppercaseChar() ?: '?'
+    Box(
+        modifier = Modifier
+            .size(36.dp)
+            .clip(CircleShape)
+            .background(avatarBg)
+            .then(
+                if (isActive) {
+                    Modifier.border(2.dp, brass, CircleShape)
+                } else {
+                    Modifier
+                },
+            ),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = initial.toString(),
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.Bold,
+            color = Color.White,
+        )
+    }
+}
+
+/** #912 — Engine-derived avatar background color. Each engine type gets
+ *  a distinctive hue so the user can scan the list by engine at a
+ *  glance. Uses semi-transparent overlays on the theme's primary and
+ *  tertiary colors so both dark and light themes produce pleasant
+ *  contrast. */
+@Composable
+private fun engineAvatarColor(engineType: EngineType): Color = when (engineType) {
+    is EngineType.Piper -> MaterialTheme.colorScheme.primary.copy(alpha = 0.75f)
+    is EngineType.Kokoro -> MaterialTheme.colorScheme.tertiary.copy(alpha = 0.75f)
+    is EngineType.Kitten -> MaterialTheme.colorScheme.secondary.copy(alpha = 0.75f)
+    is EngineType.Azure -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.85f)
+    is EngineType.SystemTts -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+}
+
+/** #912 — polished active chip with a gradient brass fill instead of
+ *  the flat alpha overlay. The gradient gives the chip a warm metallic
+ *  feel that matches the realm's brass vocabulary. */
 @Composable
 private fun ActiveChip() {
     val brass = MaterialTheme.colorScheme.primary
+    val onBrass = MaterialTheme.colorScheme.onPrimary
     Row(
         modifier = Modifier
             .clip(RoundedCornerShape(50))
-            .background(brass.copy(alpha = 0.18f))
-            .border(width = 1.dp, color = brass, shape = RoundedCornerShape(50))
-            .padding(horizontal = 8.dp, vertical = 2.dp),
+            .background(
+                Brush.horizontalGradient(
+                    colors = listOf(
+                        brass.copy(alpha = 0.85f),
+                        brass.copy(alpha = 0.65f),
+                    ),
+                ),
+            )
+            .padding(horizontal = 10.dp, vertical = 3.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         Icon(
             imageVector = Icons.Outlined.Check,
             contentDescription = null,
-            tint = brass,
+            tint = onBrass,
             modifier = Modifier.size(12.dp),
         )
         Text(
             "ACTIVE",
             style = MaterialTheme.typography.labelSmall,
-            color = brass,
-            fontWeight = FontWeight.SemiBold,
+            color = onBrass,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 0.5.sp,
         )
     }
 }
@@ -1222,6 +1462,9 @@ private fun DeleteConfirmDialog(
     )
 }
 
+/** #912 — enhanced loading state with a more literary/magical flavor
+ *  that fits the storyvox realm theme. The skeleton tile stays as the
+ *  visual anchor; the copy leans into the fantasy vocabulary. */
 @Composable
 private fun EmptyState(modifier: Modifier = Modifier) {
     val spacing = LocalSpacing.current
@@ -1239,15 +1482,17 @@ private fun EmptyState(modifier: Modifier = Modifier) {
         )
         Spacer(modifier = Modifier.height(spacing.lg))
         Text(
-            "Voices loading…",
+            "Summoning voices…",
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.primary,
+            fontWeight = FontWeight.SemiBold,
         )
         Spacer(modifier = Modifier.height(spacing.xs))
         Text(
-            "Catalog is being summoned. This shouldn't take more than a moment.",
+            "The voice catalog is being summoned from the archives. This will only take a moment.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
         )
     }
 }

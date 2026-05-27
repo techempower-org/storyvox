@@ -308,6 +308,11 @@ fun HybridReaderScreen(
                 waitReason = state.waitReason,
                 chapters = chapters,
                 onPlayChapter = viewModel::playChapter,
+                // Issue #805 — typed playback error banner with
+                // subtype-specific icon + message + recovery action.
+                playbackError = state.playbackError,
+                onRetryPlayback = viewModel::retryLoading,
+                onDismissPlaybackError = viewModel::dismissPlaybackError,
             )
         },
         readerContent = {

@@ -447,6 +447,18 @@ interface PlaybackControllerUi {
         get() = kotlinx.coroutines.flow.emptyFlow()
 
     /**
+     * Issue #805 — typed engine state for error surfacing. The reader UI
+     * subscribes to this to show distinct error banners for auth failures,
+     * network errors, throttling, etc. — replacing the generic "something
+     * went wrong" treatment with actionable recovery actions.
+     *
+     * Default emits [EngineState.Idle] forever so test fakes that don't
+     * care about error surfaces stay slim.
+     */
+    val engineState: Flow<`in`.jphe.storyvox.playback.EngineState>
+        get() = kotlinx.coroutines.flow.flowOf(`in`.jphe.storyvox.playback.EngineState.Idle)
+
+    /**
      * "Why are we waiting?" diagnostic. Forwarded straight from
      * [in.jphe.storyvox.playback.PlaybackController.waitReason]. Null when
      * audio is genuinely flowing; non-null with a typed

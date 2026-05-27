@@ -13,6 +13,7 @@ import `in`.jphe.storyvox.data.repository.playback.RecentItem
 import `in`.jphe.storyvox.data.repository.playback.SavedPosition
 import `in`.jphe.storyvox.data.source.model.ChapterContent
 import `in`.jphe.storyvox.data.source.model.ChapterInfo
+import `in`.jphe.storyvox.playback.PowerSaveMonitor
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -23,6 +24,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 
 /**
@@ -176,6 +178,13 @@ class PrerenderTriggersTest {
         override suspend fun recent(limit: Int): List<RecentItem> = emptyList()
     }
 
+    /** Issue #801 — power-save monitor routed through Robolectric's
+     *  application context. Default state is OFF so existing tests
+     *  preserve their pre-#801 behavior. */
+    private val powerSaveMonitor: PowerSaveMonitor by lazy {
+        PowerSaveMonitor(RuntimeEnvironment.getApplication())
+    }
+
     private fun chapter(num: Int, fictionPrefix: String) = ChapterInfo(
         id = "$fictionPrefix-c$num",
         sourceChapterId = "src-$num",
@@ -189,7 +198,7 @@ class PrerenderTriggersTest {
         // Issue #558 — DEFAULT_PRERENDER_CHAPTERS is 5 (up from 3); fiction
         // has 7 chapters so the slice is non-trivial.
         val repo = FakeChapterRepo(mapOf("f1" to (1..7).map { chapter(it, "f1") }))
-        val triggers = PrerenderTriggers(scheduler, repo, FakeModeConfig(full = false), FakePositionRepo(), FakePrerenderCount())
+        val triggers = PrerenderTriggers(scheduler, repo, FakeModeConfig(full = false), FakePositionRepo(), FakePrerenderCount(), powerSaveMonitor)
 
         triggers.onLibraryAdded("f1")
 
@@ -208,7 +217,7 @@ class PrerenderTriggersTest {
     fun `onLibraryAdded enqueues all chapters when fullPrerender on`() = runBlocking {
         val scheduler = RecordingScheduler()
         val repo = FakeChapterRepo(mapOf("f1" to (1..5).map { chapter(it, "f1") }))
-        val triggers = PrerenderTriggers(scheduler, repo, FakeModeConfig(full = true), FakePositionRepo(), FakePrerenderCount())
+        val triggers = PrerenderTriggers(scheduler, repo, FakeModeConfig(full = true), FakePositionRepo(), FakePrerenderCount(), powerSaveMonitor)
 
         triggers.onLibraryAdded("f1")
 
@@ -225,7 +234,7 @@ class PrerenderTriggersTest {
         // Fiction with only 2 chapters; default limit is 3 but we shouldn't
         // try to schedule beyond what exists.
         val repo = FakeChapterRepo(mapOf("f1" to (1..2).map { chapter(it, "f1") }))
-        val triggers = PrerenderTriggers(scheduler, repo, FakeModeConfig(full = false), FakePositionRepo(), FakePrerenderCount())
+        val triggers = PrerenderTriggers(scheduler, repo, FakeModeConfig(full = false), FakePositionRepo(), FakePrerenderCount(), powerSaveMonitor)
 
         triggers.onLibraryAdded("f1")
 
@@ -236,7 +245,7 @@ class PrerenderTriggersTest {
     fun `onLibraryAdded with empty chapter list is a no-op`() = runBlocking {
         val scheduler = RecordingScheduler()
         val repo = FakeChapterRepo(emptyMap())
-        val triggers = PrerenderTriggers(scheduler, repo, FakeModeConfig(full = false), FakePositionRepo(), FakePrerenderCount())
+        val triggers = PrerenderTriggers(scheduler, repo, FakeModeConfig(full = false), FakePositionRepo(), FakePrerenderCount(), powerSaveMonitor)
 
         triggers.onLibraryAdded("f1")
 
@@ -252,6 +261,7 @@ class PrerenderTriggersTest {
             FakeModeConfig(),
             FakePositionRepo(),
             FakePrerenderCount(),
+            powerSaveMonitor,
         )
 
         triggers.onLibraryRemoved("f1")
@@ -277,7 +287,7 @@ class PrerenderTriggersTest {
                     coverUrl = null,
                 ) else null
         }
-        val triggers = PrerenderTriggers(scheduler, repo, FakeModeConfig(), FakePositionRepo(), FakePrerenderCount())
+        val triggers = PrerenderTriggers(scheduler, repo, FakeModeConfig(), FakePositionRepo(), FakePrerenderCount(), powerSaveMonitor)
 
         // Just-completed = c1 → next = c2 → next-next = c3 → schedule c3.
         triggers.onChapterCompleted("f1-c1")
@@ -291,7 +301,7 @@ class PrerenderTriggersTest {
         val scheduler = RecordingScheduler()
         // f1 has 3 chapters; completing c2 → next is c3 → next-next is null.
         val repo = FakeChapterRepo(mapOf("f1" to (1..3).map { chapter(it, "f1") }))
-        val triggers = PrerenderTriggers(scheduler, repo, FakeModeConfig(), FakePositionRepo(), FakePrerenderCount())
+        val triggers = PrerenderTriggers(scheduler, repo, FakeModeConfig(), FakePositionRepo(), FakePrerenderCount(), powerSaveMonitor)
 
         triggers.onChapterCompleted("f1-c2")
 
@@ -302,7 +312,7 @@ class PrerenderTriggersTest {
     fun `onChapterCompleted at last chapter is a no-op`() = runBlocking {
         val scheduler = RecordingScheduler()
         val repo = FakeChapterRepo(mapOf("f1" to (1..3).map { chapter(it, "f1") }))
-        val triggers = PrerenderTriggers(scheduler, repo, FakeModeConfig(), FakePositionRepo(), FakePrerenderCount())
+        val triggers = PrerenderTriggers(scheduler, repo, FakeModeConfig(), FakePositionRepo(), FakePrerenderCount(), powerSaveMonitor)
 
         triggers.onChapterCompleted("f1-c3")
 
@@ -318,7 +328,7 @@ class PrerenderTriggersTest {
                 "f2" to (1..4).map { chapter(it, "f2") },
             ),
         )
-        val triggers = PrerenderTriggers(scheduler, repo, FakeModeConfig(), FakePositionRepo(), FakePrerenderCount())
+        val triggers = PrerenderTriggers(scheduler, repo, FakeModeConfig(), FakePositionRepo(), FakePrerenderCount(), powerSaveMonitor)
 
         triggers.onFullPrerenderEnabled(listOf("f1", "f2"))
 
@@ -350,7 +360,7 @@ class PrerenderTriggersTest {
                 ),
             ),
         )
-        val triggers = PrerenderTriggers(scheduler, repo, FakeModeConfig(full = false), positions, FakePrerenderCount())
+        val triggers = PrerenderTriggers(scheduler, repo, FakeModeConfig(full = false), positions, FakePrerenderCount(), powerSaveMonitor)
 
         triggers.onLibraryAdded("f1")
 
@@ -367,7 +377,7 @@ class PrerenderTriggersTest {
         val repo = FakeChapterRepo(mapOf("f1" to (1..10).map { chapter(it, "f1") }))
         // First-time add, no prior position. Should match the legacy
         // pre-#557 behavior — pre-render from the start.
-        val triggers = PrerenderTriggers(scheduler, repo, FakeModeConfig(full = false), FakePositionRepo(), FakePrerenderCount())
+        val triggers = PrerenderTriggers(scheduler, repo, FakeModeConfig(full = false), FakePositionRepo(), FakePrerenderCount(), powerSaveMonitor)
 
         triggers.onLibraryAdded("f1")
 
@@ -392,7 +402,7 @@ class PrerenderTriggersTest {
                 ),
             ),
         )
-        val triggers = PrerenderTriggers(scheduler, repo, FakeModeConfig(full = false), positions, FakePrerenderCount())
+        val triggers = PrerenderTriggers(scheduler, repo, FakeModeConfig(full = false), positions, FakePrerenderCount(), powerSaveMonitor)
 
         triggers.onLibraryAdded("f1")
 
@@ -422,7 +432,7 @@ class PrerenderTriggersTest {
                 ),
             ),
         )
-        val triggers = PrerenderTriggers(scheduler, repo, FakeModeConfig(full = false), positions, FakePrerenderCount())
+        val triggers = PrerenderTriggers(scheduler, repo, FakeModeConfig(full = false), positions, FakePrerenderCount(), powerSaveMonitor)
 
         triggers.onLibraryAdded("f1")
 
@@ -438,7 +448,7 @@ class PrerenderTriggersTest {
     fun `onChapterOpened queues body downloads for next BODY_PREFETCH_LOOKAHEAD chapters`() = runBlocking {
         val scheduler = RecordingScheduler()
         val repo = FakeChapterRepo(mapOf("f1" to (1..10).map { chapter(it, "f1") }))
-        val triggers = PrerenderTriggers(scheduler, repo, FakeModeConfig(full = false), FakePositionRepo(), FakePrerenderCount())
+        val triggers = PrerenderTriggers(scheduler, repo, FakeModeConfig(full = false), FakePositionRepo(), FakePrerenderCount(), powerSaveMonitor)
 
         // User just opened chapter 4 — prefetch should pull chapters 5, 6, 7.
         triggers.onChapterOpened("f1", "f1-c4")
@@ -467,7 +477,7 @@ class PrerenderTriggersTest {
         // 5-chapter fiction; user just opened chapter 3 → only c4, c5
         // exist downstream, so the prefetch should cap at 2.
         val repo = FakeChapterRepo(mapOf("f1" to (1..5).map { chapter(it, "f1") }))
-        val triggers = PrerenderTriggers(scheduler, repo, FakeModeConfig(full = false), FakePositionRepo(), FakePrerenderCount())
+        val triggers = PrerenderTriggers(scheduler, repo, FakeModeConfig(full = false), FakePositionRepo(), FakePrerenderCount(), powerSaveMonitor)
 
         triggers.onChapterOpened("f1", "f1-c3")
 
@@ -481,7 +491,7 @@ class PrerenderTriggersTest {
     fun `onChapterOpened at last chapter is a no-op`() = runBlocking {
         val scheduler = RecordingScheduler()
         val repo = FakeChapterRepo(mapOf("f1" to (1..3).map { chapter(it, "f1") }))
-        val triggers = PrerenderTriggers(scheduler, repo, FakeModeConfig(full = false), FakePositionRepo(), FakePrerenderCount())
+        val triggers = PrerenderTriggers(scheduler, repo, FakeModeConfig(full = false), FakePositionRepo(), FakePrerenderCount(), powerSaveMonitor)
 
         triggers.onChapterOpened("f1", "f1-c3")
 
@@ -502,7 +512,7 @@ class PrerenderTriggersTest {
         val repo = object : FakeChapterRepo(mapOf("f1" to (1..6).map { chapter(it, "f1") })) {
             override suspend fun getChapter(id: String): PlaybackChapter? = null
         }
-        val triggers = PrerenderTriggers(scheduler, repo, FakeModeConfig(full = false), FakePositionRepo(), FakePrerenderCount())
+        val triggers = PrerenderTriggers(scheduler, repo, FakeModeConfig(full = false), FakePositionRepo(), FakePrerenderCount(), powerSaveMonitor)
 
         triggers.onChapterOpened("f1", "f1-c1")
 
@@ -530,7 +540,7 @@ class PrerenderTriggersTest {
                     ),
                 ),
             )
-            val triggers = PrerenderTriggers(scheduler, repo, FakeModeConfig(full = true), positions, FakePrerenderCount())
+            val triggers = PrerenderTriggers(scheduler, repo, FakeModeConfig(full = true), positions, FakePrerenderCount(), powerSaveMonitor)
 
             triggers.onLibraryAdded("f1")
 
@@ -540,4 +550,83 @@ class PrerenderTriggersTest {
                 scheduler.scheduled.map { it.second },
             )
         }
+
+    // ─── Issue #801 — power-save mode suppression ───────────────────
+
+    @Test
+    fun `onLibraryAdded skips scheduling when power save mode is on`() = runBlocking {
+        val scheduler = RecordingScheduler()
+        val repo = FakeChapterRepo(mapOf("f1" to (1..7).map { chapter(it, "f1") }))
+        // Set power-save mode ON via Robolectric's PowerManager shadow.
+        val context = RuntimeEnvironment.getApplication()
+        val pm = context.getSystemService(android.content.Context.POWER_SERVICE)
+            as android.os.PowerManager
+        org.robolectric.Shadows.shadowOf(pm).setIsPowerSaveMode(true)
+        val psm = PowerSaveMonitor(context)
+        val triggers = PrerenderTriggers(
+            scheduler, repo, FakeModeConfig(full = false),
+            FakePositionRepo(), FakePrerenderCount(), psm,
+        )
+
+        triggers.onLibraryAdded("f1")
+
+        assertTrue(
+            "no renders scheduled when power save mode is on",
+            scheduler.scheduled.isEmpty(),
+        )
+    }
+
+    @Test
+    fun `onChapterCompleted skips scheduling when power save mode is on`() = runBlocking {
+        val scheduler = RecordingScheduler()
+        val repo = object : FakeChapterRepo(
+            mapOf("f1" to (1..5).map { chapter(it, "f1") }),
+        ) {
+            override suspend fun getChapter(id: String): PlaybackChapter? =
+                if (id == "f1-c3") PlaybackChapter(
+                    id = "f1-c3", fictionId = "f1", text = "body",
+                    title = "Chapter 3", bookTitle = "F1", coverUrl = null,
+                ) else null
+        }
+        val context = RuntimeEnvironment.getApplication()
+        val pm = context.getSystemService(android.content.Context.POWER_SERVICE)
+            as android.os.PowerManager
+        org.robolectric.Shadows.shadowOf(pm).setIsPowerSaveMode(true)
+        val psm = PowerSaveMonitor(context)
+        val triggers = PrerenderTriggers(
+            scheduler, repo, FakeModeConfig(),
+            FakePositionRepo(), FakePrerenderCount(), psm,
+        )
+
+        triggers.onChapterCompleted("f1-c1")
+
+        assertTrue(
+            "no renders scheduled when power save mode is on",
+            scheduler.scheduled.isEmpty(),
+        )
+    }
+
+    @Test
+    fun `onFullPrerenderEnabled skips scheduling when power save mode is on`() = runBlocking {
+        val scheduler = RecordingScheduler()
+        val repo = FakeChapterRepo(
+            mapOf("f1" to (1..3).map { chapter(it, "f1") }),
+        )
+        val context = RuntimeEnvironment.getApplication()
+        val pm = context.getSystemService(android.content.Context.POWER_SERVICE)
+            as android.os.PowerManager
+        org.robolectric.Shadows.shadowOf(pm).setIsPowerSaveMode(true)
+        val psm = PowerSaveMonitor(context)
+        val triggers = PrerenderTriggers(
+            scheduler, repo, FakeModeConfig(),
+            FakePositionRepo(), FakePrerenderCount(), psm,
+        )
+
+        triggers.onFullPrerenderEnabled(listOf("f1"))
+
+        assertTrue(
+            "no renders scheduled when power save mode is on",
+            scheduler.scheduled.isEmpty(),
+        )
+    }
 }

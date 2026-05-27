@@ -1,5 +1,10 @@
 package `in`.jphe.storyvox.feature.reader
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -14,22 +19,26 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.VerticalAlignCenter
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -45,6 +54,7 @@ import `in`.jphe.storyvox.feature.api.UiPlaybackState
 import `in`.jphe.storyvox.ui.component.SentenceHighlight
 import `in`.jphe.storyvox.ui.theme.LocalSpacing
 import kotlin.math.roundToInt
+import kotlinx.coroutines.launch
 
 /**
  * Manual-scroll grace window. While the user is dragging or for this many millis after,
@@ -120,6 +130,38 @@ fun ReaderTextView(
         scroll.animateScrollTo(targetY)
     }
 
+    // Issue #919 — "scroll to current sentence" FAB. Derived state tracks
+    // whether the brass-underlined sentence is visible in the viewport.
+    // When the user scrolls away (sentence not visible AND playback active),
+    // a small FAB appears; tapping it resets the manual-scroll grace and
+    // smooth-scrolls to the active sentence. Auto-hides when the sentence
+    // is already in view. The 80px margin gives a comfortable buffer so the
+    // FAB doesn't flicker when the sentence is right at the edge.
+    val scope = rememberCoroutineScope()
+    val sentenceOutOfView by remember {
+        derivedStateOf {
+            val layout = textLayout ?: return@derivedStateOf false
+            val start = state.sentenceStart
+            val end = state.sentenceEnd
+            if (end <= start) return@derivedStateOf false
+            if (chapterText.isEmpty()) return@derivedStateOf false
+            if (start !in 0..chapterText.length) return@derivedStateOf false
+            if (viewportHeightPx <= 0f) return@derivedStateOf false
+
+            val safeStart = start.coerceIn(0, (chapterText.length - 1).coerceAtLeast(0))
+            val line = layout.getLineForOffset(safeStart)
+            val lineTop = bodyTopPx + layout.getLineTop(line)
+            val lineBottom = bodyTopPx + layout.getLineBottom(line)
+            val scrollY = scroll.value.toFloat()
+            // Sentence is "out of view" when its top line is above the viewport
+            // (scrolled past) or below it (not scrolled to yet). An 80px margin
+            // avoids flicker when the sentence is at the edge.
+            val margin = 80f
+            lineBottom < scrollY + margin || lineTop > scrollY + viewportHeightPx - margin
+        }
+    }
+    val showScrollFab = sentenceOutOfView && state.isPlaying
+
     Box(modifier = modifier.fillMaxSize().onSizeChanged { viewportHeightPx = it.height.toFloat() }) {
         Column(
             modifier = Modifier
@@ -151,6 +193,49 @@ fun ReaderTextView(
                         onLayout = { layout -> textLayout = layout },
                     )
                 }
+            }
+        }
+
+        // Issue #919 — floating "scroll to current sentence" button.
+        // Positioned above the bottom transport bar (bottom = 104dp to
+        // clear the bar + spacing), end-aligned. Uses Material 3
+        // SmallFloatingActionButton with the app's primary/onPrimary
+        // colors. Enter = fade + slide up; exit = fade + slide down —
+        // deliberate and warm, matching the Library Nocturne motion.
+        AnimatedVisibility(
+            visible = showScrollFab,
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(end = spacing.md, bottom = 104.dp),
+            enter = fadeIn() + slideInVertically { it / 2 },
+            exit = fadeOut() + slideOutVertically { it / 2 },
+        ) {
+            SmallFloatingActionButton(
+                onClick = {
+                    // Reset grace so auto-scroll doesn't fight the user.
+                    lastManualScrollAt = 0L
+                    val layout = textLayout ?: return@SmallFloatingActionButton
+                    if (chapterText.isEmpty()) return@SmallFloatingActionButton
+                    val start = state.sentenceStart
+                    val end = state.sentenceEnd
+                    if (end <= start) return@SmallFloatingActionButton
+                    if (start !in 0..chapterText.length) return@SmallFloatingActionButton
+
+                    val safeStart = start.coerceIn(0, (chapterText.length - 1).coerceAtLeast(0))
+                    val line = layout.getLineForOffset(safeStart)
+                    val lineTopWithinText = layout.getLineTop(line)
+                    val targetY = (bodyTopPx + lineTopWithinText - viewportHeightPx * HIGHLIGHT_VIEWPORT_FRACTION)
+                        .roundToInt()
+                        .coerceIn(0, scroll.maxValue.coerceAtLeast(0))
+                    scope.launch { scroll.animateScrollTo(targetY) }
+                },
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.VerticalAlignCenter,
+                    contentDescription = "Scroll to current sentence",
+                )
             }
         }
 

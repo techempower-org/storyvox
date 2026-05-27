@@ -70,6 +70,14 @@ import `in`.jphe.storyvox.ui.component.MagicTitleBar
 import `in`.jphe.storyvox.ui.component.cascadeReveal
 import `in`.jphe.storyvox.ui.theme.LocalSpacing
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
@@ -311,6 +319,18 @@ fun LibraryScreen(
 
             when (state.tab) {
                 LibraryTab.Library -> Column(modifier = Modifier.fillMaxSize().padding(top = spacing.md)) {
+                    // Issue #785 — search bar above the chip/sort row. Filters
+                    // the library grid by title or author as the user types
+                    // (debounced at 300ms in the ViewModel). Works in
+                    // combination with the shelf chip filter.
+                    LibrarySearchBar(
+                        query = state.searchQuery,
+                        onQueryChange = viewModel::onSearchQueryChange,
+                        onClear = viewModel::clearSearch,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = spacing.md),
+                    )
                     // #116 — chip strip above the grid (and above the
                     // Resume card) so it's always reachable regardless of
                     // scroll. #438 collapsed the old `Reading` tab into a
@@ -604,6 +624,102 @@ private fun ResumeCard(entry: ContinueListeningEntry, onResume: () -> Unit) {
     }
 }
 
+/**
+ * Issue #785 — search bar for the Library tab. A compact
+ * [OutlinedTextField] with a leading search icon and a trailing clear
+ * button (visible only when the query is non-empty). Single-line,
+ * IME action "search" dismisses the keyboard without losing focus so
+ * the user can type, glance at results, and keep typing. Material 3
+ * surface-container tones + brass primary for the focused border so
+ * it slots into Library Nocturne's colour palette.
+ */
+@Composable
+private fun LibrarySearchBar(
+    query: String,
+    onQueryChange: (String) -> Unit,
+    onClear: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val focusManager = LocalFocusManager.current
+    OutlinedTextField(
+        value = query,
+        onValueChange = onQueryChange,
+        modifier = modifier,
+        placeholder = {
+            Text(
+                stringResource(R.string.library_search_placeholder),
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        },
+        leadingIcon = {
+            Icon(
+                imageVector = Icons.Filled.Search,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        },
+        trailingIcon = if (query.isNotEmpty()) {
+            {
+                androidx.compose.material3.IconButton(onClick = onClear) {
+                    Icon(
+                        imageVector = Icons.Filled.Clear,
+                        contentDescription = stringResource(R.string.library_search_clear_cd),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        } else null,
+        singleLine = true,
+        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+        keyboardActions = KeyboardActions(onSearch = { focusManager.clearFocus() }),
+        shape = MaterialTheme.shapes.large,
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedBorderColor = MaterialTheme.colorScheme.primary,
+            unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+            focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        ),
+        textStyle = MaterialTheme.typography.bodyMedium,
+    )
+}
+
+/**
+ * Issue #785 — empty state shown when a search query matches no
+ * fictions. Same brass-realm rhythm as [EmptyLibrary] and [EmptyShelf]
+ * but worded for the search-miss case so the user knows the library
+ * is not empty — just that nothing matched.
+ */
+@Composable
+private fun EmptySearchResults() {
+    val spacing = LocalSpacing.current
+    Column(
+        modifier = Modifier.fillMaxSize().padding(spacing.lg),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Icon(
+            imageVector = Icons.Filled.Search,
+            contentDescription = null,
+            modifier = Modifier.size(64.dp),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f),
+        )
+        Spacer(Modifier.height(spacing.lg))
+        Text(
+            stringResource(R.string.library_search_no_results_title),
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.primary,
+            textAlign = TextAlign.Center,
+        )
+        Spacer(Modifier.height(spacing.xs))
+        Text(
+            stringResource(R.string.library_search_no_results_body),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+        )
+    }
+}
+
 @Composable
 private fun EmptyLibrary() {
     val spacing = LocalSpacing.current
@@ -751,6 +867,14 @@ private fun LibraryGridBody(
 ) {
     val spacing = LocalSpacing.current
     val isEmpty = !state.isLoading && dedupedFictions.isEmpty() && state.resume == null
+    // Issue #785 — distinguish "search found nothing" from "library is
+    // actually empty". When a search query is active and the list is
+    // empty, show a search-specific empty state rather than the library-
+    // wide or shelf-specific ones.
+    if (!state.isLoading && dedupedFictions.isEmpty() && state.searchQuery.isNotBlank()) {
+        EmptySearchResults()
+        return
+    }
     if (isEmpty) {
         when (val f = state.filter) {
             ShelfFilter.All -> {

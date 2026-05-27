@@ -83,6 +83,13 @@ data class ReaderUiState(
      * "Restart from beginning" doesn't immediately re-trip the modal.
      */
     val bookFinished: Boolean = false,
+    /**
+     * Issue #805 — typed playback error from [EngineState.Error]. Non-null
+     * when the engine is in an error state; the reader surfaces a
+     * dismissible banner with an error-type-specific message and
+     * recovery action (retry, sign-in, etc.). Null when no error.
+     */
+    val playbackError: `in`.jphe.storyvox.playback.EngineState.Error? = null,
 )
 
 /** Issue #278 — the player loading screen used to be a silent eternity:
@@ -273,6 +280,13 @@ class ReaderViewModel @Inject constructor(
     private val _confettiTrigger = Channel<Unit>(capacity = Channel.CONFLATED)
     val confettiTrigger: Flow<Unit> = _confettiTrigger.receiveAsFlow()
 
+    /** Issue #805 — user-dismissed error message. When the user dismisses
+     *  the playback error banner, we record the error message here. The
+     *  combine below suppresses the banner when the current error message
+     *  matches the dismissed one. A new/different error re-arms the banner
+     *  automatically (different message = cleared latch). */
+    private val _dismissedErrorMessage = MutableStateFlow<String?>(null)
+
     /** Issue #677 — end-of-book latch backing the
      *  [ReaderUiState.bookFinished] projection. Engine-driven set in the
      *  [PlaybackUiEvent.BookFinished] arm of the player-events collector;
@@ -340,6 +354,14 @@ class ReaderViewModel @Inject constructor(
         _bookFinished.value = false
     }
 
+    /** Issue #805 — user swiped away / tapped X on the playback error
+     *  banner. Records the dismissed message so the combine suppresses
+     *  the same error. A new/different error re-arms the banner. */
+    fun dismissPlaybackError() {
+        val current = uiState.value.playbackError
+        _dismissedErrorMessage.value = current?.message
+    }
+
     val uiState: StateFlow<ReaderUiState> = combine(
         playback.state,
         playback.chapterText,
@@ -361,6 +383,15 @@ class ReaderViewModel @Inject constructor(
         // Issue #677 — end-of-book latch; HybridReaderScreen mounts the
         // BookFinishedOverlay when this flips true.
         _bookFinished,
+        // Issue #805 — typed engine state for error surfacing. The reader
+        // projects EngineState.Error onto ReaderUiState.playbackError so
+        // AudiobookView can render a typed error banner with specific
+        // messages and recovery actions per error subtype.
+        playback.engineState,
+        // Issue #805 — dismiss latch for the error banner. When the user
+        // swipes away the banner, we record the message; same message =
+        // suppressed; new/different message = re-armed.
+        _dismissedErrorMessage,
     ) { values ->
         @Suppress("UNCHECKED_CAST")
         val state = values[0] as UiPlaybackState
@@ -374,6 +405,9 @@ class ReaderViewModel @Inject constructor(
         @Suppress("UNCHECKED_CAST")
         val waitReason = values[5] as? `in`.jphe.storyvox.playback.diagnostics.WaitReason
         val bookFinished = values[6] as Boolean
+        val engineState = values[7] as `in`.jphe.storyvox.playback.EngineState
+        val dismissedMsg = values[8] as? String
+        val error = engineState as? `in`.jphe.storyvox.playback.EngineState.Error
         ReaderUiState(
             playback = state,
             chapterText = text,
@@ -383,6 +417,9 @@ class ReaderViewModel @Inject constructor(
             pitchInterpolationHighQuality = settingsSnapshot.pitchInterpolationHighQuality,
             waitReason = waitReason,
             bookFinished = bookFinished,
+            // Suppress the banner when the user already dismissed this
+            // exact error message; a new/different error re-arms it.
+            playbackError = if (error != null && error.message != dismissedMsg) error else null,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ReaderUiState())
 

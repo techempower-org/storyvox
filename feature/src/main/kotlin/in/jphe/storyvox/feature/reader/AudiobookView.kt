@@ -202,6 +202,16 @@ fun AudiobookView(
     waitReason: `in`.jphe.storyvox.playback.diagnostics.WaitReason? = null,
     chapters: List<`in`.jphe.storyvox.feature.api.UiChapter> = emptyList(),
     onPlayChapter: (chapterId: String) -> Unit = {},
+    /**
+     * Issue #805 — typed playback error from [EngineState.Error]. Non-null
+     * when the engine is in an error state; surfaces a dismissible banner
+     * with error-type-specific icon, message, and recovery action.
+     */
+    playbackError: `in`.jphe.storyvox.playback.EngineState.Error? = null,
+    /** Issue #805 — retry the failed playback (calls play() on the controller). */
+    onRetryPlayback: () -> Unit = {},
+    /** Issue #805 — dismiss the error banner without retrying. */
+    onDismissPlaybackError: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val spacing = LocalSpacing.current
@@ -404,6 +414,18 @@ fun AudiobookView(
                 onRetry = onPlayPause,
                 onOpenSettings = onOpenSettings,
             )
+            // Issue #805 — typed playback error banner. Surfaces above the
+            // cover when the engine is in an error state, with a subtype-
+            // specific icon, message, and recovery action. Dismissible via
+            // the X button; auto-clears when the engine leaves error state.
+            if (playbackError != null) {
+                PlaybackErrorBanner(
+                    error = playbackError,
+                    onRetry = onRetryPlayback,
+                    onDismiss = onDismissPlaybackError,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
             // While the chapter body + voice model are still loading we don't
             // have a cover URL or chapter title yet — show the brass arcane
             // sigil placeholder instead of a "?" thumb. As soon as state

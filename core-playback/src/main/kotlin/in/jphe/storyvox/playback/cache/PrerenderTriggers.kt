@@ -6,6 +6,7 @@ import `in`.jphe.storyvox.data.repository.FictionLibraryListener
 import `in`.jphe.storyvox.data.repository.PlaybackPositionRepository
 import `in`.jphe.storyvox.data.repository.playback.PlaybackModeConfig
 import `in`.jphe.storyvox.data.repository.playback.PrerenderChapterCountConfig
+import `in`.jphe.storyvox.playback.PowerSaveMonitor
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.first
@@ -84,6 +85,15 @@ class PrerenderTriggers @Inject constructor(
      * current pref at trigger time.
      */
     private val prerenderCountConfig: PrerenderChapterCountConfig,
+    /**
+     * Issue #801 — power-save gate. When the device is in battery-saver
+     * mode, all prerender scheduling is suppressed. Background chapter
+     * renders are CPU-heavy (~30%+ on Helio P22T per chapter) and the
+     * OS is explicitly trying to conserve battery. The triggers resume
+     * normal behavior the moment power-save mode is turned off — the
+     * next chapter-complete / library-add / Mode C flip re-evaluates.
+     */
+    private val powerSaveMonitor: PowerSaveMonitor,
 ) : FictionLibraryListener {
 
     /**
@@ -118,6 +128,14 @@ class PrerenderTriggers @Inject constructor(
      *  - Mode C (full pre-render) → render everything (no slice).
      */
     override suspend fun onLibraryAdded(fictionId: String) {
+        // Issue #801 — skip prerender scheduling in power-save mode.
+        if (powerSaveMonitor.isPowerSaveMode.value) {
+            Log.i(
+                LOG_TAG,
+                "pcm-cache TRIGGER-LIBRARY-ADD fictionId=$fictionId SKIPPED (power save mode)",
+            )
+            return
+        }
         val chapters = chapterRepo.observeChapters(fictionId).first()
             .sortedBy { it.index }
         if (chapters.isEmpty()) {
@@ -262,6 +280,15 @@ class PrerenderTriggers @Inject constructor(
      * the trigger doesn't carry it and we don't want to assume.
      */
     suspend fun onChapterCompleted(currentChapterId: String) {
+        // Issue #801 — skip prerender scheduling in power-save mode.
+        if (powerSaveMonitor.isPowerSaveMode.value) {
+            Log.i(
+                LOG_TAG,
+                "pcm-cache TRIGGER-CHAPTER-DONE chapterId=$currentChapterId " +
+                    "SKIPPED (power save mode)",
+            )
+            return
+        }
         val nextId = chapterRepo.getNextChapterId(currentChapterId)
         if (nextId == null) {
             Log.i(
@@ -301,6 +328,14 @@ class PrerenderTriggers @Inject constructor(
      * here, the scheduler dedupes.
      */
     suspend fun onFullPrerenderEnabled(fictionIds: Iterable<String>) {
+        // Issue #801 — skip prerender scheduling in power-save mode.
+        if (powerSaveMonitor.isPowerSaveMode.value) {
+            Log.i(
+                LOG_TAG,
+                "pcm-cache TRIGGER-FULL-PRERENDER SKIPPED (power save mode)",
+            )
+            return
+        }
         for (fictionId in fictionIds) {
             val chapters = chapterRepo.observeChapters(fictionId).first()
                 .sortedBy { it.index }
