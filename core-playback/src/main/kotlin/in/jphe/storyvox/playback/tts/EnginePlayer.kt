@@ -3512,6 +3512,13 @@ class EnginePlayer @AssistedInject constructor(
         // gets cleared anyway. Worst case is a redundant track.play()
         // JNI call (~µs); best case (the observed bug) we skip a full
         // AudioTrack rebuild + sherpa-onnx warm-up.
+        // #888 — re-acquire audio focus before the fast path's
+        // audioTrack.play(). If another app grabbed focus while we were
+        // paused, the fast path would unpause a track that's been
+        // ducked/silenced, yielding "PLAYING + no audio". Idempotent: a
+        // no-op if we still hold focus. The slow path acquires its own
+        // focus inside startPlaybackPipeline(), so only the fast path needs this.
+        runCatching { audioFocus.acquire() }
         if (rHaveTrack && rRunning) {
             _observableState.update { it.copy(isPlaying = true, error = null) }
             userPaused.set(false)
