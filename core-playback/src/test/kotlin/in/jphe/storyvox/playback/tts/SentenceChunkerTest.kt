@@ -115,4 +115,63 @@ class SentenceChunkerTest {
         // which should still parse if numeric.
         assertEquals(3, chunker.parseSentenceIndex("s3"))
     }
+
+    // ── detectLocale tests ──────────────────────────────────────────────
+
+    @Test fun `detectLocale returns fallback for empty text`() {
+        assertEquals(Locale.FRENCH, detectLocale("", Locale.FRENCH))
+    }
+
+    @Test fun `detectLocale returns fallback for whitespace-only text`() {
+        assertEquals(Locale.GERMAN, detectLocale("   \n\t  ", Locale.GERMAN))
+    }
+
+    @Test fun `detectLocale returns fallback for Latin text`() {
+        val fallback = Locale.US
+        assertEquals(fallback, detectLocale("Hello world. This is English.", fallback))
+    }
+
+    @Test fun `detectLocale returns Japanese for hiragana-heavy text`() {
+        assertEquals(Locale.JAPANESE, detectLocale("これは日本語のテストです。次の文も日本語です。"))
+    }
+
+    @Test fun `detectLocale returns Japanese for katakana-heavy text`() {
+        assertEquals(Locale.JAPANESE, detectLocale("カタカナのテキストです。テストケースです。"))
+    }
+
+    @Test fun `detectLocale returns Chinese for Han-only text`() {
+        assertEquals(Locale.CHINESE, detectLocale("这是中文测试。下一句也是中文。"))
+    }
+
+    @Test fun `detectLocale returns Korean for Hangul text`() {
+        assertEquals(Locale.KOREAN, detectLocale("이것은 한국어 테스트입니다. 다음 문장도 한국어입니다."))
+    }
+
+    @Test fun `detectLocale returns Thai for Thai text`() {
+        assertEquals(Locale("th"), detectLocale("นี่คือการทดสอบภาษาไทย ประโยคถัดไปก็เป็นภาษาไทย"))
+    }
+
+    @Test fun `detectLocale returns Arabic for Arabic text`() {
+        assertEquals(Locale("ar"), detectLocale("هذا اختبار باللغة العربية. الجملة التالية أيضاً بالعربية."))
+    }
+
+    @Test fun `detectLocale returns Hebrew for Hebrew text`() {
+        assertEquals(Locale("he"), detectLocale("זהו מבחן בעברית. המשפט הבא גם בעברית."))
+    }
+
+    @Test fun `detectLocale ignores punctuation and digits in classification`() {
+        // Digits and punctuation are COMMON script — only actual CJK carries weight.
+        assertEquals(Locale.JAPANESE, detectLocale("123 これはテスト!!! 456 もう一つ。"))
+    }
+
+    @Test fun `chunk uses detected locale for Japanese text`() {
+        // Japanese sentence endings use '。' — BreakIterator with Japanese
+        // locale should split on them correctly.
+        val text = "最初の文。二番目の文。三番目の文。"
+        val out = chunker.chunk(text, detectLocale(text))
+        assertEquals(3, out.size)
+        assertEquals("最初の文。", out[0].text)
+        assertEquals("二番目の文。", out[1].text)
+        assertEquals("三番目の文。", out[2].text)
+    }
 }

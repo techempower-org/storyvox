@@ -6,6 +6,54 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
+ * Samples up to [SCRIPT_SAMPLE_LIMIT] non-whitespace characters from [text]
+ * and returns a [Locale] whose [BreakIterator] rules match the dominant
+ * Unicode script. Falls back to [fallback] (default [Locale.getDefault])
+ * when the text is Latin, Common, or too short to classify.
+ *
+ * The mapping covers scripts where ICU's sentence-break rules differ
+ * materially from the Latin/Common defaults:
+ *  - CJK (Han / Hiragana / Katakana → [Locale.JAPANESE], Hangul → [Locale.KOREAN])
+ *  - Thai (no inter-word spaces; BreakIterator needs Thai locale)
+ *  - Arabic / Hebrew (RTL + different punctuation conventions)
+ *
+ * Issue #899 — sentence boundaries were always computed with the device
+ * locale, producing wrong splits for non-Latin chapter text.
+ */
+internal fun detectLocale(text: String, fallback: Locale = Locale.getDefault()): Locale {
+    val counts = mutableMapOf<Character.UnicodeScript, Int>()
+    var sampled = 0
+    for (ch in text) {
+        if (ch.isWhitespace()) continue
+        val script = Character.UnicodeScript.of(ch.code)
+        // COMMON covers digits, punctuation, emoji — skip.
+        if (script == Character.UnicodeScript.COMMON ||
+            script == Character.UnicodeScript.INHERITED
+        ) continue
+        counts[script] = (counts[script] ?: 0) + 1
+        if (++sampled >= SCRIPT_SAMPLE_LIMIT) break
+    }
+    val dominant = counts.maxByOrNull { it.value }?.key ?: return fallback
+    return SCRIPT_LOCALE_MAP[dominant] ?: fallback
+}
+
+/** Max non-whitespace characters to sample for script detection. */
+private const val SCRIPT_SAMPLE_LIMIT: Int = 200
+
+/** Maps a dominant Unicode script to the most appropriate [Locale] for
+ *  [BreakIterator.getSentenceInstance]. Only scripts where ICU's break
+ *  rules diverge from the Latin default need entries here. */
+private val SCRIPT_LOCALE_MAP: Map<Character.UnicodeScript, Locale> = mapOf(
+    Character.UnicodeScript.HAN to Locale.CHINESE,
+    Character.UnicodeScript.HIRAGANA to Locale.JAPANESE,
+    Character.UnicodeScript.KATAKANA to Locale.JAPANESE,
+    Character.UnicodeScript.HANGUL to Locale.KOREAN,
+    Character.UnicodeScript.THAI to Locale("th"),
+    Character.UnicodeScript.ARABIC to Locale("ar"),
+    Character.UnicodeScript.HEBREW to Locale("he"),
+)
+
+/**
  * Bumped when [SentenceChunker.chunk] changes its boundary semantics in a way
  * that would shift `(startChar, endChar)` for the same input. Included in
  * [`in`.jphe.storyvox.playback.cache.PcmCacheKey] so a chunker change
@@ -28,8 +76,12 @@ import javax.inject.Singleton
  *    length for the last sentence) instead of stopping at the trimmed text
  *    length, so sentence ranges partition the chapter contiguously. This
  *    moves endChar for any sentence followed by inter-sentence whitespace.
+ *  - v4 (#899): call sites now pass a text-detected locale instead of
+ *    Locale.getDefault(). For non-Latin text (CJK, Thai, Arabic, Hebrew)
+ *    the BreakIterator uses locale-appropriate rules, shifting boundaries.
+ *    Bump invalidates pre-cached PCM that was chunked under the wrong locale.
  */
-const val CHUNKER_VERSION: Int = 3
+const val CHUNKER_VERSION: Int = 4
 
 data class Sentence(
     val index: Int,

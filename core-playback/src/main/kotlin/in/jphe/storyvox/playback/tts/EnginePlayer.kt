@@ -1338,7 +1338,7 @@ class EnginePlayer @AssistedInject constructor(
         // brass spinner immediately. Sherpa-onnx Kokoro init can take 30+s
         // on modest hardware; without this the screen sits blank that long.
         val text = chapter.text
-        sentences = chunker.chunk(text)
+        sentences = chunker.chunk(text, detectLocale(text))
         // Issue #442 — Gutenberg-derived plain text can be "stripTags(htmlBody)"-
         // empty for spine entries that are pure-HTML wrappers (front-matter,
         // PG header pages, image-only inserts). When that happens the
@@ -4526,7 +4526,7 @@ class EnginePlayer @AssistedInject constructor(
         if (text.isBlank()) return
         stopRecapPipeline()
         if (!ensureVoiceLoaded()) return
-        val recapSentences = chunker.chunk(text)
+        val recapSentences = chunker.chunk(text, detectLocale(text))
         if (recapSentences.isEmpty()) return
         startRecapPipeline(recapSentences)
     }

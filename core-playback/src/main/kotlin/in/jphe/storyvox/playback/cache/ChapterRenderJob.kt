@@ -21,6 +21,7 @@ import `in`.jphe.storyvox.data.repository.pronunciation.PronunciationDict
 import `in`.jphe.storyvox.playback.EngineSampleRateCache
 import `in`.jphe.storyvox.playback.tts.CHUNKER_VERSION
 import `in`.jphe.storyvox.playback.tts.SentenceChunker
+import `in`.jphe.storyvox.playback.tts.detectLocale
 import `in`.jphe.storyvox.playback.tts.source.trailingPauseMs
 import `in`.jphe.storyvox.playback.voice.EngineType
 import `in`.jphe.storyvox.playback.voice.UiVoiceInfo
@@ -201,7 +202,7 @@ class ChapterRenderJob @AssistedInject constructor(
         EngineSampleRateCache.refreshFromEngine()
 
         // 9. Generate sentences + write to cache.
-        val sentences = chunker.chunk(chapter.text)
+        val sentences = chunker.chunk(chapter.text, detectLocale(chapter.text))
         val sampleRate = sampleRateFor(voice)
         val appender = pcmCache.appender(cacheKey, sampleRate = sampleRate)
         try {
