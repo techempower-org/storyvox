@@ -1,12 +1,12 @@
 {
   "name": "storyvox",
   "description": "Neural-voice audiobook player for any text you have \u2014 offline TTS, optional Azure HD cloud voices, Library Nocturne aesthetic",
-  "version": "Radiant Aegis \u00b7 61549a71",
-  "hash": "61549a71",
+  "version": "Spectral Keystone \u00b7 5827ef6c0",
+  "hash": "5827ef6c0",
   "branch": "main",
   "dirty": false,
-  "built": "2026-05-26T03:49:38Z",
+  "built": "2026-05-27T13:43:02Z",
   "realm": "fantasy",
   "repo": "https://github.com/techempower-org/storyvox",
-  "commit_url": "https://github.com/techempower-org/storyvox/commit/61549a71"
+  "commit_url": "https://github.com/techempower-org/storyvox/commit/5827ef6c0"
 }
