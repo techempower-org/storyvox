@@ -1,12 +1,12 @@
 {
   "name": "storyvox",
   "description": "Neural-voice audiobook player for any text you have \u2014 offline TTS, optional Azure HD cloud voices, Library Nocturne aesthetic",
-  "version": "Radiant Aegis \u00b7 61549a71",
-  "hash": "61549a71",
+  "version": "Gilded Nexus \u00b7 cfe512b64",
+  "hash": "cfe512b64",
   "branch": "main",
   "dirty": false,
-  "built": "2026-05-26T03:49:38Z",
+  "built": "2026-05-27T06:22:36Z",
   "realm": "fantasy",
   "repo": "https://github.com/techempower-org/storyvox",
-  "commit_url": "https://github.com/techempower-org/storyvox/commit/61549a71"
+  "commit_url": "https://github.com/techempower-org/storyvox/commit/cfe512b64"
 }
