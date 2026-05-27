@@ -323,6 +323,24 @@ sealed interface BrowseSource {
      * for-later list without history enabled).
      */
     data object Ao3MarkedForLater : BrowseSource
+
+    /**
+     * Wikipedia "On This Day" cluster from the `feed/featured` payload
+     * (#796). Browse → Wikipedia → On This Day tab. The repository
+     * adapter routes this onto
+     * [`WikipediaBrowseSource.onThisDay`][in.jphe.storyvox.source.wikipedia.WikipediaBrowseSource.onThisDay].
+     * Not auth-gated — the cluster ships in the same public payload the
+     * Popular tab already reads.
+     */
+    data object WikipediaOnThisDay : BrowseSource
+
+    /**
+     * Wikipedia "In the news" cluster from the `feed/featured` payload
+     * (#796). Browse → Wikipedia → In the News tab. The repository
+     * adapter routes this onto
+     * [`WikipediaBrowseSource.inTheNews`][in.jphe.storyvox.source.wikipedia.WikipediaBrowseSource.inTheNews].
+     */
+    data object WikipediaInTheNews : BrowseSource
 }
 
 /** A page-by-page accumulating cursor over a remote fiction listing.

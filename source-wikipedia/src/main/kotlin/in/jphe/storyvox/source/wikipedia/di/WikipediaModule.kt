@@ -71,4 +71,17 @@ internal abstract class WikipediaBindings {
     @IntoMap
     @StringKey(SourceIds.WIKIPEDIA)
     abstract fun bindFictionSource(impl: WikipediaSource): FictionSource
+
+    /**
+     * Issue #796 — expose the same [WikipediaSource] singleton through
+     * the [`in`.jphe.storyvox.source.wikipedia.WikipediaBrowseSource]
+     * seam so the app-module Browse adapter can route the On This Day /
+     * In the News tabs without depending on the internal source type.
+     * Mirrors the AO3 / GitHub authed-source bindings.
+     */
+    @Binds
+    @Singleton
+    abstract fun bindBrowseSource(
+        impl: WikipediaSource,
+    ): `in`.jphe.storyvox.source.wikipedia.WikipediaBrowseSource
 }

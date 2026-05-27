@@ -18,6 +18,8 @@ import `in`.jphe.storyvox.data.source.model.map
 import `in`.jphe.storyvox.source.wikipedia.net.WikipediaApi
 import `in`.jphe.storyvox.source.wikipedia.net.WikipediaFeaturedArticle
 import `in`.jphe.storyvox.source.wikipedia.net.WikipediaMostReadArticle
+import `in`.jphe.storyvox.source.wikipedia.net.WikipediaNewsItem
+import `in`.jphe.storyvox.source.wikipedia.net.WikipediaOnThisDayEvent
 import `in`.jphe.storyvox.source.wikipedia.net.WikipediaSearchHit
 import `in`.jphe.storyvox.source.wikipedia.net.WikipediaSummary
 import java.time.LocalDate
@@ -71,7 +73,7 @@ import javax.inject.Singleton
 @Singleton
 internal class WikipediaSource @Inject constructor(
     private val api: WikipediaApi,
-) : FictionSource, `in`.jphe.storyvox.data.source.UrlMatcher {
+) : FictionSource, WikipediaBrowseSource, `in`.jphe.storyvox.data.source.UrlMatcher {
 
     override val id: String = SourceIds.WIKIPEDIA
     override val displayName: String = "Wikipedia"
@@ -175,6 +177,47 @@ internal class WikipediaSource @Inject constructor(
 
     override suspend fun genres(): FictionResult<List<String>> =
         FictionResult.Success(emptyList())
+
+    // ─── browse: WikipediaBrowseSource (#796) ──────────────────────────
+
+    /**
+     * Issue #796 — "On This Day" tab. Flattens `feed.onthisday` to one
+     * summary per event: the most prominent referenced page becomes the
+     * FictionSummary, with the event year + text prepended to its
+     * description. Reuses the same "yesterday UTC" date as [popular] —
+     * the `onthisday` cluster is keyed by month/day so it's populated
+     * on every date, but matching Popular keeps the cache key shared.
+     * Single-page like the rest of Wikipedia's featured feed.
+     */
+    override suspend fun onThisDay(page: Int): FictionResult<ListPage<FictionSummary>> {
+        if (page > 1) return FictionResult.Success(ListPage(emptyList(), page, hasNext = false))
+        val date = LocalDate.now(ZoneOffset.UTC).minusDays(1)
+        return api.featured(date.year, date.monthValue, date.dayOfMonth).map { feed ->
+            val items = feed.onthisday
+                .mapNotNull { it.toSummary() }
+                .distinctBy { it.id }
+            ListPage(items = items, page = 1, hasNext = false)
+        }
+    }
+
+    /**
+     * Issue #796 — "In the News" tab. Surfaces each `feed.news` story's
+     * lead article (`links[0]`) as a summary, with the story HTML
+     * stripped to plain text as the description. Fetches **today** (UTC)
+     * rather than yesterday: the `news` cluster is only present on the
+     * current UTC day, so requesting yesterday returns an empty list.
+     * Single-page.
+     */
+    override suspend fun inTheNews(page: Int): FictionResult<ListPage<FictionSummary>> {
+        if (page > 1) return FictionResult.Success(ListPage(emptyList(), page, hasNext = false))
+        val date = LocalDate.now(ZoneOffset.UTC)
+        return api.featured(date.year, date.monthValue, date.dayOfMonth).map { feed ->
+            val items = feed.news
+                .mapNotNull { it.toSummary() }
+                .distinctBy { it.id }
+            ListPage(items = items, page = 1, hasNext = false)
+        }
+    }
 
     override suspend fun search(query: SearchQuery): FictionResult<ListPage<FictionSummary>> {
         val term = query.term.trim()
@@ -346,6 +389,45 @@ private fun WikipediaMostReadArticle.toSummary(): FictionSummary? {
         description = description ?: extract,
         status = FictionStatus.ONGOING,
     )
+}
+
+/**
+ * Issue #796 — map an "On This Day" event to a summary. The most
+ * prominent referenced page (pages[0]) is the article; the event's
+ * `year` + `text` become the lead of the description so a listener
+ * scanning the tab sees "1969: ..." context before the article's own
+ * abstract. Events with no usable page (no canonical title) are
+ * dropped by the caller's `mapNotNull`.
+ */
+internal fun WikipediaOnThisDayEvent.toSummary(): FictionSummary? {
+    val page = pages.firstOrNull { it.titles?.canonical != null } ?: return null
+    val base = page.toSummary() ?: return null
+    val yearPrefix = year?.let { "$it: " }.orEmpty()
+    val eventLine = text.htmlToPlainText().trim()
+    val description = buildString {
+        if (eventLine.isNotEmpty()) append(yearPrefix + eventLine)
+        val abstract = base.description?.trim().orEmpty()
+        if (abstract.isNotEmpty() && abstract != eventLine) {
+            if (isNotEmpty()) append("\n\n")
+            append(abstract)
+        }
+    }.ifBlank { null }
+    return base.copy(description = description)
+}
+
+/**
+ * Issue #796 — map an "In the news" story to a summary. The lead
+ * linked article (links[0]) is the article; the story HTML, stripped
+ * to plain text, becomes the description (it reads as a one-line
+ * current-events blurb, e.g. "American jazz saxophonist Sonny Rollins
+ * dies aged 95."). Stories whose lead link has no canonical title are
+ * dropped by the caller's `mapNotNull`.
+ */
+internal fun WikipediaNewsItem.toSummary(): FictionSummary? {
+    val lead = links.firstOrNull { it.titles?.canonical != null } ?: return null
+    val base = lead.toSummary() ?: return null
+    val blurb = story.htmlToPlainText().trim().ifBlank { null }
+    return base.copy(description = blurb ?: base.description)
 }
 
 private fun WikipediaSummary.toSummary(

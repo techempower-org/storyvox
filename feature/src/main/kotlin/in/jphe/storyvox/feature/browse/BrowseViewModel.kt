@@ -49,6 +49,12 @@ enum class BrowseTab {
     // [BrowseSource.Ao3MarkedForLater].
     Ao3MySubscriptions,
     Ao3MarkedForLater,
+    // Wikipedia browse-only chips (#796). Always visible on the
+    // Wikipedia chip strip (no auth gate) — resolve to the On This Day /
+    // In the News clusters via [BrowseSource.WikipediaOnThisDay] /
+    // [BrowseSource.WikipediaInTheNews].
+    WikipediaOnThisDay,
+    WikipediaInTheNews,
 }
 
 @Immutable
@@ -692,6 +698,16 @@ private fun resolveSource(
     SourceIds.KVMR -> when (tab) {
         BrowseTab.Popular -> BrowseSource.Popular
         else -> null
+    }
+    SourceIds.WIKIPEDIA -> when (tab) {
+        // #796 — the On This Day / In the News clusters route to their
+        // dedicated WikipediaBrowseSource surfaces rather than through
+        // the Filtered/search path. The configured Wikipedia language
+        // is read by the source from WikipediaConfig (Settings), not the
+        // Browse filter, so no filter threading is needed here.
+        BrowseTab.WikipediaOnThisDay -> BrowseSource.WikipediaOnThisDay
+        BrowseTab.WikipediaInTheNews -> BrowseSource.WikipediaInTheNews
+        else -> resolveDefault(tab, q, filterState)
     }
     else -> resolveDefault(tab, q, filterState)
 }

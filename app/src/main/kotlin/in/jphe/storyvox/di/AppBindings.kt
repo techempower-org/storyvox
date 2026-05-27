@@ -93,8 +93,9 @@ object AppBindings {
         repo: FictionRepository,
         github: `in`.jphe.storyvox.source.github.GitHubAuthedSource,
         ao3: `in`.jphe.storyvox.source.ao3.Ao3AuthedSource,
+        wikipedia: `in`.jphe.storyvox.source.wikipedia.WikipediaBrowseSource,
         registry: `in`.jphe.storyvox.data.source.plugin.SourcePluginRegistry,
-    ): BrowseRepositoryUi = RealBrowseRepositoryUi(repo, github, ao3, registry)
+    ): BrowseRepositoryUi = RealBrowseRepositoryUi(repo, github, ao3, wikipedia, registry)
 
     @Provides @Singleton
     fun providePlaybackControllerUi(
@@ -663,6 +664,7 @@ private class RealBrowseRepositoryUi(
     private val repo: FictionRepository,
     private val github: `in`.jphe.storyvox.source.github.GitHubAuthedSource,
     private val ao3: `in`.jphe.storyvox.source.ao3.Ao3AuthedSource,
+    private val wikipedia: `in`.jphe.storyvox.source.wikipedia.WikipediaBrowseSource,
     private val registry: `in`.jphe.storyvox.data.source.plugin.SourcePluginRegistry,
 ) : BrowseRepositoryUi {
     override fun paginator(source: BrowseSource, sourceId: String): BrowsePaginator =
@@ -728,6 +730,15 @@ private class RealBrowseRepositoryUi(
                     repo.cacheBrowseListing(ao3.subscriptions(page = page))
                 BrowseSource.Ao3MarkedForLater ->
                     repo.cacheBrowseListing(ao3.markedForLater(page = page))
+                // #796 — Wikipedia On This Day / In the News clusters.
+                // Same caching pattern as the AO3 / GitHub variants:
+                // rows land in the DB with `sourceId="wikipedia"` so
+                // tapping a card resolves through `fictionDetail` on the
+                // Wikipedia codepath rather than the RR fallback.
+                BrowseSource.WikipediaOnThisDay ->
+                    repo.cacheBrowseListing(wikipedia.onThisDay(page = page))
+                BrowseSource.WikipediaInTheNews ->
+                    repo.cacheBrowseListing(wikipedia.inTheNews(page = page))
             }
         }
 

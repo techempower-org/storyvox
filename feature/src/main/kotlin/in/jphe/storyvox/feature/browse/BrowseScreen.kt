@@ -931,6 +931,10 @@ private val BrowseTab.label: String
         // truncation (subscriptions → "Subscribed").
         BrowseTab.Ao3MySubscriptions -> "Subscribed"
         BrowseTab.Ao3MarkedForLater -> "Marked"
+        // #796 — Wikipedia browse-only tab labels. Short forms to fit
+        // the chip strip on narrow phones.
+        BrowseTab.WikipediaOnThisDay -> "On This Day"
+        BrowseTab.WikipediaInTheNews -> "In the News"
     }
 
 /**

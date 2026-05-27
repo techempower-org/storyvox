@@ -278,14 +278,51 @@ internal data class WikipediaSearchHit(
 
 /**
  * Subset of the `/api/rest_v1/feed/featured/...` response we care
- * about. Wikimedia's full response also includes `news`, `image`,
- * `onthisday` etc. — those are out of scope for the Popular tab
- * (which surfaces TFA + the most-read cluster only).
+ * about. The `image` (Picture of the Day) cluster is still ignored —
+ * an audiobook app has no use for a daily photo — but #796 wires up
+ * `onthisday` and `news`:
+ *
+ *  - [onthisday] — curated "events that happened on this day in
+ *    history". Present on **every** date (it's keyed by month/day, not
+ *    by the year), so the On This Day tab can fetch any date.
+ *  - [news] — the "In the news" right-rail of Wikipedia's homepage.
+ *    Only present on the **current** UTC day; historical dates omit the
+ *    key entirely. The In the News tab therefore fetches today (UTC),
+ *    not yesterday like the Popular tab.
  */
 @Serializable
 internal data class WikipediaFeatured(
     val tfa: WikipediaFeaturedArticle? = null,
     val mostread: WikipediaMostRead? = null,
+    val onthisday: List<WikipediaOnThisDayEvent> = emptyList(),
+    val news: List<WikipediaNewsItem> = emptyList(),
+)
+
+/**
+ * One "On This Day" event (#796). [pages] carries the deep-linked
+ * articles in prominence order — the first is the most relevant.
+ * Each page is the same article shape as a featured article, so the
+ * source layer surfaces `pages[0]` as the FictionSummary and folds
+ * `year` + `text` into the description.
+ */
+@Serializable
+internal data class WikipediaOnThisDayEvent(
+    val text: String = "",
+    val year: Int? = null,
+    val pages: List<WikipediaFeaturedArticle> = emptyList(),
+)
+
+/**
+ * One "In the news" item (#796). [story] is an HTML blurb (with inline
+ * `<a>` links and an HTML comment date marker); [links] are the
+ * referenced articles in prominence order. The source layer surfaces
+ * `links[0]` as the FictionSummary with the stripped story text as the
+ * description.
+ */
+@Serializable
+internal data class WikipediaNewsItem(
+    val story: String = "",
+    val links: List<WikipediaFeaturedArticle> = emptyList(),
 )
 
 @Serializable

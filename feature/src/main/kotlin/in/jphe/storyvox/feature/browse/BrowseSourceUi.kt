@@ -142,7 +142,15 @@ internal object BrowseSourceUi {
             add(BrowseTab.Search)
         }
         SourceIds.STANDARD_EBOOKS -> listOf(BrowseTab.Popular, BrowseTab.NewReleases, BrowseTab.Search)
-        SourceIds.WIKIPEDIA -> listOf(BrowseTab.Popular, BrowseTab.Search)
+        // #796 — On This Day + In the News surface the same
+        // `feed/featured` clusters the Popular tab already fetches;
+        // always visible (no auth gate).
+        SourceIds.WIKIPEDIA -> listOf(
+            BrowseTab.Popular,
+            BrowseTab.WikipediaOnThisDay,
+            BrowseTab.WikipediaInTheNews,
+            BrowseTab.Search,
+        )
         SourceIds.WIKISOURCE -> listOf(BrowseTab.Popular, BrowseTab.Search)
         // Issue #417 — Radio gains a Search tab (Radio Browser API).
         // The legacy KVMR alias keeps Popular-only because v0.5.20+
