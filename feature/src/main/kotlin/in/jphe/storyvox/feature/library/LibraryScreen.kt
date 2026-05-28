@@ -155,10 +155,10 @@ fun LibraryScreen(
     // Issue #828 — confirm-before-remove dialog state for the
     // "Remove from library" row on ManageShelvesSheet. Holds the
     // (fictionId, title) the sheet asked to remove; null = no dialog.
-    // Mirrors the FictionDetailScreen #169 pattern (ephemeral state at
-    // the screen level so the dialog dies on configuration change
-    // rather than surviving as a half-rendered modal).
-    var pendingRemoval by androidx.compose.runtime.remember {
+    // #939 — `rememberSaveable` so the dialog survives configuration
+    // changes (rotation, dark-mode flip). A `Pair<String, String>?`
+    // is Saveable via the default Bundle saver.
+    var pendingRemoval by androidx.compose.runtime.saveable.rememberSaveable {
         androidx.compose.runtime.mutableStateOf<Pair<String, String>?>(null)
     }
 

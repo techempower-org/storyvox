@@ -107,13 +107,17 @@ fun ManageShelvesSheet(
             // colorScheme.error to signal destructiveness; host gates
             // the actual removal behind a confirm dialog.
             HorizontalDivider(modifier = Modifier.padding(vertical = spacing.sm))
+            // #940 — padding before clickable so the padded area is part of
+            // the tap target. The visible row (text + its vertical padding)
+            // should all respond to a tap; otherwise edge-of-row taps miss
+            // and the row falls short of the 48dp tap-target guideline.
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .padding(vertical = spacing.sm)
                     .clickable(role = Role.Button) {
                         onRemoveRequest(state.fictionId, state.fictionTitle)
-                    }
-                    .padding(vertical = spacing.sm),
+                    },
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(

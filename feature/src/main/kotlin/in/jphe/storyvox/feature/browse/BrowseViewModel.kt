@@ -393,7 +393,10 @@ class BrowseViewModel @Inject constructor(
                     // followed by any enabled sources not yet in the list
                     // (newly enabled since the last reorder).
                     val byId = enabledDescriptors.associateBy { it.id }
-                    val ordered = customOrder.mapNotNull { byId[it] }
+                    // #938 — dedupe customOrder before lookup: sync conflicts
+                    // or hand-edited JSON can land duplicate ids in the list,
+                    // which would otherwise render the same source card twice.
+                    val ordered = customOrder.distinct().mapNotNull { byId[it] }
                     val remaining = enabledDescriptors.filter { it.id !in customOrder }
                     ordered + remaining
                 } else {
