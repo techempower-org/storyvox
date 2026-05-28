@@ -83,6 +83,7 @@ fun HybridReaderScreen(
     val recapPlayback by viewModel.recapPlayback.collectAsStateWithLifecycle()
     val resumeEntry by viewModel.resumeEntry.collectAsStateWithLifecycle()
     val chapters by viewModel.chapters.collectAsStateWithLifecycle()
+    val autoScrollEnabled by viewModel.autoScrollEnabled.collectAsStateWithLifecycle()
     val playback = state.playback
 
     // Calliope (v0.5.00) — first-natural-chapter-completion confetti.
@@ -328,6 +329,12 @@ fun HybridReaderScreen(
                     // can edit before sending or send as-is.
                     playbackState.fictionId?.let { onOpenChat(it, question) }
                 },
+                // Issue #946 — magical reader auto-scroll toggle.
+                // StateFlow sourced from SettingsRepositoryUi so the
+                // flip persists across sessions; setter is mirrored
+                // shape to the other reader prefs (#418 / #193).
+                autoScrollEnabled = autoScrollEnabled,
+                onToggleAutoScroll = viewModel::setAutoScrollEnabled,
             )
         },
     )

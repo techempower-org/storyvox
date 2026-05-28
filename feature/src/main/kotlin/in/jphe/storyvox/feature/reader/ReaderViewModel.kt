@@ -445,6 +445,17 @@ class ReaderViewModel @Inject constructor(
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    /**
+     * Issue #946 — magical reader auto-scroll toggle. Default true so
+     * existing users keep their read-along behavior; flipping to false
+     * frees the chapter body for manual scrolling while audio continues.
+     * Backed by [SettingsRepositoryUi.readerAutoScrollEnabled] so the
+     * preference rides across sessions and across the InstantDB sync
+     * allowlist if/when wired through.
+     */
+    val autoScrollEnabled: StateFlow<Boolean> = settings.readerAutoScrollEnabled
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), true)
+
     /** Issue #278 — user-initiated retry from the timed-out error block.
      *  Re-invokes the playback `play()` path; the underlying controller
      *  will re-fetch the chapter / re-prime the voice. We also reset the
@@ -569,6 +580,17 @@ class ReaderViewModel @Inject constructor(
      */
     fun setPitchInterpolationHighQuality(enabled: Boolean) {
         viewModelScope.launch { settings.setPitchInterpolationHighQuality(enabled) }
+    }
+
+    /**
+     * Issue #946 — persist the reader auto-scroll toggle. Mirrored
+     * shape to the other setting setters: fire-and-forget into the
+     * viewModelScope, the StateFlow above re-emits, the
+     * [ReaderTextView] observes and re-gates its scroll
+     * LaunchedEffect.
+     */
+    fun setAutoScrollEnabled(enabled: Boolean) {
+        viewModelScope.launch { settings.setReaderAutoScrollEnabled(enabled) }
     }
 
     // Issue #121 — in-chapter bookmark fan-out. ReaderViewModel stays

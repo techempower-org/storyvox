@@ -84,6 +84,8 @@ import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.graphicsLayer
@@ -400,32 +402,26 @@ fun AudiobookView(
                     }
                 }
             }
-            // "Why are we waiting?" — magical diagnostic panel. Lives
-            // between the top app bar and the cover so it doesn't fight
-            // the transport row (chip-ui-fixer owns lines 580-640) and
-            // the user can see WHY playback isn't producing sound the
-            // moment it stops. AnimatedVisibility inside the panel
-            // handles slide-in / slide-out so we don't need to gate the
-            // call site itself — passing `waitReason = null` collapses
-            // the panel to zero height.
-            WhyAreWeWaitingPanel(
-                reason = waitReason,
-                modifier = Modifier.fillMaxWidth(),
-                onRetry = onPlayPause,
-                onOpenSettings = onOpenSettings,
-            )
-            // Issue #805 — typed playback error banner. Surfaces above the
-            // cover when the engine is in an error state, with a subtype-
-            // specific icon, message, and recovery action. Dismissible via
-            // the X button; auto-clears when the engine leaves error state.
-            if (playbackError != null) {
-                PlaybackErrorBanner(
-                    error = playbackError,
-                    onRetry = onRetryPlayback,
-                    onDismiss = onDismissPlaybackError,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
+            // Issue #945 — "make the book cover even more magical by
+            // displaying all the loading prompts inside it." Pre-fix
+            // the [WhyAreWeWaitingPanel], the [PlaybackErrorBanner], and
+            // the "Still working…" slow-hint each rendered as their
+            // own full-width band above (or below) the cover, pushing
+            // the cover down the screen by 60-120 dp every time any of
+            // them appeared and crowding the focal element. The cover
+            // already carries the visual loading vocabulary (Ken-Burns
+            // scale, orbiting brass sigil ring, candle-ember overlay) —
+            // the missing piece was the textual diagnostic.
+            //
+            // The fix wraps the cover (or its skeleton-tile equivalent)
+            // in an outer Box and overlays the three loading prompts
+            // at the cover's bottom edge inside a brass-scrim gradient
+            // panel sized to match the 220 dp cover width. The cover's
+            // dimensions don't change; the prompts now appear *on*
+            // the cover rather than around it, reading as "the cover
+            // itself is telling you what's happening." When no prompts
+            // are active the overlay collapses to zero and the cover
+            // renders undecorated.
             // While the chapter body + voice model are still loading we don't
             // have a cover URL or chapter title yet — show the brass arcane
             // sigil placeholder instead of a "?" thumb. As soon as state
@@ -452,6 +448,18 @@ fun AudiobookView(
             // when Catch-up Pause is off, so the consumer drains through
             // the silence without surfacing a spinner.
             val showSpinner = warmingUp || state.isBuffering
+            // Issue #945 — outer Box hosting cover + bottom-aligned
+            // loading-prompts overlay. Sized to the cover (220×330) so
+            // the overlay can clip to the cover's bounds via
+            // `Modifier.matchParentSize()`. The spinner ring (240×350)
+            // still draws over the top by living inside the inner Box
+            // — we deliberately do NOT size the outer Box to the
+            // spinner, otherwise the prompts overlay would float
+            // outside the cover's silhouette.
+            Box(
+                modifier = Modifier.size(width = 220.dp, height = 330.dp),
+                contentAlignment = Alignment.Center,
+            ) {
             if (coverLoading) {
                 MagicSkeletonTile(
                     modifier = Modifier.size(width = 220.dp, height = 330.dp),
@@ -597,6 +605,87 @@ fun AudiobookView(
                     }
                 }
             }
+            // Issue #945 — in-cover loading-prompts overlay. Sits at the
+            // bottom of the cover (matchParentSize against the 220×330
+            // outer Box), clipped to the cover's rounded-corner shape so
+            // the scrim follows the cover silhouette. Three stacked
+            // prompts:
+            //   1. [PlaybackErrorBanner] (#805) — typed engine error
+            //      with subtype-specific icon + recovery action.
+            //   2. [WhyAreWeWaitingPanel] (#646) — typed audio-output
+            //      diagnostic with optional retry chip.
+            //   3. "Still working…" slow-hint (#278) — soft 10 s wall
+            //      copy before the 30 s timeout flip.
+            //
+            // Each prompt handles its own enter/exit AnimatedVisibility
+            // so the overlay grows/shrinks with content. The vertical
+            // gradient scrim (transparent → 70 % surface) only renders
+            // when at least one prompt is visible, otherwise the cover
+            // shows undecorated. The Column is bottom-aligned via the
+            // outer Box's contentAlignment so prompts grow upward from
+            // the cover's lower edge — preserving the cover artwork's
+            // top two thirds as the focal area.
+            val hasAnyPrompt = waitReason != null ||
+                playbackError != null ||
+                loadingPhase == LoadingPhase.Slow
+            androidx.compose.animation.AnimatedVisibility(
+                visible = hasAnyPrompt,
+                enter = fadeIn(tween(motion.standardDurationMs, easing = motion.standardEasing)),
+                exit = fadeOut(tween(motion.standardDurationMs, easing = motion.standardEasing)),
+                modifier = Modifier
+                    .matchParentSize()
+                    .clip(MaterialTheme.shapes.large),
+            ) {
+                // Bottom-aligned column carrying the three prompts. The
+                // gradient scrim sits BEHIND the column via the Box's
+                // background so the text stays legible over any cover
+                // artwork. 0.0 alpha at the top, 0.92 at the bottom —
+                // strong enough for white text on a bright cover, soft
+                // enough to keep the cover identifiable through it.
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .background(
+                            Brush.verticalGradient(
+                                0f to Color.Transparent,
+                                0.45f to MaterialTheme.colorScheme.surface.copy(alpha = 0.0f),
+                                0.65f to MaterialTheme.colorScheme.surface.copy(alpha = 0.55f),
+                                1f to MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
+                            ),
+                        ),
+                    contentAlignment = Alignment.BottomCenter,
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = spacing.sm, vertical = spacing.sm),
+                        verticalArrangement = Arrangement.spacedBy(spacing.xs),
+                    ) {
+                        if (playbackError != null) {
+                            PlaybackErrorBanner(
+                                error = playbackError,
+                                onRetry = onRetryPlayback,
+                                onDismiss = onDismissPlaybackError,
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        }
+                        WhyAreWeWaitingPanel(
+                            reason = waitReason,
+                            modifier = Modifier.fillMaxWidth(),
+                            onRetry = onPlayPause,
+                            onOpenSettings = onOpenSettings,
+                        )
+                        if (loadingPhase == LoadingPhase.Slow) {
+                            Text(
+                                "Still working… slow voice or network. Hang tight.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurface,
+                            )
+                        }
+                    }
+                }
+            }
+            } // end #945 outer cover Box
             // v1.0 polish (2026-05-16) — when the fiction title hasn't
             // resolved yet ("Conjuring your chapter…"), apply the
             // existing skeleton shimmer alpha so the placeholder text
@@ -654,19 +743,12 @@ fun AudiobookView(
                 style = MaterialTheme.typography.bodyMedium,
                 color = if (showSpinner) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            // Issue #278 — soft slow hint: after the loading state has been
-            // stuck for 10s the user should know we're still trying. The
-            // hint appears under the existing "Loading voice + chapter text"
-            // / chapter-title subtitle and disappears as soon as state
-            // arrives. At 30s we flip to the full error block above and
-            // this hint never renders.
-            if (loadingPhase == LoadingPhase.Slow) {
-                Text(
-                    "Still working… slow voice or network. Hang tight.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
+            // Issue #278 / #945 — soft slow hint moved into the
+            // in-cover loading-prompts overlay above. The 10 s wall
+            // copy ("Still working…") now renders inside the cover
+            // alongside the other diagnostic prompts; this position
+            // intentionally holds a Spacer to preserve the vertical
+            // rhythm between the subtitle row and the transport bar.
             Spacer(Modifier.height(spacing.xs))
             // Issue #448 — for live audio chapters (Radio plugin's
             // streams via Media3) the position/duration counters stay

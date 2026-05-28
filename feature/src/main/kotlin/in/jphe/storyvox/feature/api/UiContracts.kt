@@ -2203,6 +2203,29 @@ interface SettingsRepositoryUi {
      *  flow) can re-experience the welcome screens without clearing
      *  app data. */
     suspend fun resetOnboardingV1() {}
+
+    // ── Reader auto-scroll toggle (#946) ───────────────────────────
+    /**
+     * Issue #946 — magical toggle for the reader's
+     * "scroll-to-current-sentence" auto-follow behavior. When true
+     * (default), the reading view smoothly scrolls each highlighted
+     * sentence into the 40% viewport band as the engine advances.
+     * When false, the chapter body stays put — the user scrolls
+     * manually at their own pace while audio continues.
+     *
+     * Default emits `true` here so test fakes get the production
+     * behavior without opting in; the real DataStore impl overrides
+     * with the persisted value (also defaulting `true` on first
+     * launch — feature is on by default to preserve the read-along
+     * UX that's been there since v0.1).
+     */
+    val readerAutoScrollEnabled: Flow<Boolean>
+        get() = kotlinx.coroutines.flow.flowOf(true)
+
+    /** Persist the reader auto-scroll toggle (#946). Wired to the
+     *  brass IconButton in the reader controls overlay. Default no-op
+     *  for fakes; the DataStore impl persists. */
+    suspend fun setReaderAutoScrollEnabled(enabled: Boolean) {}
 }
 
 /**

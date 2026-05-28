@@ -1,6 +1,8 @@
 package `in`.jphe.storyvox.feature.reader
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
@@ -21,6 +23,7 @@ import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.VerticalAlignCenter
 import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.AutoStories
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
@@ -43,10 +46,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.dp
 import `in`.jphe.storyvox.feature.R
@@ -78,6 +84,20 @@ fun ReaderTextView(
      *  to `navController.navigate(StoryvoxRoutes.chat(fId, prefill = q))`.
      *  No-op default keeps preview/test callsites working unchanged. */
     onAskAiAbout: (String) -> Unit = {},
+    /**
+     * Issue #946 — magical auto-scroll toggle. When true, the chapter
+     * body smoothly follows the engine's current sentence (the
+     * long-standing read-along behavior). When false, the auto-scroll
+     * LaunchedEffect short-circuits — the user owns the wheel.
+     * Defaulted to true so older callsites (tests, previews) keep the
+     * original behavior without opting in.
+     */
+    autoScrollEnabled: Boolean = true,
+    /** Issue #946 — flip the auto-scroll toggle. Wired by
+     *  [HybridReaderScreen] to [ReaderViewModel.setAutoScrollEnabled],
+     *  which persists via [SettingsRepositoryUi]. No-op default for
+     *  preview/test callsites. */
+    onToggleAutoScroll: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val spacing = LocalSpacing.current
@@ -110,7 +130,14 @@ fun ReaderTextView(
     // Auto-scroll target: when sentence range or layout changes, settle the highlighted
     // line at 40% from the top of the viewport — unless we're inside the manual-scroll
     // grace window, in which case the user has the wheel.
-    LaunchedEffect(state.sentenceStart, state.sentenceEnd, textLayout, viewportHeightPx, bodyTopPx, chapterText) {
+    //
+    // Issue #946 — the [autoScrollEnabled] toggle wraps this effect's key set: when the
+    // user flips the brass IconButton off, the LaunchedEffect re-keys to a no-op branch
+    // and never schedules another animateScrollTo. Flipping back on re-keys and resumes
+    // following the next sentence boundary (no jump — only the next emit triggers a
+    // scroll, so the user's manual position is preserved until then).
+    LaunchedEffect(autoScrollEnabled, state.sentenceStart, state.sentenceEnd, textLayout, viewportHeightPx, bodyTopPx, chapterText) {
+        if (!autoScrollEnabled) return@LaunchedEffect
         val layout = textLayout ?: return@LaunchedEffect
         if (chapterText.isEmpty()) return@LaunchedEffect
         if (viewportHeightPx <= 0f) return@LaunchedEffect
@@ -196,6 +223,69 @@ fun ReaderTextView(
             }
         }
 
+        // Issue #946 — magical auto-scroll on/off toggle. Sits above the
+        // recenter FAB (#919) so the two end-aligned controls form a
+        // vertical brass cluster: top = mode (auto-follow vs manual),
+        // bottom = one-shot recenter. Always visible so the user can
+        // discover the toggle without first scrolling away; the icon's
+        // brass-vs-onSurfaceVariant tint communicates state at a glance.
+        //
+        // The contained icon is `Outlined.AutoStories` (the same
+        // open-book glyph the Library tab uses) tinted brass when
+        // auto-scroll is on and dimmed-onSurfaceVariant when off. A
+        // small `Outlined.AutoAwesome` sparkle overlays the top-right
+        // when ON, conveying "magic active" — its alpha cross-fades
+        // on toggle so the flip reads as evocative without competing
+        // with the chapter body's reading focus.
+        val sparkleAlpha by animateFloatAsState(
+            targetValue = if (autoScrollEnabled) 0.85f else 0f,
+            animationSpec = tween(durationMillis = 280),
+            label = "autoscroll-sparkle-alpha",
+        )
+        SmallFloatingActionButton(
+            onClick = { onToggleAutoScroll(!autoScrollEnabled) },
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(end = spacing.md, bottom = 168.dp)
+                .semantics {
+                    contentDescription = if (autoScrollEnabled) {
+                        "Auto-scroll on. Tap to turn off."
+                    } else {
+                        "Auto-scroll off. Tap to turn on."
+                    }
+                },
+            containerColor = if (autoScrollEnabled) {
+                MaterialTheme.colorScheme.primary
+            } else {
+                MaterialTheme.colorScheme.surfaceContainerHigh
+            },
+            contentColor = if (autoScrollEnabled) {
+                MaterialTheme.colorScheme.onPrimary
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            },
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    imageVector = Icons.Outlined.AutoStories,
+                    contentDescription = null,
+                )
+                // Sparkle overlay — only visible when auto-scroll is
+                // armed. Sits in the upper-right of the FAB so it
+                // reads as "this book is following you, magically."
+                if (sparkleAlpha > 0.01f) {
+                    Icon(
+                        imageVector = Icons.Outlined.AutoAwesome,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onPrimary,
+                        modifier = Modifier
+                            .size(12.dp)
+                            .align(Alignment.TopEnd)
+                            .alpha(sparkleAlpha),
+                    )
+                }
+            }
+        }
         // Issue #919 — floating "scroll to current sentence" button.
         // Positioned above the bottom transport bar (bottom = 104dp to
         // clear the bar + spacing), end-aligned. Uses Material 3

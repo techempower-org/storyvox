@@ -784,6 +784,15 @@ private object Keys {
      */
     val ONBOARDING_COMPLETED_V1 = booleanPreferencesKey("pref_onboarding_completed_v1")
 
+    /**
+     * Issue #946 — reader auto-scroll on/off toggle. Default `true`
+     * (read-along auto-follow is the long-standing behavior); the
+     * brass IconButton in the reader controls overlay flips this.
+     * Versioned `_v1` per the convention used by PLAYBACK_BUFFER_CHUNKS
+     * / WARMUP_WAIT so future renames can land alongside a fresh key.
+     */
+    val READER_AUTO_SCROLL_ENABLED = booleanPreferencesKey("pref_reader_auto_scroll_enabled_v1")
+
     // ── Accessibility scaffold (Phase 1, v0.5.42) ──────────────────
     // Persists the user's explicit intent for the assistive-service
     // tunables surfaced by the new Settings → Accessibility subscreen.
@@ -2675,6 +2684,14 @@ class SettingsRepositoryUiImpl(
      *  for a true "first-launch dress rehearsal". */
     override suspend fun resetOnboardingV1() {
         store.edit { it[Keys.ONBOARDING_COMPLETED_V1] = false }
+    }
+
+    // ── Reader auto-scroll toggle (#946) ───────────────────────────
+    override val readerAutoScrollEnabled: Flow<Boolean> =
+        store.data.map { it[Keys.READER_AUTO_SCROLL_ENABLED] ?: true }
+
+    override suspend fun setReaderAutoScrollEnabled(enabled: Boolean) {
+        store.edit { it[Keys.READER_AUTO_SCROLL_ENABLED] = enabled }
     }
 
     // ── InstantDB settings sync (this PR) ──────────────────────────
