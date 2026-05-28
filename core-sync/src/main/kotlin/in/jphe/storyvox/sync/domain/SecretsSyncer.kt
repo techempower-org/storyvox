@@ -215,7 +215,7 @@ class SecretsSyncer @Inject constructor(
      *  same key. SHA-256 → first 16 bytes. */
     private fun deterministicSaltFor(user: SignedInUser): ByteArray {
         val digest = java.security.MessageDigest.getInstance("SHA-256")
-        return digest.digest(("storyvox-secrets:${user.userId}").toByteArray()).copyOf(16)
+        return digest.digest(("storyvox-secrets:${user.userId}").toByteArray(Charsets.UTF_8)).copyOf(16)
     }
 
     private fun rowId(user: SignedInUser) = SyncIds.rowUuid(DOMAIN, user.userId)

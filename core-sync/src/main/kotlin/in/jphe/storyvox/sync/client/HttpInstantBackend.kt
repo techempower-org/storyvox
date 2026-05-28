@@ -11,7 +11,7 @@ import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import kotlinx.serialization.json.long
+import kotlinx.serialization.json.longOrNull
 import kotlinx.serialization.json.put
 
 /**
@@ -145,7 +145,12 @@ class HttpInstantBackend(
             ?.let { runCatching { it.jsonObject }.getOrNull() }
             ?: return@runCatching null
         val payload = row["payload"]?.let { it as? JsonPrimitive }?.contentOrNull
-        val updatedAt = row["updatedAt"]?.let { it as? JsonPrimitive }?.long
+        // `longOrNull` (not `.long`) — a proxy error page or a malformed
+        // server response can land here with `updatedAt` as a non-numeric
+        // string or JsonNull. `.long` throws in that case and crashes the
+        // sync round; treating it as "row not usable yet" lets the next
+        // round retry against a recovered server. See issue #936.
+        val updatedAt = row["updatedAt"]?.let { it as? JsonPrimitive }?.longOrNull
         if (payload != null && updatedAt != null) RowSnapshot(payload, updatedAt) else null
     }
 

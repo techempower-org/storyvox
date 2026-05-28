@@ -121,6 +121,25 @@ class HttpInstantBackendTest {
         )
     }
 
+    @Test fun `fetch is robust against non-numeric updatedAt (issue 936)`() = runTest {
+        // Proxy error pages, partial responses, or schema drift can deliver
+        // `updatedAt` as a non-numeric string (or null). The old `.long`
+        // accessor threw NumberFormatException and crashed the sync round.
+        // The fix uses `.longOrNull` so a junk value gracefully degrades to
+        // "row not usable yet" — the next round will retry.
+        val transport = FakeTransport(mapOf(
+            "/admin/query" to TransportResult(
+                200,
+                """{"blobs":[{"id":"0e9a6111-40d8-3ef1-9fd1-fadfe3240618","payload":"hello","updatedAt":"<html>error</html>"}]}""",
+            ),
+        ))
+        val backend = HttpInstantBackend("test-app", transport)
+
+        val res = backend.fetch(user, entity = "blobs", id = "0e9a6111-40d8-3ef1-9fd1-fadfe3240618")
+        assertTrue("non-numeric updatedAt yields success-with-null, not crash", res.isSuccess)
+        assertNull(res.getOrThrow())
+    }
+
     @Test fun `fetch is robust against the historical EAV bug (issue 691)`() = runTest {
         // The pre-fix code crashed on this shape because it tried to do
         // `.jsonObject.get(entity)` against a JsonArray. The new HTTP path
