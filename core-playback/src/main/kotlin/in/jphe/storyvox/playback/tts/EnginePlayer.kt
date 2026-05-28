@@ -61,6 +61,7 @@ import `in`.jphe.storyvox.playback.voice.EngineType
 import `in`.jphe.storyvox.playback.voice.VoiceManager
 import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicLong
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -236,8 +237,18 @@ class EnginePlayer @AssistedInject constructor(
      *  [EngineStreamingSource] on every pipeline rebuild (same lifecycle
      *  as [currentSpeed] and [currentPitch] — changing it via
      *  [setPunctuationPauseMultiplier] rebuilds the pipeline if playing,
-     *  so the new value takes effect on the next sentence boundary). */
-    private var currentPunctuationPauseMultiplier: Float = 1f
+     *  so the new value takes effect on the next sentence boundary).
+     *
+     *  Issue #927 — @Volatile because the writer is the Main thread
+     *  ([setPunctuationPauseMultiplier]) and the readers run inside
+     *  `withContext(Dispatchers.IO)` or on the producer thread (see the
+     *  KOKORO_SILENCE_SCALE_BASELINE * currentPunctuationPauseMultiplier
+     *  sites and the pipeline-construction snapshot in
+     *  [startPlaybackPipeline] / [startRecapPipeline]). Without @Volatile
+     *  the JVM is free to cache the writer's value in a register and the
+     *  IO read can see the pre-tap value, applying the wrong silence
+     *  scale to the rebuilt pipeline. */
+    @Volatile private var currentPunctuationPauseMultiplier: Float = 1f
 
     /**
      * Issue #801 — the thread priority the producer-side VoiceEngineHandle
@@ -644,6 +655,24 @@ class EnginePlayer @AssistedInject constructor(
     @Volatile
     var inFlightAdvanceDirection: Int = 0
         private set
+
+    /**
+     * Issue #929 — monotonic invocation token for [advanceChapter]. Each
+     * call increments this on entry and stamps the value into
+     * [inFlightAdvanceToken]; the `finally` block only clears
+     * [inFlightAdvanceDirection] when its captured token still equals
+     * the current token (i.e., no later invocation has stamped over it).
+     *
+     * Pre-fix, two overlapping `advanceChapter` calls (e.g. a user
+     * double-tap of Next, or the controller's buffering-stuck watchdog
+     * firing while a Previous-tap was still parked in the body-wait)
+     * would race in the `finally`: the first call's exit cleared the
+     * latch to 0 while the second was still in flight, making the
+     * watchdog read 0 and fall back to its +1 default — the exact
+     * "Previous turned into Next" symptom #726 was supposed to fix.
+     */
+    private val advanceInvocationCounter = AtomicLong(0L)
+    @Volatile private var inFlightAdvanceToken: Long = 0L
 
     private fun observeBufferConfig() {
         scope.launch {
@@ -3759,6 +3788,15 @@ class EnginePlayer @AssistedInject constructor(
         // latch — leaving it set would make the next watchdog fire
         // mirror a stale direction.
         val normalizedDir = if (direction >= 0) 1 else -1
+        // Issue #929 — stamp a fresh token so an overlapping
+        // `advanceChapter` (e.g. user double-tap, or watchdog firing
+        // mid-body-wait) doesn't let our `finally` clear a latch the
+        // newer invocation owns. Order matters: bump token BEFORE
+        // writing direction so a concurrent reader either sees the new
+        // (token, direction) pair or the old one — never a torn
+        // (newToken, oldDirection).
+        val myToken = advanceInvocationCounter.incrementAndGet()
+        inFlightAdvanceToken = myToken
         inFlightAdvanceDirection = normalizedDir
         try {
         val current = _observableState.value.currentChapterId ?: run {
@@ -3921,7 +3959,16 @@ class EnginePlayer @AssistedInject constructor(
             // set after exit would make a subsequent watchdog fire
             // mirror a stale direction — exactly the kind of loose
             // state machine that produced #726 in the first place.
-            inFlightAdvanceDirection = 0
+            //
+            // Issue #929 — only clear if we still own the latch. If a
+            // later `advanceChapter` started while we were in the
+            // body-wait, [inFlightAdvanceToken] has moved on and the
+            // latch now reflects THEIR direction; clearing it here
+            // would erase a live invocation's state and the watchdog
+            // would fall back to its +1 default mid-Previous.
+            if (inFlightAdvanceToken == myToken) {
+                inFlightAdvanceDirection = 0
+            }
         }
     }
 

@@ -53,8 +53,12 @@ import `in`.jphe.storyvox.data.log.DebugLog
  */
 class ChunkGapLogger {
 
-    private var prevChunkEndMs: Long = -1L
-    private var currentChunkStartMs: Long = -1L
+    // Issue #928 — `resetForNewPipeline` runs on Main; `chunkStart` /
+    // `chunkEnd` run on the consumer thread. Without @Volatile the
+    // consumer can read a stale anchor, and on 32-bit JVMs a non-volatile
+    // Long read is also non-atomic (high/low halves torn).
+    @Volatile private var prevChunkEndMs: Long = -1L
+    @Volatile private var currentChunkStartMs: Long = -1L
 
     /**
      * Reset between pipeline lifetimes (start of a pause/resume, seek,
