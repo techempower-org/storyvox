@@ -2,6 +2,7 @@ package `in`.jphe.storyvox.data.di
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.util.Log
 import androidx.room.Room
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
@@ -134,20 +135,130 @@ object DataModule {
     fun provideApplicationScope(): CoroutineScope =
         CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
+    /**
+     * The single backing store for every encrypted preference in the app
+     * (auth cookies, source tokens, palace credentials, sync magic-code,
+     * etc.). The file name is referenced from XML backup rules
+     * (`app/src/main/res/xml/backup_rules.xml`,
+     * `data_extraction_rules.xml`) — if you rename it, you MUST update
+     * both XML files in lockstep or auto-backup will silently restore
+     * encrypted blobs whose MAC can no longer be verified by the new
+     * install's keystore (see issue #951).
+     */
+    private const val SECRETS_PREFS_FILE = "storyvox.secrets"
+
+    /**
+     * Provides the app-wide [EncryptedSharedPreferences] handle, with a
+     * one-shot self-heal on keystore/MAC verification failures.
+     *
+     * ### Why the defensive layer (issue #951)
+     *
+     * After uninstall + reinstall on a device with Google auto-backup
+     * configured, `BackupManager` restores `/data/data/<pkg>/shared_prefs/`
+     * BEFORE the first cold start. The restored EncryptedSharedPreferences
+     * blob was MAC'd with the previous install's Android Keystore master
+     * key — which is destroyed at uninstall. The new install's keystore
+     * has a fresh master key that cannot verify the restored MAC, and
+     * `EncryptedSharedPreferences.create` (or the first read after init)
+     * throws:
+     *
+     *   - `android.security.KeyStoreException` ("Signature/MAC verification failed")
+     *   - `javax.crypto.AEADBadTagException`
+     *   - `java.security.InvalidKeyException`
+     *   - `java.security.GeneralSecurityException` (Tink wrappers)
+     *
+     * With `allowBackup=true` and no recovery path, the app hard-crashes
+     * on cold start.
+     *
+     * The XML backup rules (`backup_rules.xml`, `data_extraction_rules.xml`)
+     * EXCLUDE this file from auto-backup, which is the primary defense.
+     * This try/catch is the secondary defense in case the exclusion rules
+     * are misconfigured or a future Android version changes the semantics:
+     * we delete the corrupt blob, delete the keystore entry, and recreate
+     * an empty store. The user loses whatever was stored (source tokens,
+     * sync magic-code) and has to re-authenticate — far better than a
+     * launch-loop crash.
+     *
+     * Trade-off: a real user-initiated restore (e.g. via Google's
+     * "continue setup from previous device" flow) would also wipe the
+     * restored credentials. Acceptable: those credentials are device-bound
+     * (Android Keystore is non-exportable by construction), so they could
+     * never have been restored intact regardless of `allowBackup`. The
+     * user has to sign in again on the new device either way.
+     *
+     * The catch is intentionally broad (`Exception`) because the real
+     * failure mode in #951 surfaces as
+     * `android.security.KeyStoreException` — a hidden/system class that
+     * we cannot reference by name from app code, and which is NOT a
+     * subclass of `GeneralSecurityException`. Tink also wraps various
+     * I/O and crypto failures in its own runtime exceptions. Recovering
+     * by wiping the corrupt file is always safe (the user just has to
+     * re-authenticate); failing to recover and crashing is not. We log
+     * the exception so a real bug in our crypto path is still
+     * diagnosable in logcat, and we do NOT catch `Error` — OOMs, etc.,
+     * still propagate.
+     */
     @Provides
     @Singleton
     fun provideEncryptedPrefs(@ApplicationContext ctx: Context): SharedPreferences {
+        return try {
+            openEncryptedPrefs(ctx)
+        } catch (e: Exception) {
+            Log.w(TAG_PREFS, "EncryptedSharedPreferences open failed; wiping + retrying", e)
+            recoverFromCorruptSecrets(ctx)
+            openEncryptedPrefs(ctx)
+        }
+    }
+
+    private fun openEncryptedPrefs(ctx: Context): SharedPreferences {
         val masterKey = MasterKey.Builder(ctx)
             .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
             .build()
-        return EncryptedSharedPreferences.create(
+        val prefs = EncryptedSharedPreferences.create(
             ctx,
-            "storyvox.secrets",
+            SECRETS_PREFS_FILE,
             masterKey,
             EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
             EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
         )
+        // Force decryption of the index — `create()` may succeed lazily
+        // while the underlying Tink keyset is unreadable. `all` (which
+        // calls `getAll()`) is the cheapest way to surface a bad-MAC
+        // failure NOW, while we still hold a try/catch frame around it.
+        prefs.all
+        return prefs
     }
+
+    private fun recoverFromCorruptSecrets(ctx: Context) {
+        // Delete the prefs blob (both the shared_prefs XML file and any
+        // companion file Tink may have created).
+        runCatching { ctx.deleteSharedPreferences(SECRETS_PREFS_FILE) }
+        // Delete the master key entry from the Android Keystore so the
+        // next `MasterKey.Builder` call regenerates it cleanly. If we
+        // skip this step, Tink may still fail because it has a fresh
+        // keyset but the master key alias is in an inconsistent state.
+        // `MasterKey.DEFAULT_MASTER_KEY_ALIAS` is deprecated in the
+        // public API but the *literal alias string* is still what
+        // androidx.security uses by default — we must clear that exact
+        // entry. Inlining the constant rather than depending on the
+        // deprecated symbol.
+        runCatching {
+            val keyStore = java.security.KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+            if (keyStore.containsAlias(MASTER_KEY_ALIAS)) {
+                keyStore.deleteEntry(MASTER_KEY_ALIAS)
+            }
+        }
+    }
+
+    /**
+     * The default master-key alias used by androidx.security's
+     * [MasterKey.Builder] when no explicit alias is supplied. Inlined
+     * because the public `MasterKey.DEFAULT_MASTER_KEY_ALIAS` is
+     * deprecated, but the underlying alias string has not changed.
+     */
+    private const val MASTER_KEY_ALIAS = "_androidx_security_master_key_"
+
+    private const val TAG_PREFS = "DataModule.SecretsPrefs"
 }
 
 @Module

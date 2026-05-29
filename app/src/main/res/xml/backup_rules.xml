@@ -1,8 +1,24 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Pre-Android-12 backup rules. Same exclusions as data_extraction_rules.xml.
+  Pre-Android-12 (API < 31) auto-backup rules.
+
+  Issue #951 — Exclude the EncryptedSharedPreferences file from auto-backup.
+  The actual file name is `storyvox.secrets` (see
+  DataModule.provideEncryptedPrefs). Prior versions of this file excluded
+  `storyvox_secure_prefs`, a stale name that never matched anything — so
+  encrypted blobs WERE being backed up to Google's cloud and restored on
+  a fresh install. The new install's Android Keystore could not verify
+  the MAC of the restored blob (its master key was generated fresh on
+  the new install, while the blob was MAC'd with the old install's key),
+  causing a hard crash on cold start:
+
+      KeyStoreException: Signature/MAC verification failed
+      (internal Keystore code: -30)
+
+  This rule pairs with the defensive try/catch in
+  DataModule.provideEncryptedPrefs (defense in depth).
 -->
 <full-backup-content>
-    <exclude domain="sharedpref" path="storyvox_secure_prefs.xml" />
-    <exclude domain="sharedpref" path="storyvox_secure_prefs" />
+    <exclude domain="sharedpref" path="storyvox.secrets.xml" />
+    <exclude domain="sharedpref" path="storyvox.secrets" />
 </full-backup-content>

@@ -1,16 +1,28 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
   Android 12+ (API 31+) backup rules.
+
+  Issue #951 — Exclude the EncryptedSharedPreferences file from BOTH
+  cloud-backup AND device-transfer. The actual file is `storyvox.secrets`
+  (see DataModule.provideEncryptedPrefs). Prior versions excluded
+  `storyvox_secure_prefs`, a stale name that never matched anything, so
+  encrypted blobs were being restored onto a fresh install whose Android
+  Keystore could not verify them — crashing on cold start with
+  `KeyStoreException: Signature/MAC verification failed`.
+
+  Defense in depth: DataModule also catches keystore/MAC failures on
+  read and wipes + regenerates the prefs file.
+
   Cloud backup: include everything except encrypted secrets.
   Device transfer: include everything except encrypted secrets.
 -->
 <data-extraction-rules>
     <cloud-backup>
-        <exclude domain="sharedpref" path="storyvox_secure_prefs.xml" />
-        <exclude domain="sharedpref" path="storyvox_secure_prefs" />
+        <exclude domain="sharedpref" path="storyvox.secrets.xml" />
+        <exclude domain="sharedpref" path="storyvox.secrets" />
     </cloud-backup>
     <device-transfer>
-        <exclude domain="sharedpref" path="storyvox_secure_prefs.xml" />
-        <exclude domain="sharedpref" path="storyvox_secure_prefs" />
+        <exclude domain="sharedpref" path="storyvox.secrets.xml" />
+        <exclude domain="sharedpref" path="storyvox.secrets" />
     </device-transfer>
 </data-extraction-rules>
