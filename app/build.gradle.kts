@@ -66,17 +66,22 @@ val buildTime: String = gitOutput("log", "-1", "--format=%cI", "HEAD").ifBlank {
  *   storyvox.releaseKeyAlias=storyvox
  *   storyvox.releaseKeyPassword=...
  *
- * When all four are present AND the file exists, `buildTypes.release`
- * picks up the new config and produces a Play-Store-uploadable APK / AAB.
- * When ANY are missing or the file is absent, we fall back to the
- * checked-in debug keystore — preserving the today behavior so
- * `./gradlew :app:assembleRelease` still works in CI, in fresh
- * checkouts, and for sideload-only contributors. The :baselineprofile
- * producer's `release`-derived variant also keeps assembling either way
- * (it needs `buildTypes.release` to have SOME signingConfig — AGP
- * refuses to assemble the release variant otherwise, which is the
- * "single-keystore signingConfig reuse mirrors the debug block"
- * note from the original CLAUDE.md memory).
+ * When all four are present AND the file exists, the Play AAB path
+ * (`bundleRelease` / `publishReleaseBundle`) signs with this keystore;
+ * see `isBundleOrPublishBuild` and the comment in `buildTypes.release`
+ * for the split heuristic added in #952. The sideload APK path
+ * (`assembleRelease`) deliberately ignores this keystore and signs
+ * with the checked-in debug keystore, preserving upgrade continuity
+ * from every install since v0.4.15.
+ *
+ * When ANY of the four are missing or the file is absent, both paths
+ * fall back to the checked-in debug keystore — preserving the today
+ * behavior so `./gradlew :app:assembleRelease` still works in CI, in
+ * fresh checkouts, and for sideload-only contributors. The
+ * :baselineprofile producer's `release`-derived variant also keeps
+ * assembling either way (it needs `buildTypes.release` to have SOME
+ * signingConfig — AGP refuses to assemble the release variant
+ * otherwise).
  */
 val localPropertiesFile = rootProject.file("local.properties")
 val localProperties = Properties().apply {
@@ -93,6 +98,58 @@ val hasReleaseKeystore: Boolean = releaseStoreFilePath != null &&
     releaseKeyAlias != null &&
     releaseKeyPassword != null &&
     file(releaseStoreFilePath!!).exists()
+
+/**
+ * Signing-path split for #952 — the sideload APK (attached to GitHub
+ * Releases) must be debug-signed to preserve sideload upgrade continuity
+ * from every install since v0.4.15, while the Play Store AAB
+ * (`publishReleaseBundle` / `bundleRelease`) must be release-signed
+ * because Play rejects the checked-in debug keystore.
+ *
+ * Pre-#952 (v0.7.0 through v0.7.4): `buildTypes.release` always picked
+ * the release keystore when [hasReleaseKeystore] was true. Since
+ * katana's self-hosted CI runner has the four `storyvox.release*`
+ * properties wired up (for the Play path in
+ * docs/play-store/RUNBOOK.md), the **APK** attached to every GitHub
+ * Release since v0.7.0 was signed with the wrong cert
+ * (CN=TechEmpower.org instead of the checked-in androiddebugkey). This
+ * silently broke `adb install` over any locally-built debug install
+ * with `INSTALL_FAILED_UPDATE_INCOMPATIBLE: signatures do not match`.
+ *
+ * Resolution: inspect [Gradle.getStartParameter] at configuration time
+ * and pick the keystore based on whether the requested task graph
+ * contains an AAB / publish target. This is configuration-cache safe —
+ * `startParameter.taskNames` is fixed for the build invocation and
+ * exposed as a stable Gradle property, not a system-call.
+ *
+ * Heuristic: any task name containing `bundle` (case-insensitive) or
+ * starting with `publish` is treated as a Play-path request and gets
+ * the release keystore. Everything else (assembleRelease, installRelease,
+ * the macrobenchmark target, fresh-checkout debug builds) gets the
+ * checked-in keystore so the resulting APK upgrades any prior
+ * sideloaded install in place.
+ *
+ * Why a heuristic and not product flavors: flavors double the variant
+ * matrix and force every consumer of :app — :baselineprofile, the test
+ * source sets, the gradle-play-publisher config — to disambiguate. The
+ * task-graph check ships the same fix in one place. The cost is that a
+ * mixed invocation like `./gradlew :app:assembleRelease :app:bundleRelease`
+ * signs BOTH artifacts with the release keystore, but no automation
+ * (CI, release runbook) issues that pair — CI only runs
+ * `:app:assembleRelease` (see .github/workflows/android.yml), and the
+ * Play path runs `:app:publishReleaseBundle` separately.
+ *
+ * When [hasReleaseKeystore] is false (fresh checkout, contributor without
+ * the Play keystore configured), the bundle path falls back to the debug
+ * keystore — gradle-play-publisher's `requires credentials` no-op
+ * triggers before any upload attempt, so a debug-signed AAB on disk is
+ * harmless. The only invariant that matters is "release keystore is
+ * never used for an APK that lands in a GitHub Release."
+ */
+val isBundleOrPublishBuild: Boolean = gradle.startParameter.taskNames.any { taskName ->
+    val lower = taskName.lowercase()
+    "bundle" in lower || lower.startsWith("publish") || lower.contains(":publish")
+}
 
 /**
  * Play Console service-account credentials path — opt-in via local.properties.
@@ -222,19 +279,16 @@ android {
             //                                 Hilt entry points, Room
             //                                 entities/DAOs, Jsoup,
             //                                 OkHttp)
-            //   - signingConfig = debug      (intentional — see the
-            //                                 long comment in
-            //                                 signingConfigs.debug
-            //                                 above; the checked-in
-            //                                 keystore is the only
-            //                                 signing cert storyvox
-            //                                 has used since v0.4.15
-            //                                 and sideload upgrade
-            //                                 continuity DEPENDS on
-            //                                 keeping it; F-Droid /
-            //                                 Play migration will
-            //                                 introduce a separate
-            //                                 keystore in CI secrets)
+            //   - signingConfig              (split per #952 — see
+            //                                 `isBundleOrPublishBuild`
+            //                                 above. APK assemble path
+            //                                 keeps the checked-in
+            //                                 keystore that every
+            //                                 sideload install since
+            //                                 v0.4.15 trusts; AAB path
+            //                                 swaps to the release
+            //                                 keystore that Play
+            //                                 requires.)
             //
             // What changes vs the old debug block:
             //   - BuildConfig.DEBUG flips to false naturally because
@@ -253,11 +307,27 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
-            // Prefer the Play Store release keystore when configured
-            // (see signingConfigs above); fall back to the checked-in
-            // debug keystore otherwise so sideload continuity, CI, and
-            // fresh-checkout assembles keep working.
-            signingConfig = if (hasReleaseKeystore) {
+            // #952 — pick the keystore by task-graph intent:
+            //   * `:app:bundleRelease` / `:app:publishReleaseBundle`
+            //     (the Play AAB path) → release keystore when wired
+            //     up. Play rejects the checked-in debug keystore so
+            //     this is the only path that produces an uploadable
+            //     AAB.
+            //   * `:app:assembleRelease` (the GitHub Release APK
+            //     path, what CI runs in .github/workflows/android.yml)
+            //     → checked-in debug keystore. Continuity-critical:
+            //     every sideloaded storyvox install since v0.4.15
+            //     trusts that cert; flipping the APK to the release
+            //     keystore on v0.7.x silently broke `adb install`
+            //     for anyone with a local install. See
+            //     `isBundleOrPublishBuild` above for the heuristic.
+            //
+            // When [hasReleaseKeystore] is false (fresh checkout,
+            // contributor without Play credentials), even the bundle
+            // path falls back to debug. gradle-play-publisher's
+            // `requires credentials` no-op stops any actual upload,
+            // so a debug-signed AAB never escapes the build dir.
+            signingConfig = if (hasReleaseKeystore && isBundleOrPublishBuild) {
                 signingConfigs.getByName("release")
             } else {
                 signingConfigs.getByName("debug")
