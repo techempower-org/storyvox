@@ -23,6 +23,8 @@ import `in`.jphe.storyvox.source.gutenberg.di.GutenbergCache
 import `in`.jphe.storyvox.source.gutenberg.net.GutendexApi
 import `in`.jphe.storyvox.source.gutenberg.net.GutendexBook
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
@@ -110,6 +112,26 @@ internal class GutenbergSource @Inject constructor(
      * loop on traversal — an exceptionally hard-to-diagnose hang.
      */
     private val parsedCache = ConcurrentHashMap<String, EpubBook>()
+
+    /**
+     * Per-fictionId Mutex set. Issue #942 — the ConcurrentHashMap
+     * above is internally safe, but the surrounding read-then-write
+     * pattern (`cache[id]?.let { return it }` … parse … `cache[id] =
+     * parsed`) is check-then-act and lets two prerender requests for
+     * the same book both download + parse the ~MB EPUB. Holding a
+     * per-id Mutex around the read+compute+write makes the sequence
+     * atomic per book while letting different books proceed in
+     * parallel. computeIfAbsent on ConcurrentHashMap is the only
+     * truly atomic construction path (getOrPut is itself check-then-
+     * act); the lambda is cheap so contention on the locks map is a
+     * non-issue. The locks accumulate one entry per book seen this
+     * process — fine in practice; if it ever matters, clear them
+     * alongside parsedCache.
+     */
+    private val parseLocks = ConcurrentHashMap<String, Mutex>()
+
+    private fun lockFor(fictionId: String): Mutex =
+        parseLocks.computeIfAbsent(fictionId) { Mutex() }
 
     override fun filterDimensions(): List<FilterDimension> = listOf(
         FilterDimension.Sort(
@@ -342,42 +364,67 @@ internal class GutenbergSource @Inject constructor(
      * downloads + parses + caches; subsequent calls return the
      * cached EpubBook. Surfaces network and parse failures
      * separately so the caller can show the right error copy.
+     *
+     * Issue #942 — fast-path read is lock-free; if the cache misses
+     * we serialize the download+parse+write per fictionId under
+     * [lockFor], then double-check inside the lock so the loser of
+     * the race returns the winner's parsed book instead of redoing
+     * the work.
      */
     private suspend fun ensureParsed(
         fictionId: String,
         catalog: GutendexBook,
     ): FictionResult<EpubBook> {
         parsedCache[fictionId]?.let { return FictionResult.Success(it) }
-        val onDisk = epubFileFor(fictionId)
-            ?: return FictionResult.NotFound("Invalid Gutenberg id: $fictionId")
-        if (onDisk.exists() && onDisk.length() > 0L) {
-            return reparseFromDisk(fictionId)
+        return lockFor(fictionId).withLock {
+            parsedCache[fictionId]?.let { return@withLock FictionResult.Success(it) }
+            val onDisk = epubFileFor(fictionId)
+                ?: return@withLock FictionResult.NotFound("Invalid Gutenberg id: $fictionId")
+            if (onDisk.exists() && onDisk.length() > 0L) {
+                return@withLock reparseFromDiskLocked(fictionId, onDisk)
+            }
+            val url = catalog.epubUrl()
+                ?: return@withLock FictionResult.NotFound("No EPUB download available for ${catalog.title}")
+            val bytes = when (val r = api.downloadEpub(url)) {
+                is FictionResult.Success -> r.value
+                is FictionResult.Failure -> return@withLock r
+            }
+            withContext(Dispatchers.IO) {
+                onDisk.parentFile?.mkdirs()
+                onDisk.writeBytes(bytes)
+            }
+            val parsed = try {
+                withContext(Dispatchers.IO) { EpubParser.parseFromBytes(bytes).withoutEmptySpineItems() }
+            } catch (e: EpubParseException) {
+                return@withLock FictionResult.NetworkError("Could not parse Gutenberg EPUB: ${e.message}", e)
+            }
+            parsedCache[fictionId] = parsed
+            FictionResult.Success(parsed)
         }
-        val url = catalog.epubUrl()
-            ?: return FictionResult.NotFound("No EPUB download available for ${catalog.title}")
-        val bytes = when (val r = api.downloadEpub(url)) {
-            is FictionResult.Success -> r.value
-            is FictionResult.Failure -> return r
-        }
-        withContext(Dispatchers.IO) {
-            onDisk.parentFile?.mkdirs()
-            onDisk.writeBytes(bytes)
-        }
-        val parsed = try {
-            withContext(Dispatchers.IO) { EpubParser.parseFromBytes(bytes).withoutEmptySpineItems() }
-        } catch (e: EpubParseException) {
-            return FictionResult.NetworkError("Could not parse Gutenberg EPUB: ${e.message}", e)
-        }
-        parsedCache[fictionId] = parsed
-        return FictionResult.Success(parsed)
     }
 
     private suspend fun reparseFromDisk(fictionId: String): FictionResult<EpubBook> {
-        val onDisk = epubFileFor(fictionId)
-            ?: return FictionResult.NotFound("Invalid Gutenberg id: $fictionId")
-        if (!onDisk.exists()) {
-            return FictionResult.NotFound("No cached EPUB for $fictionId")
+        parsedCache[fictionId]?.let { return FictionResult.Success(it) }
+        return lockFor(fictionId).withLock {
+            parsedCache[fictionId]?.let { return@withLock FictionResult.Success(it) }
+            val onDisk = epubFileFor(fictionId)
+                ?: return@withLock FictionResult.NotFound("Invalid Gutenberg id: $fictionId")
+            if (!onDisk.exists()) {
+                return@withLock FictionResult.NotFound("No cached EPUB for $fictionId")
+            }
+            reparseFromDiskLocked(fictionId, onDisk)
         }
+    }
+
+    /**
+     * Inner reparse used when the caller already holds [lockFor]
+     * for [fictionId] and has verified the file exists. Reads,
+     * parses, writes the cache, and returns the result.
+     */
+    private suspend fun reparseFromDiskLocked(
+        fictionId: String,
+        onDisk: File,
+    ): FictionResult<EpubBook> {
         val bytes = withContext(Dispatchers.IO) { onDisk.readBytes() }
         val parsed = try {
             withContext(Dispatchers.IO) { EpubParser.parseFromBytes(bytes).withoutEmptySpineItems() }
