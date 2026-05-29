@@ -15,6 +15,11 @@ import javax.inject.Singleton
 
 interface PlaybackPositionRepository {
 
+    /**
+     * Observe the fiction's resume point — its most-recently-played
+     * chapter's row (issue #965). Multiple chapters of one fiction now have
+     * independent rows; this surfaces the freshest one.
+     */
     fun observePosition(fictionId: String): Flow<PlaybackPosition?>
 
     /**
@@ -40,6 +45,10 @@ interface PlaybackPositionRepository {
         playbackSpeed: Float,
     )
 
+    /**
+     * Forget every saved chapter position for a fiction (issue #965 — clears
+     * all per-chapter rows, not just the former single per-fiction row).
+     */
     suspend fun clearPosition(fictionId: String)
 
     // ─── playback-layer accessors ─────────────────────────────────────────
@@ -47,8 +56,10 @@ interface PlaybackPositionRepository {
     /**
      * Persist a resume point — playback-layer flavor. Updates `charOffset` and
      * `durationEstimateMs`; leaves `paragraphIndex` and `playbackSpeed`
-     * untouched (the reader UI owns those). If no row exists yet, defaults
-     * are written for the untouched fields.
+     * untouched (the reader UI owns those). If no row exists yet for this
+     * (fiction, chapter), defaults are written for the untouched fields.
+     * Issue #965: the preserve-read is now scoped to the exact chapter, so
+     * saving chapter N never inherits chapter N+1's paragraphIndex/speed.
      */
     suspend fun save(
         fictionId: String,
@@ -57,7 +68,11 @@ interface PlaybackPositionRepository {
         durationEstimateMs: Long,
     )
 
-    /** Load the resume point for a given fiction, or null if none. */
+    /**
+     * Load the resume point for a given fiction — its most-recently-played
+     * chapter's row (issue #965), or null if none. Picks the freshest
+     * chapter so resume never lands on a stale future-chapter offset.
+     */
     suspend fun load(fictionId: String): SavedPosition?
 
     /** Most-recently-played list, denormalized for the Auto/Wear menu. */
@@ -118,7 +133,7 @@ class PlaybackPositionRepositoryImpl @Inject constructor(
         charOffset: Int,
         durationEstimateMs: Long,
     ) {
-        val existing = dao.get(fictionId)
+        val existing = dao.get(fictionId, chapterId)
         dao.upsert(
             PlaybackPosition(
                 fictionId = fictionId,

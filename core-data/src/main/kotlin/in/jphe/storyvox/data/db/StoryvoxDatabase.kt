@@ -50,7 +50,10 @@ import `in`.jphe.storyvox.data.db.entity.PlaybackPosition
         // a book you no longer have."
         FictionMemoryEntry::class,
     ],
-    version = 10,
+    // v11 (#965 per-chapter playback position) — PlaybackPosition PK changes
+    // from `fictionId` to composite `(fictionId, chapterId)` so each chapter
+    // remembers its own offset. Table-rebuild migration, zero data loss.
+    version = 11,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)

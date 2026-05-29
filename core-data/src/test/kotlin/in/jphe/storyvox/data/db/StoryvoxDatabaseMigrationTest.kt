@@ -13,6 +13,7 @@ import `in`.jphe.storyvox.data.db.migration.MIGRATION_6_7
 import `in`.jphe.storyvox.data.db.migration.MIGRATION_7_8
 import `in`.jphe.storyvox.data.db.migration.MIGRATION_8_9
 import `in`.jphe.storyvox.data.db.migration.MIGRATION_9_10
+import `in`.jphe.storyvox.data.db.migration.MIGRATION_10_11
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
@@ -136,12 +137,16 @@ class StoryvoxDatabaseMigrationTest {
         // latest version) can open the file without a missing-migration
         // failure.
         helper.runMigrationsAndValidate(dbName, 10, true, MIGRATION_9_10).close()
+        // #965 — v11 rebuilds playback_position with the composite PK.
+        // Chain through so the latest-version Room.databaseBuilder opens
+        // cleanly.
+        helper.runMigrationsAndValidate(dbName, 11, true, MIGRATION_10_11).close()
 
         val ctx = org.robolectric.RuntimeEnvironment.getApplication() as android.content.Context
         val db = Room.databaseBuilder(ctx, StoryvoxDatabase::class.java, dbName)
             .addMigrations(
                 MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8,
-                MIGRATION_8_9, MIGRATION_9_10,
+                MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11,
             )
             .build()
 
@@ -298,12 +303,14 @@ class StoryvoxDatabaseMigrationTest {
         helper.runMigrationsAndValidate(dbName, 9, true, MIGRATION_8_9).close()
         // #890/#889/#884 — chain through v10 (missing query indexes).
         helper.runMigrationsAndValidate(dbName, 10, true, MIGRATION_9_10).close()
+        // #965 — chain through v11 (playback_position composite PK).
+        helper.runMigrationsAndValidate(dbName, 11, true, MIGRATION_10_11).close()
 
         val ctx = org.robolectric.RuntimeEnvironment.getApplication() as android.content.Context
         val db = Room.databaseBuilder(ctx, StoryvoxDatabase::class.java, dbName)
             .addMigrations(
                 MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8,
-                MIGRATION_8_9, MIGRATION_9_10,
+                MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11,
             )
             .build()
 
@@ -433,6 +440,168 @@ class StoryvoxDatabaseMigrationTest {
             "index_inbox_event_sourceId_fictionId must exist (Inbox lookup)",
             indexesOn("inbox_event").any { it == "index_inbox_event_sourceId_fictionId" },
         )
+
+        db.close()
+    }
+
+    /**
+     * Issue #965 — v11 changes the `playback_position` primary key from
+     * `fictionId` alone to the composite `(fictionId, chapterId)` so each
+     * chapter remembers its own offset. This is the DATA-PRESERVATION guard
+     * for the issue: a botched migration would lose every user's "where I
+     * was" anchor, so the test seeds a populated v10 `playback_position`
+     * table and asserts every row + every offset survives the rebuild
+     * byte-for-byte.
+     *
+     * The migration is a table rebuild (SQLite can't ALTER a PK in place):
+     * CREATE _new with the composite PK + identical columns/FKs, INSERT
+     * SELECT *, DROP old, RENAME. `runMigrationsAndValidate(..., 11, true,
+     * MIGRATION_10_11)` also triggers Room's identity-hash check against
+     * `11.json`, so a missing index / wrong FK / wrong PK fails here too.
+     *
+     * Seeds TWO fictions with ONE position each (the only shape a v10 DB can
+     * hold — fictionId was the PK), then proves both survive. A post-migration
+     * insert of a SECOND chapter row for an existing fiction confirms the new
+     * composite PK actually permits per-chapter rows (it would have hit a
+     * UNIQUE violation under the old single-column PK).
+     */
+    @Test fun `migrate v10 to v11 preserves all playback positions and enables per-chapter rows`() {
+        val dbName = "playback-position-pk-migration-test.db"
+
+        helper.createDatabase(dbName, 4).close()
+        helper.runMigrationsAndValidate(dbName, 5, true, MIGRATION_4_5).close()
+        helper.runMigrationsAndValidate(dbName, 6, true, MIGRATION_5_6).close()
+        helper.runMigrationsAndValidate(dbName, 7, true, MIGRATION_6_7).close()
+        helper.runMigrationsAndValidate(dbName, 8, true, MIGRATION_7_8).close()
+        helper.runMigrationsAndValidate(dbName, 9, true, MIGRATION_8_9).close()
+        helper.runMigrationsAndValidate(dbName, 10, true, MIGRATION_9_10).use { db ->
+            // Parent rows first (FK: playback_position → fiction + chapter).
+            db.execSQL(
+                """
+                INSERT INTO fiction(
+                    id, sourceId, title, author, genres, tags, status,
+                    chapterCount, firstSeenAt, metadataFetchedAt,
+                    inLibrary, followedRemotely, notesEverSeen
+                ) VALUES
+                    ('rr:1', 'royalroad', 'Mother of Learning', 'nobody103',
+                     '[]', '[]', 'ONGOING', 2, 0, 0, 1, 0, 0),
+                    ('rr:2', 'royalroad', 'The Wandering Inn', 'pirateaba',
+                     '[]', '[]', 'ONGOING', 1, 0, 0, 1, 0, 0)
+                """.trimIndent(),
+            )
+            db.execSQL(
+                """
+                INSERT INTO chapter(
+                    id, fictionId, sourceChapterId, `index`, title,
+                    downloadState, userMarkedRead
+                ) VALUES
+                    ('rr:1:0', 'rr:1', '0', 0, 'Good Morning Brother',
+                     'NOT_DOWNLOADED', 0),
+                    ('rr:1:1', 'rr:1', '1', 1, 'A Bad Night',
+                     'NOT_DOWNLOADED', 0),
+                    ('rr:2:0', 'rr:2', '0', 0, 'Chapter 1.00',
+                     'NOT_DOWNLOADED', 0)
+                """.trimIndent(),
+            )
+            // v10 shape: one position row per fiction (fictionId is the PK).
+            db.execSQL(
+                """
+                INSERT INTO playback_position(
+                    fictionId, chapterId, charOffset, paragraphIndex,
+                    playbackSpeed, durationEstimateMs, updatedAt
+                ) VALUES
+                    ('rr:1', 'rr:1:0', 4321, 7, 1.5, 600000, 1000),
+                    ('rr:2', 'rr:2:0', 99,   0, 1.0, 120000, 2000)
+                """.trimIndent(),
+            )
+        }
+
+        val db = helper.runMigrationsAndValidate(
+            dbName,
+            11,
+            /* validateDroppedTables = */ true,
+            MIGRATION_10_11,
+        )
+
+        // Composite PK present, both indexes recreated.
+        db.query("PRAGMA table_info('playback_position')").use { c ->
+            val pkCols = mutableListOf<String>()
+            while (c.moveToNext()) {
+                val name = c.getString(c.getColumnIndexOrThrow("name"))
+                val pk = c.getInt(c.getColumnIndexOrThrow("pk"))
+                if (pk > 0) pkCols += "$pk:$name"
+            }
+            // pk index 1 = fictionId, 2 = chapterId (declaration order).
+            assertEquals(
+                "composite PK must be (fictionId, chapterId)",
+                listOf("1:fictionId", "2:chapterId"),
+                pkCols.sorted(),
+            )
+        }
+        db.query(
+            "SELECT name FROM sqlite_master WHERE type='index' " +
+                "AND tbl_name='playback_position'",
+        ).use { c ->
+            val indexes = buildList { while (c.moveToNext()) add(c.getString(0)) }
+            assertTrue(
+                "index_playback_position_chapterId must survive the rebuild",
+                indexes.any { it == "index_playback_position_chapterId" },
+            )
+            assertTrue(
+                "index_playback_position_updatedAt must survive the rebuild",
+                indexes.any { it == "index_playback_position_updatedAt" },
+            )
+        }
+
+        // EVERY seeded row + offset must survive verbatim.
+        db.query(
+            "SELECT fictionId, chapterId, charOffset, paragraphIndex, " +
+                "playbackSpeed, durationEstimateMs, updatedAt " +
+                "FROM playback_position ORDER BY fictionId",
+        ).use { c ->
+            assertTrue("row rr:1 must survive", c.moveToFirst())
+            assertEquals("rr:1", c.getString(0))
+            assertEquals("rr:1:0", c.getString(1))
+            assertEquals(4321, c.getInt(2))
+            assertEquals(7, c.getInt(3))
+            assertEquals(1.5f, c.getFloat(4), 0.0001f)
+            assertEquals(600000L, c.getLong(5))
+            assertEquals(1000L, c.getLong(6))
+
+            assertTrue("row rr:2 must survive", c.moveToNext())
+            assertEquals("rr:2", c.getString(0))
+            assertEquals("rr:2:0", c.getString(1))
+            assertEquals(99, c.getInt(2))
+            assertEquals(0, c.getInt(3))
+            assertEquals(1.0f, c.getFloat(4), 0.0001f)
+            assertEquals(120000L, c.getLong(5))
+            assertEquals(2000L, c.getLong(6))
+
+            assertTrue("exactly the two seeded rows survive", !c.moveToNext())
+        }
+
+        // The whole point of #965: a second chapter of an existing fiction
+        // can now hold its own independent position row. Under the old
+        // single-column PK this insert would throw a UNIQUE constraint
+        // violation on fictionId.
+        db.execSQL(
+            """
+            INSERT INTO playback_position(
+                fictionId, chapterId, charOffset, paragraphIndex,
+                playbackSpeed, durationEstimateMs, updatedAt
+            ) VALUES ('rr:1', 'rr:1:1', 12, 0, 1.0, 300000, 3000)
+            """.trimIndent(),
+        )
+        db.query(
+            "SELECT COUNT(*) FROM playback_position WHERE fictionId = 'rr:1'",
+        ).use { c ->
+            assertTrue(c.moveToFirst())
+            assertEquals(
+                "fiction rr:1 now holds two independent per-chapter rows",
+                2,
+                c.getInt(0),
+            )
+        }
 
         db.close()
     }

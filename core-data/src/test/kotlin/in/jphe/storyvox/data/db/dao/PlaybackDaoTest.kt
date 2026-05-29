@@ -241,4 +241,146 @@ class PlaybackDaoTest {
         // Second delete is a no-op, must not throw.
         dao.delete("f1")
     }
+
+    // ─── Issue #965: per-chapter (fictionId, chapterId) PK semantics ──────
+
+    @Test
+    fun multipleChaptersOfOneFiction_coexistAsIndependentRows() = runTest {
+        // Under the old fictionId-only PK the second upsert would REPLACE the
+        // first. With the composite PK both rows must survive.
+        fictionDao.upsert(fiction("f1"))
+        chapterDao.upsert(chapter("c1", "f1", index = 0))
+        chapterDao.upsert(chapter("c2", "f1", index = 1))
+        dao.upsert(PlaybackPosition("f1", "c1", charOffset = 100, updatedAt = 10L))
+        dao.upsert(PlaybackPosition("f1", "c2", charOffset = 200, updatedAt = 20L))
+
+        val rows = dao.allPositionsSnapshot()
+            .filter { it.fictionId == "f1" }
+            .associateBy { it.chapterId }
+        assertEquals(2, rows.size)
+        assertEquals(100, rows.getValue("c1").charOffset)
+        assertEquals(200, rows.getValue("c2").charOffset)
+    }
+
+    @Test
+    fun getByFiction_returnsMostRecentlyPlayedChapter() = runTest {
+        // load(fictionId) / observe(fictionId) must surface the freshest
+        // chapter, never a stale earlier one — the core #965 fix.
+        fictionDao.upsert(fiction("f1"))
+        chapterDao.upsert(chapter("c1", "f1", index = 0))
+        chapterDao.upsert(chapter("c2", "f1", index = 1))
+        dao.upsert(PlaybackPosition("f1", "c1", charOffset = 100, updatedAt = 10L))
+        dao.upsert(PlaybackPosition("f1", "c2", charOffset = 200, updatedAt = 20L))
+
+        val latest = dao.get("f1")
+        assertNotNull(latest)
+        assertEquals("c2", latest!!.chapterId)
+        assertEquals(200, latest.charOffset)
+
+        // Observing the fiction yields the same freshest row.
+        val observed = dao.observe("f1").first()
+        assertEquals("c2", observed!!.chapterId)
+
+        // Backing up to an earlier chapter (newer timestamp on c1) flips the
+        // resume target back to c1 — the "skips forward" guard.
+        dao.upsert(PlaybackPosition("f1", "c1", charOffset = 50, updatedAt = 30L))
+        assertEquals("c1", dao.get("f1")!!.chapterId)
+        assertEquals(50, dao.get("f1")!!.charOffset)
+    }
+
+    @Test
+    fun getByFictionAndChapter_returnsExactChapterRow() = runTest {
+        fictionDao.upsert(fiction("f1"))
+        chapterDao.upsert(chapter("c1", "f1", index = 0))
+        chapterDao.upsert(chapter("c2", "f1", index = 1))
+        dao.upsert(
+            PlaybackPosition(
+                "f1", "c1", charOffset = 11, paragraphIndex = 3,
+                playbackSpeed = 1.25f, updatedAt = 99L,
+            ),
+        )
+        dao.upsert(PlaybackPosition("f1", "c2", charOffset = 22, updatedAt = 100L))
+
+        // Exact-row lookup ignores recency — returns the asked-for chapter,
+        // so the repository's save() preserves the SAME chapter's fields.
+        val c1 = dao.get("f1", "c1")
+        assertNotNull(c1)
+        assertEquals(11, c1!!.charOffset)
+        assertEquals(3, c1.paragraphIndex)
+        assertEquals(1.25f, c1.playbackSpeed, 0.0001f)
+
+        assertNull("non-existent chapter row is null", dao.get("f1", "nope"))
+    }
+
+    @Test
+    fun observeLastPlayedTimes_collapsesToMaxPerFiction() = runTest {
+        // With multiple chapter rows per fiction the Library sort must still
+        // see exactly one (fictionId, lastPlayedAt) — the MAX(updatedAt).
+        fictionDao.upsert(fiction("f1"))
+        fictionDao.upsert(fiction("f2"))
+        chapterDao.upsert(chapter("c1", "f1", index = 0))
+        chapterDao.upsert(chapter("c2", "f1", index = 1))
+        chapterDao.upsert(chapter("c3", "f2", index = 0))
+        dao.upsert(PlaybackPosition("f1", "c1", updatedAt = 10L))
+        dao.upsert(PlaybackPosition("f1", "c2", updatedAt = 40L))
+        dao.upsert(PlaybackPosition("f2", "c3", updatedAt = 25L))
+
+        val map = dao.observeLastPlayedTimes().first().associate { it.fictionId to it.updatedAt }
+        assertEquals(2, map.size)
+        assertEquals("f1 collapses to its newest chapter timestamp", 40L, map.getValue("f1"))
+        assertEquals(25L, map.getValue("f2"))
+    }
+
+    @Test
+    fun recent_collapsesToOneRowPerFiction_mostRecentChapter() = runTest {
+        // The Auto rail lists books, not chapters: each fiction appears once,
+        // at its most-recently-played chapter.
+        fictionDao.upsert(fiction("f1", title = "A"))
+        fictionDao.upsert(fiction("f2", title = "B"))
+        chapterDao.upsert(chapter("c1", "f1", index = 0, title = "A-ch0"))
+        chapterDao.upsert(chapter("c2", "f1", index = 1, title = "A-ch1"))
+        chapterDao.upsert(chapter("c3", "f2", index = 0, title = "B-ch0"))
+        dao.upsert(PlaybackPosition("f1", "c1", updatedAt = 10L))
+        dao.upsert(PlaybackPosition("f1", "c2", updatedAt = 50L))
+        dao.upsert(PlaybackPosition("f2", "c3", updatedAt = 30L))
+
+        val rows = dao.recent(limit = 10)
+        assertEquals("one row per fiction", listOf("f1", "f2"), rows.map { it.fictionId })
+        // f1's row is its newest chapter (c2 @50), not c1 @10.
+        assertEquals("c2", rows.first { it.fictionId == "f1" }.chapterId)
+        assertEquals("A-ch1", rows.first { it.fictionId == "f1" }.chapterTitle)
+    }
+
+    @Test
+    fun observeMostRecentContinueListening_picksFreshestChapterAcrossAllFictions() = runTest {
+        // The single Continue tile resumes the freshest chapter overall, even
+        // when one fiction has several chapter rows.
+        fictionDao.upsert(fiction("f1", title = "A"))
+        fictionDao.upsert(fiction("f2", title = "B"))
+        chapterDao.upsert(chapter("c1", "f1", index = 0))
+        chapterDao.upsert(chapter("c2", "f1", index = 1))
+        chapterDao.upsert(chapter("c3", "f2", index = 0))
+        dao.upsert(PlaybackPosition("f1", "c1", updatedAt = 100L))
+        dao.upsert(PlaybackPosition("f1", "c2", updatedAt = 300L))
+        dao.upsert(PlaybackPosition("f2", "c3", updatedAt = 200L))
+
+        val row = dao.observeMostRecentContinueListening().first()
+        assertNotNull(row)
+        assertEquals("f1", row!!.f_id)
+        assertEquals("c2", row.c_id)
+    }
+
+    @Test
+    fun deleteByFiction_clearsEveryChapterRow() = runTest {
+        fictionDao.upsert(fiction("f1"))
+        chapterDao.upsert(chapter("c1", "f1", index = 0))
+        chapterDao.upsert(chapter("c2", "f1", index = 1))
+        dao.upsert(PlaybackPosition("f1", "c1", updatedAt = 10L))
+        dao.upsert(PlaybackPosition("f1", "c2", updatedAt = 20L))
+
+        dao.delete("f1")
+
+        assertNull(dao.get("f1"))
+        assertEquals(emptyList<PlaybackPositionSnapshotRow>(), dao.allPositionsSnapshot())
+    }
 }

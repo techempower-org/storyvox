@@ -301,6 +301,79 @@ val MIGRATION_9_10: Migration = object : Migration(9, 10) {
     }
 }
 
+/**
+ * v11 — issue #965: per-chapter playback position. Changes the
+ * `playback_position` primary key from `fictionId` alone to the composite
+ * `(fictionId, chapterId)` so each chapter remembers its own offset. A
+ * stale future-chapter offset can no longer linger in "the fiction's row"
+ * after the user backs up to an earlier chapter ("skips forward").
+ *
+ * SQLite can't ALTER a primary key in place, so this is the standard Room
+ * table-rebuild: create `playback_position_new` with the composite PK and
+ * the IDENTICAL column set / FKs, copy every row across, drop the old
+ * table, rename the new one into place, then recreate both indexes.
+ *
+ * DATA PRESERVATION — the crux of this issue. Every existing v10 row
+ * already carries its `chapterId` as a regular NOT-NULL column; only the PK
+ * definition changes. `INSERT ... SELECT *` copies all seven columns
+ * verbatim, so each old per-fiction row maps 1:1 to a `(fictionId,
+ * chapterId)` row with its stored offset/paragraph/speed/duration/timestamp
+ * intact. No row is dropped, merged, or transformed. The composite PK only
+ * *permits* additional rows going forward; it doesn't disturb the ones
+ * already there (no two v10 rows can collide, since they had distinct
+ * fictionIds to begin with).
+ *
+ * The DDL below is byte-for-byte the v10 `playback_position` createSql with
+ * `PRIMARY KEY(fictionId)` swapped for `PRIMARY KEY(fictionId, chapterId)`,
+ * so Room's post-migration identity-hash validation against `11.json`
+ * passes. Both FKs (fiction + chapter, ON DELETE CASCADE) and both indexes
+ * (chapterId, updatedAt) are recreated exactly as the entity declares them.
+ */
+val MIGRATION_10_11: Migration = object : Migration(10, 11) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS `playback_position_new` (
+                `fictionId` TEXT NOT NULL,
+                `chapterId` TEXT NOT NULL,
+                `charOffset` INTEGER NOT NULL,
+                `paragraphIndex` INTEGER NOT NULL,
+                `playbackSpeed` REAL NOT NULL,
+                `durationEstimateMs` INTEGER NOT NULL,
+                `updatedAt` INTEGER NOT NULL,
+                PRIMARY KEY(`fictionId`, `chapterId`),
+                FOREIGN KEY(`fictionId`) REFERENCES `fiction`(`id`)
+                  ON UPDATE NO ACTION ON DELETE CASCADE,
+                FOREIGN KEY(`chapterId`) REFERENCES `chapter`(`id`)
+                  ON UPDATE NO ACTION ON DELETE CASCADE
+            )
+            """.trimIndent(),
+        )
+        db.execSQL(
+            """
+            INSERT INTO `playback_position_new` (
+                `fictionId`, `chapterId`, `charOffset`, `paragraphIndex`,
+                `playbackSpeed`, `durationEstimateMs`, `updatedAt`
+            )
+            SELECT
+                `fictionId`, `chapterId`, `charOffset`, `paragraphIndex`,
+                `playbackSpeed`, `durationEstimateMs`, `updatedAt`
+            FROM `playback_position`
+            """.trimIndent(),
+        )
+        db.execSQL("DROP TABLE `playback_position`")
+        db.execSQL("ALTER TABLE `playback_position_new` RENAME TO `playback_position`")
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS `index_playback_position_chapterId` " +
+                "ON `playback_position` (`chapterId`)",
+        )
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS `index_playback_position_updatedAt` " +
+                "ON `playback_position` (`updatedAt`)",
+        )
+    }
+}
+
 val ALL_MIGRATIONS: Array<Migration> = arrayOf(
     MIGRATION_1_2,
     MIGRATION_2_3,
@@ -311,4 +384,5 @@ val ALL_MIGRATIONS: Array<Migration> = arrayOf(
     MIGRATION_7_8,
     MIGRATION_8_9,
     MIGRATION_9_10,
+    MIGRATION_10_11,
 )

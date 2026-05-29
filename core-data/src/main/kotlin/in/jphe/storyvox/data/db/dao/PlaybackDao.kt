@@ -9,16 +9,50 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface PlaybackDao {
 
-    @Query("SELECT * FROM playback_position WHERE fictionId = :fictionId")
+    /**
+     * Issue #965 — most-recently-played row for a fiction. Under the
+     * composite `(fictionId, chapterId)` PK there can be several rows per
+     * fiction (one per chapter the user touched); "the fiction's position"
+     * is the chapter played most recently, so observers take the top row by
+     * `updatedAt DESC`. Never returns a stale future-chapter offset.
+     */
+    @Query(
+        "SELECT * FROM playback_position WHERE fictionId = :fictionId " +
+            "ORDER BY updatedAt DESC LIMIT 1",
+    )
     fun observe(fictionId: String): Flow<PlaybackPosition?>
 
-    /** One-shot lookup used by the playback layer's `load(fictionId)`. */
-    @Query("SELECT * FROM playback_position WHERE fictionId = :fictionId")
+    /**
+     * One-shot most-recent lookup used by the playback layer's
+     * `load(fictionId)` resume path. Same `ORDER BY updatedAt DESC LIMIT 1`
+     * semantics as [observe].
+     */
+    @Query(
+        "SELECT * FROM playback_position WHERE fictionId = :fictionId " +
+            "ORDER BY updatedAt DESC LIMIT 1",
+    )
     suspend fun get(fictionId: String): PlaybackPosition?
+
+    /**
+     * Exact-row lookup for one chapter. Used by the repository's
+     * field-preserving `save()` so it reads back the SAME chapter's
+     * `paragraphIndex` / `playbackSpeed` rather than whatever chapter
+     * happened to be played last.
+     */
+    @Query(
+        "SELECT * FROM playback_position " +
+            "WHERE fictionId = :fictionId AND chapterId = :chapterId",
+    )
+    suspend fun get(fictionId: String, chapterId: String): PlaybackPosition?
 
     @Upsert
     suspend fun upsert(position: PlaybackPosition)
 
+    /**
+     * Clears every saved chapter position for a fiction — the "forget this
+     * book's progress entirely" operation. Issue #965: now deletes all
+     * per-chapter rows for the fiction, not the single former per-fiction row.
+     */
     @Query("DELETE FROM playback_position WHERE fictionId = :fictionId")
     suspend fun delete(fictionId: String)
 
@@ -40,6 +74,13 @@ interface PlaybackDao {
      * Denormalized "recently played" feed for the Auto/Wear menu — flattens
      * fiction title + cover + chapter title into one row so the playback
      * layer doesn't need follow-up queries while building Auto's browse tree.
+     *
+     * Issue #965: with the composite PK there are now several rows per
+     * fiction. The Auto rail lists *books*, not chapters, so we collapse to
+     * one row per fiction — the most-recently-played chapter. The inner
+     * query picks each fiction's MAX(updatedAt) row id, then the outer join
+     * pulls only those rows. `ORDER BY updatedAt DESC LIMIT :limit` then
+     * gives the N most-recent distinct fictions.
      */
     @Query(
         """
@@ -51,6 +92,10 @@ interface PlaybackDao {
           FROM playback_position p
           JOIN fiction f ON f.id = p.fictionId
           JOIN chapter c ON c.id = p.chapterId
+         WHERE p.updatedAt = (
+               SELECT MAX(p2.updatedAt) FROM playback_position p2
+                WHERE p2.fictionId = p.fictionId
+         )
          ORDER BY p.updatedAt DESC
          LIMIT :limit
         """,
@@ -64,8 +109,16 @@ interface PlaybackDao {
      * fiction rows the Continue-listening tile needs. Emits on any
      * playback-position upsert / delete; the Library ViewModel
      * collapses it into a `Map<String, Long>` for the sort step.
+     *
+     * Issue #965 — under the composite PK there are multiple rows per
+     * fiction (one per chapter). `GROUP BY fictionId` + `MAX(updatedAt)`
+     * collapses them back to one "last played" timestamp per fiction so
+     * the Library sort still gets exactly one value per book.
      */
-    @Query("SELECT fictionId, updatedAt FROM playback_position")
+    @Query(
+        "SELECT fictionId, MAX(updatedAt) AS updatedAt " +
+            "FROM playback_position GROUP BY fictionId",
+    )
     fun observeLastPlayedTimes(): Flow<List<LastPlayedRow>>
 
     /**
