@@ -12,6 +12,7 @@ import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import dagger.hilt.android.qualifiers.ApplicationContext
+import `in`.jphe.storyvox.sync.coordinator.SyncCoordinator
 import `in`.jphe.storyvox.data.auth.SessionHydrator
 import `in`.jphe.storyvox.data.repository.AuthRepository
 import `in`.jphe.storyvox.data.repository.playback.AzureFallbackConfig
@@ -84,6 +85,7 @@ import `in`.jphe.storyvox.sigil.Sigil
 import `in`.jphe.storyvox.source.mempalace.net.PalaceDaemonApi
 import `in`.jphe.storyvox.source.mempalace.net.PalaceDaemonResult
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.Flow
@@ -997,6 +999,25 @@ class SettingsRepositoryUiImpl(
      *  quota, combined into the [settings] flow so the Settings UI's
      *  "Currently used: 1.4 GB / 2 GB" row stays live. */
     private val cacheStats: CacheStatsRepository,
+    /** Issue #977 — push-on-write seam. The action [scheduleSettingsPush]
+     *  fires after the debounce so every synced preference change reaches
+     *  InstantDB without a cold-start/manual sync (and can't be clobbered
+     *  by a pull that precedes the next push).
+     *
+     *  Production wires this to `SyncCoordinator.requestPush("settings")`
+     *  via the [@Inject] constructor below. Defaults to a no-op so the
+     *  test seam's direct primary constructor (named args ending at
+     *  [cacheStats]) keeps compiling — and so sync-agnostic repo tests
+     *  don't drag in a coordinator. Tests for the push path pass a
+     *  recording lambda instead of a real [SyncCoordinator] (which is
+     *  final and would need the whole InstantDB client/session/prefs
+     *  stack). */
+    private val pushSettings: () -> Unit = {},
+    /** Issue #977 — dispatcher backing the debounce scope. Defaults to
+     *  [Dispatchers.Default] in production; tests pass a `TestDispatcher`
+     *  so the 1.5s debounce resolves in virtual time. */
+    private val pushDispatcher: kotlinx.coroutines.CoroutineDispatcher =
+        kotlinx.coroutines.Dispatchers.Default,
 ) : SettingsRepositoryUi,
     PlaybackBufferConfig,
     PlaybackModeConfig,
@@ -1044,6 +1065,13 @@ class SettingsRepositoryUiImpl(
         pcmCache: PcmCache,
         pcmCacheConfig: PcmCacheConfig,
         cacheStats: CacheStatsRepository,
+        // Issue #977 — ⚠️ [dagger.Lazy] is load-bearing: the DI graph has
+        // a cycle — SyncCoordinator → Set<Syncer> → SettingsSyncer →
+        // SettingsSnapshotSource (this class) → SyncCoordinator. Lazy
+        // defers instantiation past construction so Hilt builds clean.
+        // `get()` is only called from the debounced push, never at
+        // construction.
+        coordinator: dagger.Lazy<SyncCoordinator>,
     ) : this(
         context.settingsDataStore, auth, hydrator,
         palaceConfig, palaceApi, llmCreds, githubAuth, teamsAuth, rssConfig, epubConfig,
@@ -1053,6 +1081,7 @@ class SettingsRepositoryUiImpl(
         azureCreds, azureClient, azureRoster,
         googleTokenSource,
         pcmCache, pcmCacheConfig, cacheStats,
+        pushSettings = { coordinator.get().requestPush(SETTINGS_PUSH_DOMAIN) },
     )
 
     /**
@@ -1072,6 +1101,26 @@ class SettingsRepositoryUiImpl(
     private val patienceScope = kotlinx.coroutines.CoroutineScope(
         kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Default,
     )
+
+    /** Issue #977 — app-lifetime scope + single coalescing job for the
+     *  debounced settings push. Every synced write cancels the in-flight
+     *  job and relaunches it, so a burst of edits (e.g. dragging the
+     *  source-order list) collapses into ONE push after the user pauses. */
+    private val pushScope = kotlinx.coroutines.CoroutineScope(
+        kotlinx.coroutines.SupervisorJob() + pushDispatcher,
+    )
+    @Volatile private var pushJob: kotlinx.coroutines.Job? = null
+
+    /** Schedule (or reschedule) the debounced settings-domain push.
+     *  Called from [stampSyncedWrite]. [SyncCoordinator.requestPush]
+     *  no-ops when signed out, so this is safe to fire unconditionally. */
+    private fun scheduleSettingsPush() {
+        pushJob?.cancel()
+        pushJob = pushScope.launch {
+            kotlinx.coroutines.delay(SETTINGS_PUSH_DEBOUNCE_MS)
+            pushSettings()
+        }
+    }
 
     /** Issue #377 + #233 + #403 + #462 — non-prefs source configs
      *  bundled into a single combine so the outer combine stays
@@ -2828,10 +2877,16 @@ class SettingsRepositoryUiImpl(
     /** Convenience used by every setter on this class so writes to a
      *  synced key automatically advance the sync timestamp. Settings UI
      *  that calls one of the existing `set*` mutators will get its
-     *  change uploaded on the next sync round without any additional
-     *  wiring. */
+     *  change uploaded without any additional wiring.
+     *
+     *  Issue #977 — this is the single chokepoint that triggers a
+     *  debounced push of the "settings" domain, so a preference change
+     *  reaches InstantDB right away instead of waiting for a cold-start
+     *  or manual "Sync now" (a window in which an intervening pull could
+     *  clobber the un-pushed local change). */
     private suspend fun stampSyncedWrite() {
         stampLocalWrite(System.currentTimeMillis())
+        scheduleSettingsPush()
     }
 
     companion object {
@@ -2839,6 +2894,16 @@ class SettingsRepositoryUiImpl(
          *  [SYNC_ALLOWLIST] (we never sync the sync timestamp itself
          *  — that'd be a loop). */
         private val SYNC_LAST_WRITE_KEY = longPreferencesKey("instantdb.settings_synced_at")
+
+        /** Issue #977 — domain name for the push-on-write seam. Must match
+         *  `SettingsSyncer.DOMAIN`; [SyncCoordinator.requestPush] no-ops if
+         *  no syncer registers under this name. */
+        internal const val SETTINGS_PUSH_DOMAIN: String = "settings"
+
+        /** Issue #977 — debounce window. A burst of synced writes (drag to
+         *  reorder sources, rapid toggle flips) coalesces into ONE push
+         *  this long after the last write. */
+        internal const val SETTINGS_PUSH_DEBOUNCE_MS: Long = 1_500L
 
         /**
          * Names of every DataStore key in the main `storyvox_settings`
