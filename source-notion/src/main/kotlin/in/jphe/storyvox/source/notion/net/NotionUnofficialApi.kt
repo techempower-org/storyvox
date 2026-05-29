@@ -5,6 +5,8 @@ import `in`.jphe.storyvox.source.notion.config.NotionConfig
 import `in`.jphe.storyvox.source.notion.config.NotionConfigState
 import `in`.jphe.storyvox.source.notion.config.NotionDefaults
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
@@ -84,21 +86,50 @@ internal class NotionUnofficialApi @Inject constructor(
     private val pageCache = ConcurrentHashMap<String, NotionChunkResponse>()
 
     /**
+     * Per-pageId Mutex set. Issue #964 — same TOCTOU shape #942 fixed
+     * in GutenbergSource: the [pageCache] read-then-write pattern
+     * (`cache[id]?.let { return it }` … suspending fetch … `cache[id] =
+     * fetched`) is check-then-act, so two concurrent reads for the
+     * same page both miss, both POST `loadPageChunk`, both write.
+     * Holding a per-id Mutex around the read+fetch+write makes the
+     * sequence atomic per page while letting different pages proceed
+     * in parallel. `computeIfAbsent` on ConcurrentHashMap is the only
+     * truly atomic construction path (`getOrPut` is itself check-then-
+     * act); the lambda is cheap so contention on the locks map is a
+     * non-issue. Locks accumulate one entry per page seen this
+     * process — Notion pages are bounded in any realistic session, so
+     * the map is effectively as small as [pageCache].
+     */
+    private val fetchLocks = ConcurrentHashMap<String, Mutex>()
+
+    private fun lockFor(hyphenatedId: String): Mutex =
+        fetchLocks.computeIfAbsent(hyphenatedId) { Mutex() }
+
+    /**
      * Fetch a page's blocks via `loadPageChunk`. Returns the full
      * recordMap (with the requested page at `recordMap.block[pageId]`).
      * Cached per process.
+     *
+     * Issue #964 — fast-path read is lock-free; if the cache misses
+     * we serialize the fetch+write per pageId under [lockFor], then
+     * double-check inside the lock so the loser of the race returns
+     * the winner's cached response instead of issuing a duplicate
+     * `loadPageChunk` POST.
      */
     suspend fun loadPageChunk(pageId: String): FictionResult<NotionChunkResponse> {
         val hyphenated = hyphenatePageId(pageId)
         pageCache[hyphenated]?.let { return FictionResult.Success(it) }
-        val state = config.current()
-        val body = """{"pageId":"$hyphenated","limit":100,"chunkNumber":0,"cursor":{"stack":[]},"verticalColumns":false}"""
-        return postEndpoint<NotionChunkResponse>(state.unofficialBaseUrl, "loadPageChunk", body)
-            .also { result ->
-                if (result is FictionResult.Success) {
-                    pageCache[hyphenated] = result.value
+        return lockFor(hyphenated).withLock {
+            pageCache[hyphenated]?.let { return@withLock FictionResult.Success(it) }
+            val state = config.current()
+            val body = """{"pageId":"$hyphenated","limit":100,"chunkNumber":0,"cursor":{"stack":[]},"verticalColumns":false}"""
+            postEndpoint<NotionChunkResponse>(state.unofficialBaseUrl, "loadPageChunk", body)
+                .also { result ->
+                    if (result is FictionResult.Success) {
+                        pageCache[hyphenated] = result.value
+                    }
                 }
-            }
+        }
     }
 
     /**
