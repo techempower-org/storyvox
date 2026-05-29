@@ -179,7 +179,15 @@ class StoryvoxApp : Application(), Configuration.Provider {
         // first cache read is downstream of user interaction (tap a
         // chapter) so a short DataStore read + File.delete sweep here
         // is always done well before the cache is needed.
-        initScope.launch {
+        //
+        // Issue #931 — capture this Job so [prerenderModeWatcher] can
+        // join() before it starts. If an upgrade is detected,
+        // [runIfUpgraded] wipes the PCM cache root, which races with
+        // any writer that has already opened a file under it. The
+        // watcher is the only init-time writer that touches the cache,
+        // so serializing watcher-start → upgrade-handler-finish is
+        // sufficient; everything else on initScope stays concurrent.
+        val upgradeHandlerJob = initScope.launch {
             versionUpgradeHandler.get().runIfUpgraded()
         }
         initScope.launch {
@@ -221,7 +229,17 @@ class StoryvoxApp : Application(), Configuration.Provider {
         // materialised off the cold-launch critical path; start()
         // launches its own long-running collector inside the watcher's
         // singleton scope.
+        //
+        // Issue #931 — join the upgrade-handler Job first. The watcher
+        // writes pre-rendered PCM into the same cache root that
+        // [VersionUpgradeHandler.runIfUpgraded] wipes on a versionCode
+        // change; without the join the two race and the watcher's
+        // freshly-written files can be deleted (or its writes can hit
+        // an I/O exception mid-sweep). Joining serializes only that
+        // one ordering — the watcher still runs on IO and the rest of
+        // init stays concurrent.
         initScope.launch {
+            upgradeHandlerJob.join()
             prerenderModeWatcher.get().start()
         }
         // Issue #159 — start the widget state observer once the Hilt
