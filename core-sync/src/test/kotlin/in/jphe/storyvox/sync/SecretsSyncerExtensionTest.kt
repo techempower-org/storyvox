@@ -192,17 +192,15 @@ class SecretsSyncerExtensionTest {
         // carries the empty-string entry on its next push, and pull
         // on device B applies it back.
         //
-        // **Known limitation** documented in
-        // `untested-edge-cases.md`: this test stamps the local
-        // LAST_TOUCH_KEY manually to ~T2 to simulate the UI side
-        // wiring a fresh stamp on a local clear. Without that
-        // stamp, the existing `SecretsSyncer.reconcile()` logic
-        // sees `localStamp.updatedAt = 0L` and the older remote
-        // (from before the clear) wins LWW — clobbering the
-        // user's clear. Wiring `stampLocalWrite()` into the
-        // Settings UI's secret-clear flow is a follow-up that
-        // belongs in the UI PR, not this sync-layer PR.
+        // Since #979 the receiving device stamps a real wall-clock
+        // `updatedAt` (it no longer reads back 0L), so LWW is now
+        // symmetric. For the clear to win, A's clear must simply carry
+        // a later stamp than B's local copy — which it does in
+        // production once the clear is the most recent write. We model
+        // that with explicit stamps: A's clear at `now+1h`, B's stale
+        // local copy at `now-1h`.
         val backend = FakeInstantBackend()
+        val now = System.currentTimeMillis()
         // Step 1: A pushes its initial secret.
         val prefsA = FakePrefs().apply {
             edit().putString("llm.openai_key", "sk-1234").apply()
@@ -212,14 +210,14 @@ class SecretsSyncerExtensionTest {
         // Step 2: A clears the key locally and bumps the
         // LAST_TOUCH_KEY (simulating Settings UI's planned wire-up).
         prefsA.edit().putString("llm.openai_key", "").apply()
-        prefsA.edit().putLong("instantdb.secrets_synced_at", 9_999_999L).apply()
+        prefsA.edit().putLong("instantdb.secrets_synced_at", now + 3_600_000L).apply()
         SecretsSyncer(prefsA, backend, { PASSPHRASE.copyOf() }).push(USER)
 
-        // Step 3: B pulls. Its local has the OLD value; the
-        // explicit LAST_TOUCH_KEY bump on A means A's clear has the
-        // higher stamp and wins LWW.
+        // Step 3: B pulls. Its local has the OLD value with an older
+        // stamp; A's clear has the higher stamp and wins LWW.
         val prefsB = FakePrefs().apply {
             edit().putString("llm.openai_key", "old-local-value").apply()
+            edit().putLong("instantdb.secrets_synced_at", now - 3_600_000L).apply()
         }
         SecretsSyncer(prefsB, backend, { PASSPHRASE.copyOf() }).pull(USER)
         assertEquals(
@@ -264,23 +262,24 @@ class SecretsSyncerExtensionTest {
         // merged bundle." Belt-and-braces — this PR's refactor of
         // applyLocal preserves that invariant.
         //
-        // Note on the LAST_TOUCH_KEY bump on A: in production, the
-        // first sync push from a freshly-signed-in device that has
-        // local secrets carries an `updatedAt=0L` stamp (a known
-        // edge case — see `untested-edge-cases.md`). For this test
-        // to exercise the "remote-wins-over-local-with-mid-stamp"
-        // path, A bumps its stamp explicitly. The Settings UI's
-        // sign-in flow can do the same via `stampLocalWrite()`
-        // (follow-up).
+        // Stamping note: since #979 a device with local secrets and no
+        // recorded write time stamps a real wall-clock `updatedAt`
+        // (no longer 0L). For this test to exercise the
+        // "remote-wins-over-local" path, A's stamp must be later than
+        // B's. A uses `now+1h`; B's local copy is the older one
+        // (stamped `now-1h`), so remote wins and B still keeps its
+        // local-only secret.
         val backend = FakeInstantBackend()
+        val now = System.currentTimeMillis()
         val prefsA = FakePrefs().apply {
             edit().putString("llm.from_device_a", "remote-key").apply()
-            edit().putLong("instantdb.secrets_synced_at", 1_000L).apply()
+            edit().putLong("instantdb.secrets_synced_at", now + 3_600_000L).apply()
         }
         SecretsSyncer(prefsA, backend, { PASSPHRASE.copyOf() }).push(USER)
 
         val prefsB = FakePrefs().apply {
             edit().putString("llm.local_only_on_b", "preserved").apply()
+            edit().putLong("instantdb.secrets_synced_at", now - 3_600_000L).apply()
         }
         SecretsSyncer(prefsB, backend, { PASSPHRASE.copyOf() }).pull(USER)
         assertEquals("remote-key", prefsB.getString("llm.from_device_a", null))

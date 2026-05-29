@@ -125,6 +125,80 @@ class SecretsSyncerTest {
         assertNull(prefsB.getString("ui.theme", null))
     }
 
+    @Test fun `pushing local secrets stamps a non-zero updatedAt (regression #979)`() = runTest {
+        // #979: secrets pushed with updatedAt=0 — a blob at 0 can never
+        // win LWW, so the remote secrets blob stays pinned and never
+        // pulls down to a second device. After the fix, a push from a
+        // device whose LAST_TOUCH_KEY was never set must still carry a
+        // real (>0) timestamp.
+        val backend = FakeInstantBackend()
+        val before = System.currentTimeMillis()
+        val prefs = FakePrefs().apply {
+            edit().putString("llm.openai_key", "sk-test").apply()
+        }
+        val device = SecretsSyncer(
+            secrets = prefs,
+            backend = backend,
+            passphraseProvider = { PASSPHRASE.copyOf() },
+        )
+        assertTrue(device.push(USER) is SyncOutcome.Ok)
+
+        val rowId = SyncIds.rowUuid(SecretsSyncer.DOMAIN, USER.userId)
+        val onRemote = backend.fetch(USER, "blobs", rowId).getOrNull()
+        assertNotNull("secrets blob must exist on remote", onRemote)
+        assertTrue(
+            "remote secrets blob must carry a non-zero updatedAt (was ${onRemote!!.updatedAt})",
+            onRemote.updatedAt > 0L,
+        )
+        assertTrue(
+            "updatedAt must be a real wall-clock stamp, not a sentinel",
+            onRemote.updatedAt >= before,
+        )
+    }
+
+    @Test fun `device B with its own older local secrets still pulls device A's secrets (regression #979)`() = runTest {
+        // The user-facing #979 symptom: a *receiving* device that already
+        // has its own local secret never pulled the originating device's
+        // secrets, because both sides were pinned at updatedAt=0 and
+        // `remote.updatedAt > local.updatedAt` (0 > 0) was always false.
+        // With real timestamps, the later push wins symmetrically.
+        val backend = FakeInstantBackend()
+
+        // Device B sets a secret FIRST (earlier wall-clock time) and syncs
+        // it up so it has a recorded local stamp.
+        val prefsB = FakePrefs().apply {
+            edit().putString("llm.openai_key", "B-older-key").apply()
+        }
+        val deviceB = SecretsSyncer(
+            secrets = prefsB,
+            backend = backend,
+            passphraseProvider = { PASSPHRASE.copyOf() },
+        )
+        assertTrue(deviceB.push(USER) is SyncOutcome.Ok)
+
+        // Device A then pushes a newer value for the same key. Its stamp
+        // is later, so it must win on the remote.
+        Thread.sleep(2)
+        val prefsA = FakePrefs().apply {
+            edit().putString("llm.openai_key", "A-newer-key").apply()
+        }
+        val deviceA = SecretsSyncer(
+            secrets = prefsA,
+            backend = backend,
+            passphraseProvider = { PASSPHRASE.copyOf() },
+        )
+        assertTrue(deviceA.push(USER) is SyncOutcome.Ok)
+
+        // Now device B pulls again. Remote (A's value, newer stamp) must
+        // win over B's older local secret — the pull that #979 broke.
+        assertTrue(deviceB.pull(USER) is SyncOutcome.Ok)
+        assertEquals(
+            "device B must pull device A's newer secret",
+            "A-newer-key",
+            prefsB.getString("llm.openai_key", null),
+        )
+    }
+
     @Test fun `wrong passphrase on device B fails decrypt and does not clobber local`() = runTest {
         val backend = FakeInstantBackend()
         val prefsA = FakePrefs().apply {

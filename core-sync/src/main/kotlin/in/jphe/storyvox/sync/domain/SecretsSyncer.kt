@@ -122,7 +122,7 @@ class SecretsSyncer @Inject constructor(
             return SyncOutcome.Transient("remote fetch: ${it.message}")
         }
         val remoteDecoded: Stamped<Map<String, String>>? = remote?.let { decode(it.payload, it.updatedAt, key) }
-        val localStamp = Stamped(local, secrets.getLong(LAST_TOUCH_KEY, 0L))
+        val localStamp = Stamped(local, localUpdatedAt(local))
 
         val merged = when {
             remoteDecoded == null -> localStamp
@@ -151,6 +151,40 @@ class SecretsSyncer @Inject constructor(
         } else {
             SyncOutcome.Transient("remote push: ${pushed.exceptionOrNull()?.message}")
         }
+    }
+
+    /**
+     * The `updatedAt` to stamp on the local secrets bundle.
+     *
+     * Issue #979: secrets were the one LWW domain that pushed
+     * `updatedAt=0`. [LAST_TOUCH_KEY] is only ever written from a
+     * *resolved* sync (line: `putLong(LAST_TOUCH_KEY, merged.updatedAt)`)
+     * — nothing observes the user typing an API key, so on a device
+     * that originated its secrets the key stays unset (`0L`). A blob
+     * pushed at `updatedAt=0` can NEVER win LWW ("higher updatedAt
+     * wins"), so the remote secrets blob stays pinned at 0 and never
+     * pulls down to a second device — even with the right passphrase.
+     *
+     * Fix: mirror [SettingsSyncer.readLocal] — when we have local
+     * secrets but no recorded write time, stamp `System.currentTimeMillis()`
+     * and **persist it**. Persisting is what keeps LWW symmetric: the
+     * stamp is materialised once and then stable across reconciles, so
+     * a genuinely newer remote (real timestamp from another device) can
+     * still out-stamp it on the next round. A fresh `?: now()` recomputed
+     * every reconcile would make local perpetually "newest" and silently
+     * re-break the pull side.
+     *
+     * Empty local → 0L: a device with no secrets must not out-stamp a
+     * real remote blob (the `local.isEmpty()` branch in [reconcile]
+     * already prefers remote, but 0L keeps the LWW comparison honest).
+     */
+    private fun localUpdatedAt(local: Map<String, String>): Long {
+        val existing = secrets.getLong(LAST_TOUCH_KEY, 0L)
+        if (existing > 0L) return existing
+        if (local.isEmpty()) return 0L
+        val now = System.currentTimeMillis()
+        secrets.edit { putLong(LAST_TOUCH_KEY, now) }
+        return now
     }
 
     private fun snapshotLocal(): Map<String, String> {
