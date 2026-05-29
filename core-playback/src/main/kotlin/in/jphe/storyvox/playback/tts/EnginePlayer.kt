@@ -130,6 +130,27 @@ internal fun shouldAutoPlayAfterAdvance(stateAfterWait: PlaybackState): Boolean 
     stateAfterWait.isPlaying
 
 /**
+ * Issue #980 — pure guard for whether a position checkpoint has anything to
+ * save. [EnginePlayer.persistPosition] upserts `(fictionId, chapterId,
+ * charOffset)`; both ids must be present or the row is meaningless (Room would
+ * reject a null PK / the resume join has nothing to point at). The periodic
+ * checkpoint loop, the seek save, and the teardown saves all funnel through
+ * persistPosition, so this single predicate decides every save.
+ *
+ * Note the order dependency this encodes for [EnginePlayer.handleStop]: the
+ * checkpoint MUST run before handleStop zeroes charOffset + nulls
+ * currentChapterId, otherwise this guard short-circuits on the null chapter id
+ * and the listener's place is lost on an explicit Stop (#980 GAP-4).
+ *
+ * Extracted as a top-level function so the save-guard contract can be exercised
+ * in a pure unit test (EnginePlayerPositionCheckpointTest) without standing up
+ * the full EnginePlayer + Hilt + sherpa-onnx graph — same constraint that gates
+ * [shouldAutoPlayAfterAdvance] / PlaybackControllerSkipSeekTest.
+ */
+internal fun shouldCheckpointPosition(state: PlaybackState): Boolean =
+    state.currentFictionId != null && state.currentChapterId != null
+
+/**
  * Issue #189 — playback state for the one-shot recap-aloud TTS pipeline.
  * Distinct from [PlaybackState] because the recap is a transient utterance
  * with its own AudioTrack; conflating the two would force every chapter
@@ -929,6 +950,21 @@ class EnginePlayer @AssistedInject constructor(
     // setup so rapid taps don't queue up wasteful builds.
     private val pipelineBuildMutex = Mutex()
     private var pipelineSetupJob: Job? = null
+
+    /**
+     * Issue #980 — periodic position-checkpoint loop. [persistPosition] only
+     * fires on discrete events (loadAndPlay / pause / chapter-done / advance /
+     * release / seek). During a long uninterrupted listen the in-memory
+     * [PlaybackState.charOffset] advances each sentence but is never written to
+     * Room, so an OS-kill that skips `onDestroy → releaseEngine` (memory
+     * pressure, native crash, force-stop) rolls the resume position back to the
+     * last event-driven save — up to a full chapter of progress lost. This job
+     * runs while [pipelineRunning] and upserts the live position every
+     * [POSITION_CHECKPOINT_INTERVAL_MS], bounding worst-case loss to that
+     * window. One cheap upsert per tick; cancel-and-replaced on each pipeline
+     * start (mirrors [pipelineSetupJob]) and cancelled in [stopPlaybackPipeline].
+     */
+    private var positionCheckpointJob: Job? = null
 
     /**
      * Issue #944 / #956 — serialization guard for the *outer* `loadAndPlay`
@@ -2558,6 +2594,23 @@ class EnginePlayer @AssistedInject constructor(
         }
         pcmSource = source
         pipelineRunning.set(true)
+        // Issue #980 — arm the periodic position checkpoint for this pipeline
+        // lifetime. Cancel-and-replace any prior loop (a rebuild from seek /
+        // speed / voice swap reuses the same engine scope) so we never run two
+        // overlapping savers. The loop self-terminates on pipelineRunning=false
+        // and is also cancelled explicitly in stopPlaybackPipeline; this launch
+        // just (re)starts it for the freshly-armed pipeline.
+        positionCheckpointJob?.cancel()
+        positionCheckpointJob = scope.launch {
+            while (pipelineRunning.get()) {
+                delay(POSITION_CHECKPOINT_INTERVAL_MS)
+                // Re-check after the delay: a teardown may have flipped the
+                // flag while we slept, in which case the position was already
+                // (or is about to be) saved by the discrete-event path.
+                if (!pipelineRunning.get()) break
+                runCatching { persistPosition() }
+            }
+        }
         // Issue #540 — every fresh pipeline starts unpaused. Tear-down
         // paths (stopPlaybackPipeline) also clear userPaused so a
         // pipeline rebuild after a hard stop (voice swap, seek, etc.)
@@ -3473,6 +3526,12 @@ class EnginePlayer @AssistedInject constructor(
         // unblock the parked write; pause() is idempotent w.r.t. the
         // consumer's subsequent flush()/release().
         pipelineRunning.set(false)
+        // Issue #980 — stop the periodic checkpoint loop with the pipeline.
+        // The loop polls pipelineRunning and would exit on its own at the next
+        // delay boundary; cancelling here drops it immediately so a rebuild's
+        // fresh launch can't briefly overlap the dying one.
+        positionCheckpointJob?.cancel()
+        positionCheckpointJob = null
         // Issue #540 — also clear the user-pause flag so the consumer's
         // park branch exits promptly. The pipelineRunning=false above
         // already covers the inner break, but the park loop polls
@@ -3879,6 +3938,13 @@ class EnginePlayer @AssistedInject constructor(
             pipelineSetupJob?.cancel()
             pipelineSetupJob = scope.launch { startPlaybackPipeline() }
         }
+        // Issue #980 — persist the new playhead right after a seek. The
+        // periodic checkpoint covers steady-state, but a scrub-then-kill (or a
+        // seek while paused, where the rebuild branch above doesn't run and the
+        // checkpoint loop isn't armed) would otherwise resume at the pre-seek
+        // position. Fire-and-forget on the engine scope; the in-memory
+        // charOffset above is already the source of truth persistPosition reads.
+        scope.launch { runCatching { persistPosition() } }
         invalidateState()
     }
 
@@ -4074,7 +4140,7 @@ class EnginePlayer @AssistedInject constructor(
         // join sees the freshly-loaded chapter on its next emission.
         // Without this the playback_position row stays pointed at the
         // PREVIOUS chapter until the next save tick (e.g. user pauses,
-        // or next sentence boundary triggers a persistPosition), and
+        // or the #980 periodic checkpoint fires ~10 s later), and
         // the Resume card paints the new chapter's title alongside the
         // old chapter's index/number — a confusing mismatch every
         // auto-advance.
@@ -4314,11 +4380,13 @@ class EnginePlayer @AssistedInject constructor(
 
     private suspend fun persistPosition() {
         val s = _observableState.value
-        val fictionId = s.currentFictionId ?: return
-        val chapterId = s.currentChapterId ?: return
+        // Issue #980 — single save-guard for every checkpoint path (periodic
+        // loop, seek, pause, chapter boundary, teardown). See
+        // [shouldCheckpointPosition] for why both ids must be present.
+        if (!shouldCheckpointPosition(s)) return
         positionRepo.save(
-            fictionId = fictionId,
-            chapterId = chapterId,
+            fictionId = s.currentFictionId!!,
+            chapterId = s.currentChapterId!!,
             charOffset = s.charOffset,
             durationEstimateMs = s.durationEstimateMs,
         )
@@ -4503,6 +4571,17 @@ class EnginePlayer @AssistedInject constructor(
         // the floor with no audio and no error surfaced. Mirror the chapter-
         // fetch-failed cleanup path (line ~1233) so post-stop state is the
         // same shape as cold-boot Idle.
+        //
+        // Issue #980 — capture the position BEFORE the update below zeroes
+        // charOffset + nulls currentChapterId. persistPosition reads those two
+        // fields, so it must run first or it would save 0 / early-return on the
+        // now-null chapter id and the listener loses their place on an explicit
+        // Stop. NonCancellable + blocking so the upsert lands before we clear.
+        runBlocking {
+            withContext(kotlinx.coroutines.NonCancellable) {
+                runCatching { persistPosition() }
+            }
+        }
         _observableState.update {
             it.copy(
                 currentChapterId = null,
@@ -4536,14 +4615,24 @@ class EnginePlayer @AssistedInject constructor(
     }
 
     fun releaseEngine() {
-        // #873 — releaseEngine is invoked from StoryvoxPlaybackService.onDestroy
+        // #873 / #980 — releaseEngine runs from StoryvoxPlaybackService.onDestroy
         // on the main thread. persistPosition does a Room @Upsert whose suspend
-        // body hops to IO inside the DAO. Fire-and-forget: the scope stays alive
-        // until scope.cancel() below, which gives the IO dispatcher time to flush
-        // the write. Worst case the cancel races the upsert and a position
-        // checkpoint is lost — acceptable, since the previous checkpoint from the
-        // periodic save is at most a few seconds stale.
-        scope.launch { persistPosition() }
+        // body hops to IO inside the DAO. The pre-#980 `scope.launch { ... }`
+        // queued the save behind the running release body and then `scope.cancel()`
+        // (below) tore the scope down before the launched coroutine ever
+        // dispatched — on a clean swipe-away this final save was the one most
+        // likely to drop. Run it synchronously under NonCancellable so it
+        // completes BEFORE the cancel, mirroring the handleChapterDone /
+        // advanceChapter teardown saves. runBlocking is acceptable here: we're
+        // already on the main thread in a one-shot teardown, the DAO upsert hops
+        // to IO internally, and other teardown steps below (pcmSource.close)
+        // already block the same way. The #980 periodic checkpoint keeps any
+        // residual loss to ~one interval even if this somehow fails.
+        runBlocking {
+            withContext(kotlinx.coroutines.NonCancellable) {
+                runCatching { persistPosition() }
+            }
+        }
         stopRecapPipeline()
         stopPlaybackPipeline()
         stopAudioStreamPlayer()
@@ -5255,6 +5344,15 @@ class EnginePlayer @AssistedInject constructor(
          *  realtime engines and produced audible gaps with all
          *  Performance & Buffering toggles ON at buffer=3000. */
         const val BUFFER_RESUME_THRESHOLD_MS = 10_000L
+
+        /** Issue #980 — interval between periodic position checkpoints during
+         *  continuous playback. Each tick is a single Room upsert of the live
+         *  charOffset (see [positionCheckpointJob]); 10 s caps the progress an
+         *  OS-kill can roll back while keeping write volume trivial (~6/min).
+         *  Steady-state event-driven saves (pause / seek / chapter boundary)
+         *  still fire on top of this — the loop only covers the long
+         *  uninterrupted listen where no discrete event occurs. */
+        const val POSITION_CHECKPOINT_INTERVAL_MS = 10_000L
 
         /** Issue #862 — target total chunks in flight before the first
          *  [android.media.AudioTrack.play] call: 1 in the consumer's hand
