@@ -43,6 +43,11 @@ internal class NoopFictionDao : FictionDao {
     override suspend fun setDownloadMode(id: String, mode: DownloadMode?) = Unit
     override suspend fun setPinnedVoice(id: String, voiceId: String?, locale: String?) = Unit
     override suspend fun touchMetadata(id: String, now: Long) = Unit
+    override suspend fun setSourceId(id: String, sourceId: String) = Unit
+    override suspend fun placeholdersToBackfill(cutoff: Long): List<Fiction> = emptyList()
+    override suspend fun placeholderCount(): Int = 0
+    override suspend fun markBackfillFailed(id: String, now: Long) = Unit
+    override suspend fun clearBackfillFailure(id: String) = Unit
     override suspend fun getLastSeenRevision(id: String): String? = null
     override suspend fun setLastSeenRevision(id: String, revision: String?) = Unit
     override suspend fun deleteIfTransient(id: String): Int = 0

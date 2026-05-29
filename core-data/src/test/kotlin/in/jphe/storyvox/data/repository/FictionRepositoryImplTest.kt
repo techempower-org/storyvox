@@ -171,6 +171,41 @@ class FictionRepositoryImplTest {
             rows[id] = r.copy(metadataFetchedAt = now)
         }
 
+        override suspend fun placeholdersToBackfill(cutoff: Long): List<Fiction> =
+            rows.values
+                .filter {
+                    it.metadataFetchedAt == 0L &&
+                        (it.inLibrary || it.followedRemotely) &&
+                        (it.metadataBackfillFailedAt == null || it.metadataBackfillFailedAt!! < cutoff)
+                }
+                .sortedBy { it.addedToLibraryAt ?: 0L }
+
+        override suspend fun placeholderCount(): Int =
+            rows.values.count {
+                it.metadataFetchedAt == 0L && (it.inLibrary || it.followedRemotely)
+            }
+
+        override suspend fun setSourceId(id: String, sourceId: String) {
+            callLog += "setSourceId($id, $sourceId)"
+            val r = rows[id] ?: return
+            rows[id] = r.copy(sourceId = sourceId)
+            publish(id)
+        }
+
+        override suspend fun markBackfillFailed(id: String, now: Long) {
+            callLog += "markBackfillFailed($id, $now)"
+            val r = rows[id] ?: return
+            rows[id] = r.copy(metadataBackfillFailedAt = now)
+            publish(id)
+        }
+
+        override suspend fun clearBackfillFailure(id: String) {
+            callLog += "clearBackfillFailure($id)"
+            val r = rows[id] ?: return
+            rows[id] = r.copy(metadataBackfillFailedAt = null)
+            publish(id)
+        }
+
         override suspend fun getLastSeenRevision(id: String): String? = rows[id]?.lastSeenRevision
 
         override suspend fun setLastSeenRevision(id: String, revision: String?) {
@@ -560,6 +595,26 @@ class FictionRepositoryImplTest {
         assertTrue(result is FictionResult.Success)
         assertNotNull(fictionDao.rows["99"])
         assertEquals(3, chapterDao.rows.size)
+    }
+
+    @Test fun `refreshDetail success clears a stale backfill failure stamp`() = runTest {
+        // #981 — a placeholder row whose previous back-fill failed carries
+        // a metadataBackfillFailedAt stamp. A later successful hydrate must
+        // clear it so the UI drops the "Couldn't load" state.
+        val src = FakeSource(SourceIds.ROYAL_ROAD).apply {
+            detailResult = FictionResult.Success(detail("99", chapterCount = 1))
+        }
+        val (r, fictionDao, _) = repo(sources = mapOf(SourceIds.ROYAL_ROAD to src))
+        fictionDao.rows["99"] = Fiction(
+            id = "99", sourceId = SourceIds.ROYAL_ROAD, title = "Loading…", author = "",
+            firstSeenAt = 0L, metadataFetchedAt = 0L, inLibrary = true,
+            metadataBackfillFailedAt = 1_000L,
+        )
+
+        val result = r.refreshDetail("99")
+
+        assertTrue(result is FictionResult.Success)
+        assertNull("failure stamp cleared on success", fictionDao.rows["99"]!!.metadataBackfillFailedAt)
     }
 
     @Test fun `refreshDetail failure does NOT touch the DB`() = runTest {

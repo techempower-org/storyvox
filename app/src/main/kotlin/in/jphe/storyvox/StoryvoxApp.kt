@@ -16,6 +16,7 @@ import `in`.jphe.storyvox.data.repository.AuthRepository
 import `in`.jphe.storyvox.data.repository.FictionRepository
 import `in`.jphe.storyvox.data.repository.PlaybackPositionRepository
 import `in`.jphe.storyvox.data.repository.ShelfRepository
+import `in`.jphe.storyvox.data.work.MetadataBackfillScheduler
 import `in`.jphe.storyvox.data.work.NewChapterNotifier
 import `in`.jphe.storyvox.data.work.WorkScheduler
 import `in`.jphe.storyvox.feature.api.SettingsRepositoryUi
@@ -129,6 +130,17 @@ class StoryvoxApp : Application(), Configuration.Provider {
      */
     @Inject lateinit var newChapterNotifier: Lazy<NewChapterNotifier>
 
+    /**
+     * Issue #981 — enqueues the metadata back-fill worker after the
+     * cold-start sync pull. `LibrarySyncer`/`FollowsSyncer` insert
+     * placeholder Fiction rows (`title = "Loading…"`,
+     * `metadataFetchedAt = 0`) for members added on another device; this
+     * scheduler kicks the worker that hydrates them so a synced library
+     * doesn't render as a wall of "Loading…" cards. Lazy + IO like the
+     * rest of init (Issue #409 cold-launch posture).
+     */
+    @Inject lateinit var metadataBackfillScheduler: Lazy<MetadataBackfillScheduler>
+
     override val workManagerConfiguration: Configuration
         get() = Configuration.Builder()
             .setWorkerFactory(workerFactory)
@@ -223,6 +235,34 @@ class StoryvoxApp : Application(), Configuration.Provider {
         // once [Lazy.get] materialises it on IO.
         initScope.launch {
             syncCoordinator.get().initialize()
+        }
+        // Issue #981 — once the library/follows pull settles, hydrate any
+        // placeholder rows it created. `initialize()` is fire-and-forget
+        // (launches its own pull coroutines), so we can't enqueue right
+        // after it returns — the placeholders don't exist yet. Instead we
+        // watch the per-domain sync status and enqueue the back-fill when
+        // either FK-root domain reaches a terminal state (OkAt for a
+        // successful pull; Transient/Permanent so a partial pull that
+        // still wrote some placeholders gets them hydrated too). The
+        // scheduler gates on a cheap placeholder COUNT and enqueues
+        // unique-KEEP, so re-firing across both domains coalesces to one
+        // job and a no-placeholder state is a no-op. The Library-screen
+        // trigger (LibraryViewModel.init) is the redundant safety net for
+        // placeholders that predate this process start.
+        initScope.launch {
+            val seen = mutableSetOf<String>()
+            syncCoordinator.get().status.collect { statuses ->
+                val settled = listOf("library", "follows").any { domain ->
+                    val s = statuses[domain]
+                    val terminal = s is `in`.jphe.storyvox.sync.coordinator.SyncStatus.OkAt ||
+                        s is `in`.jphe.storyvox.sync.coordinator.SyncStatus.Transient ||
+                        s is `in`.jphe.storyvox.sync.coordinator.SyncStatus.Permanent
+                    terminal && seen.add(domain)
+                }
+                if (settled) {
+                    runCatching { metadataBackfillScheduler.get().enqueueIfNeeded() }
+                }
+            }
         }
         // PR-F (#86) — Mode C flow collector. Started on IO so the
         // PrerenderTriggers + FictionRepository + DataStore graph is

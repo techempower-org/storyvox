@@ -80,7 +80,14 @@ class LibrarySyncer @Inject constructor(
                 fictionDao.upsert(
                     `in`.jphe.storyvox.data.db.entity.Fiction(
                         id = id,
-                        sourceId = id.substringBefore(':'),
+                        // Issue #981 — shape-aware sourceId. The old
+                        // `id.substringBefore(':')` stored the whole number
+                        // for bare Royal Road ids (no colon), yielding an
+                        // unbindable sourceId that left the row stuck on
+                        // "Loading…" forever. resolveByShape returns
+                        // "royalroad" for colon-less ids; the back-fill
+                        // worker repairs the rarer radio-station case.
+                        sourceId = `in`.jphe.storyvox.data.source.FictionSourceIdResolver.resolveByShape(id),
                         title = "Loading…",
                         author = "",
                         firstSeenAt = now,

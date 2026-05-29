@@ -15,6 +15,7 @@ import `in`.jphe.storyvox.data.repository.InboxRepository
 import `in`.jphe.storyvox.data.repository.PlaybackPositionRepository
 import `in`.jphe.storyvox.data.repository.ShelfRepository
 import `in`.jphe.storyvox.data.repository.playback.PlaybackResumePolicyConfig
+import `in`.jphe.storyvox.data.work.MetadataBackfillScheduler
 import `in`.jphe.storyvox.data.source.model.FictionSummary
 import `in`.jphe.storyvox.feature.api.DownloadMode
 import `in`.jphe.storyvox.feature.api.FictionRepositoryUi
@@ -212,7 +213,24 @@ class LibraryViewModel @Inject constructor(
     /** #786 — observe network state so the Library can warn the user when
      *  they tap a non-downloaded fiction while offline. */
     connectivity: ConnectivityObserver,
+    /** Issue #981 — kick the metadata back-fill worker on screen open so
+     *  synced "Loading…" placeholder rows hydrate. */
+    private val metadataBackfillScheduler: MetadataBackfillScheduler,
 ) : ViewModel() {
+
+    init {
+        // Issue #981 — the Library is the surface where stuck placeholder
+        // rows are visible, so opening it is the natural moment to make
+        // sure they get hydrated. The scheduler gates on a cheap
+        // placeholder COUNT and enqueues unique-KEEP, so this is a no-op
+        // when nothing is stuck and coalesces with the cold-start trigger
+        // in StoryvoxApp. Covers placeholders that predate this process
+        // (the wall of "Loading…" the user already has) without waiting
+        // for the next sync round.
+        viewModelScope.launch {
+            runCatching { metadataBackfillScheduler.enqueueIfNeeded() }
+        }
+    }
 
     private val _events = Channel<LibraryUiEvent>(Channel.BUFFERED)
     val events = _events.receiveAsFlow()

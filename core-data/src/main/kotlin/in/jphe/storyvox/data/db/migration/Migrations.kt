@@ -374,6 +374,26 @@ val MIGRATION_10_11: Migration = object : Migration(10, 11) {
     }
 }
 
+/**
+ * v12 — issue #981: metadata back-fill failure stamp. Adds the nullable
+ * `fiction.metadataBackfillFailedAt` column. `MetadataBackfillWorker`
+ * writes the wall-clock of a failed hydrate here so the library UI can
+ * render a "Couldn't load" state (rather than an eternal "Loading…") for
+ * synced placeholder rows whose source can't be reached (auth-gated,
+ * removed upstream, network), and so the worker applies a cool-down
+ * before retrying that row.
+ *
+ * Purely additive — existing rows get NULL (never-attempted / last
+ * attempt succeeded), which is the correct default. SQLite `ALTER TABLE
+ * ADD COLUMN` with a nullable type is a metadata-only change; no row is
+ * rewritten.
+ */
+val MIGRATION_11_12: Migration = object : Migration(11, 12) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `fiction` ADD COLUMN `metadataBackfillFailedAt` INTEGER")
+    }
+}
+
 val ALL_MIGRATIONS: Array<Migration> = arrayOf(
     MIGRATION_1_2,
     MIGRATION_2_3,
@@ -385,4 +405,5 @@ val ALL_MIGRATIONS: Array<Migration> = arrayOf(
     MIGRATION_8_9,
     MIGRATION_9_10,
     MIGRATION_10_11,
+    MIGRATION_11_12,
 )

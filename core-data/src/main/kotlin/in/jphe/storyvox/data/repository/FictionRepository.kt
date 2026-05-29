@@ -282,6 +282,13 @@ class FictionRepositoryImpl @Inject constructor(
         when (val result = src.fictionDetail(id)) {
             is FictionResult.Success -> {
                 upsertDetail(result.value)
+                // Issue #981 — a successful hydrate clears any stale
+                // back-fill failure stamp so a row that recovered (auth
+                // restored, network back, upstream un-404'd) drops its
+                // "Couldn't load" state. `upsertDetail` already stamped
+                // `metadataFetchedAt = now`, which removes it from the
+                // placeholder set; this clears the sibling failure flag.
+                fictionDao.clearBackfillFailure(id)
                 FictionResult.Success(Unit)
             }
             is FictionResult.Failure -> result
@@ -553,6 +560,12 @@ internal fun Fiction.toSummary(supportsFollow: Boolean = false): FictionSummary 
     followedRemotely = followedRemotely,
     supportsFollow = supportsFollow,
     addedAt = addedToLibraryAt,
+    // Issue #981 — a synced row that hasn't been hydrated yet has
+    // metadataFetchedAt == 0 and the sentinel "Loading…" title; the
+    // MetadataBackfillWorker resolves these in the background. The
+    // failure stamp drives the "Couldn't load" UI state.
+    isPlaceholder = metadataFetchedAt == 0L,
+    backfillFailed = metadataBackfillFailedAt != null,
 )
 
 internal fun FictionSummary.toEntity(now: Long): Fiction = Fiction(

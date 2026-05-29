@@ -50,17 +50,20 @@ class FictionDaoTest {
         followedRemotely: Boolean = false,
         addedToLibraryAt: Long? = null,
         lastUpdatedAt: Long? = null,
+        metadataFetchedAt: Long = 0L,
+        metadataBackfillFailedAt: Long? = null,
     ) = Fiction(
         id = id,
         sourceId = sourceId,
         title = title,
         author = "Anonymous",
         firstSeenAt = 0L,
-        metadataFetchedAt = 0L,
+        metadataFetchedAt = metadataFetchedAt,
         inLibrary = inLibrary,
         addedToLibraryAt = addedToLibraryAt,
         followedRemotely = followedRemotely,
         lastUpdatedAt = lastUpdatedAt,
+        metadataBackfillFailedAt = metadataBackfillFailedAt,
     )
 
     @Before
@@ -249,6 +252,67 @@ class FictionDaoTest {
 
         dao.setLastSeenRevision("f1", null)
         assertNull(dao.getLastSeenRevision("f1"))
+    }
+
+    // ----- #981 placeholder metadata back-fill -----------------------------------
+
+    @Test
+    fun placeholdersToBackfill_selectsUnhydratedLibraryAndFollowsRows() = runTest {
+        // metadataFetchedAt == 0 + in library → eligible.
+        dao.upsert(fixture(id = "lib", inLibrary = true, addedToLibraryAt = 10L, metadataFetchedAt = 0L))
+        // metadataFetchedAt == 0 + followed → eligible.
+        dao.upsert(fixture(id = "follow", followedRemotely = true, addedToLibraryAt = 20L, metadataFetchedAt = 0L))
+        // Already hydrated (metadataFetchedAt != 0) → excluded.
+        dao.upsert(fixture(id = "hydrated", inLibrary = true, addedToLibraryAt = 5L, metadataFetchedAt = 999L))
+        // Transient (neither flag) but un-hydrated → excluded (not worth a fetch).
+        dao.upsert(fixture(id = "transient", metadataFetchedAt = 0L))
+
+        val ids = dao.placeholdersToBackfill(cutoff = Long.MAX_VALUE).map { it.id }
+        // Ordered by addedToLibraryAt ASC: lib(10) before follow(20).
+        assertEquals(listOf("lib", "follow"), ids)
+    }
+
+    @Test
+    fun placeholdersToBackfill_skipsRecentlyFailedButIncludesNeverAttempted() = runTest {
+        // Never attempted → always eligible.
+        dao.upsert(fixture(id = "fresh", inLibrary = true, addedToLibraryAt = 1L, metadataFetchedAt = 0L))
+        // Failed at 1000, cutoff 500 → 1000 >= 500, still in cool-down → excluded.
+        dao.upsert(
+            fixture(id = "cooling", inLibrary = true, addedToLibraryAt = 2L, metadataFetchedAt = 0L, metadataBackfillFailedAt = 1_000L),
+        )
+        // Failed at 100, cutoff 500 → 100 < 500, cool-down elapsed → eligible.
+        dao.upsert(
+            fixture(id = "retry", inLibrary = true, addedToLibraryAt = 3L, metadataFetchedAt = 0L, metadataBackfillFailedAt = 100L),
+        )
+
+        val ids = dao.placeholdersToBackfill(cutoff = 500L).map { it.id }
+        assertEquals(listOf("fresh", "retry"), ids)
+    }
+
+    @Test
+    fun placeholderCount_ignoresCooldownAndCountsAllUnhydratedUserRows() = runTest {
+        dao.upsert(fixture(id = "a", inLibrary = true, metadataFetchedAt = 0L))
+        dao.upsert(fixture(id = "b", followedRemotely = true, metadataFetchedAt = 0L, metadataBackfillFailedAt = 9L))
+        dao.upsert(fixture(id = "hydrated", inLibrary = true, metadataFetchedAt = 1L))
+        dao.upsert(fixture(id = "transient", metadataFetchedAt = 0L))
+
+        // a + b counted (both un-hydrated user rows; b's failure stamp is
+        // ignored by the count). hydrated + transient excluded.
+        assertEquals(2, dao.placeholderCount())
+    }
+
+    @Test
+    fun markBackfillFailed_thenClearBackfillFailure_roundTrips() = runTest {
+        dao.upsert(fixture(id = "f1", inLibrary = true, metadataFetchedAt = 0L))
+        assertNull(dao.get("f1")!!.metadataBackfillFailedAt)
+
+        dao.markBackfillFailed("f1", 777L)
+        assertEquals(777L, dao.get("f1")!!.metadataBackfillFailedAt)
+        // metadataFetchedAt stays 0 so the row remains in the placeholder set.
+        assertEquals(0L, dao.get("f1")!!.metadataFetchedAt)
+
+        dao.clearBackfillFailure("f1")
+        assertNull(dao.get("f1")!!.metadataBackfillFailedAt)
     }
 
     // ----- @Transaction upsertAllPreservingUserState ----------------------------

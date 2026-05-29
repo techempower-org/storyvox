@@ -52,7 +52,11 @@ class FollowsSyncer @Inject constructor(
                 fictionDao.upsert(
                     `in`.jphe.storyvox.data.db.entity.Fiction(
                         id = id,
-                        sourceId = id.substringBefore(':'),
+                        // Issue #981 — shape-aware sourceId; see the
+                        // matching note in LibrarySyncer.localAdd. The
+                        // back-fill worker repairs anything resolveByShape
+                        // can't (radio station ids) on its first pass.
+                        sourceId = `in`.jphe.storyvox.data.source.FictionSourceIdResolver.resolveByShape(id),
                         title = "Loading…",
                         author = "",
                         firstSeenAt = now,

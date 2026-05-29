@@ -1004,24 +1004,53 @@ private fun LibraryGridBody(
                             onLongClick = { onLongPress(fiction) },
                         ),
                 )
-                // Issue #272 parity — BrowseScreen's grid added
-                // TextOverflow.Ellipsis so long titles end with "..."
-                // instead of cutting mid-token. The Library grid was
-                // missed; same fix for both title and author.
-                Text(
-                    fiction.title,
-                    style = MaterialTheme.typography.titleSmall,
-                    maxLines = 2,
-                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                )
-                if (fiction.author.isNotBlank()) {
+                // Issue #981 — a synced placeholder row (added on another
+                // device, not yet hydrated by MetadataBackfillWorker)
+                // carries the sentinel "Loading…" title. Show a neutral
+                // caption rather than the raw stored sentinel, and a
+                // distinct "Couldn't load" line when the back-fill failed
+                // (auth-gated / removed upstream / offline) so the card
+                // doesn't sit on an eternal "Loading…".
+                if (fiction.isPlaceholder) {
                     Text(
-                        fiction.author,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
+                        if (fiction.backfillFailed) "Couldn't load" else "Loading…",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = if (fiction.backfillFailed) {
+                            MaterialTheme.colorScheme.error
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        },
+                        maxLines = 2,
                         overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                     )
+                    if (fiction.backfillFailed) {
+                        Text(
+                            "Tap to retry",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                        )
+                    }
+                } else {
+                    // Issue #272 parity — BrowseScreen's grid added
+                    // TextOverflow.Ellipsis so long titles end with "..."
+                    // instead of cutting mid-token. The Library grid was
+                    // missed; same fix for both title and author.
+                    Text(
+                        fiction.title,
+                        style = MaterialTheme.typography.titleSmall,
+                        maxLines = 2,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                    )
+                    if (fiction.author.isNotBlank()) {
+                        Text(
+                            fiction.author,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                        )
+                    }
                 }
             }
         }

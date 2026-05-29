@@ -56,6 +56,25 @@ data class Fiction(
      * `docs/superpowers/specs/2026-05-06-github-source-design.md`.
      */
     val lastSeenRevision: String? = null,
+    /**
+     * Issue #981 — wall-clock of the last *failed* metadata back-fill
+     * attempt by `MetadataBackfillWorker`, or null if never attempted /
+     * the last attempt succeeded.
+     *
+     * A placeholder row (`metadataFetchedAt = 0`) that a source can't
+     * hydrate — auth-gated (Royal Road without cookies), removed
+     * upstream (404), or a hard network failure — gets this stamp so the
+     * library UI can render a distinct "Couldn't load" state instead of
+     * an eternal "Loading…" spinner, and so the back-fill worker can
+     * apply a cool-down before retrying (it doesn't re-hammer a row it
+     * just failed on). `metadataFetchedAt` deliberately stays 0 so the
+     * row remains in the back-fill set and a later run (new cookies,
+     * network back) can still hydrate it. On a successful hydrate
+     * `upsertDetail` stamps `metadataFetchedAt = now`, which drops the
+     * row out of the placeholder query; this column is cleared back to
+     * null at the same time via [FictionDao.clearBackfillFailure].
+     */
+    val metadataBackfillFailedAt: Long? = null,
 )
 
 /** Per-book download policy override. Null = inherit global setting. */

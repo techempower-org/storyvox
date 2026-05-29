@@ -14,6 +14,7 @@ import `in`.jphe.storyvox.data.db.migration.MIGRATION_7_8
 import `in`.jphe.storyvox.data.db.migration.MIGRATION_8_9
 import `in`.jphe.storyvox.data.db.migration.MIGRATION_9_10
 import `in`.jphe.storyvox.data.db.migration.MIGRATION_10_11
+import `in`.jphe.storyvox.data.db.migration.MIGRATION_11_12
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
@@ -141,12 +142,16 @@ class StoryvoxDatabaseMigrationTest {
         // Chain through so the latest-version Room.databaseBuilder opens
         // cleanly.
         helper.runMigrationsAndValidate(dbName, 11, true, MIGRATION_10_11).close()
+        // #981 — v12 adds fiction.metadataBackfillFailedAt. Chain through
+        // so the latest-version Room.databaseBuilder opens without a
+        // missing-migration failure.
+        helper.runMigrationsAndValidate(dbName, 12, true, MIGRATION_11_12).close()
 
         val ctx = org.robolectric.RuntimeEnvironment.getApplication() as android.content.Context
         val db = Room.databaseBuilder(ctx, StoryvoxDatabase::class.java, dbName)
             .addMigrations(
                 MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8,
-                MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11,
+                MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12,
             )
             .build()
 
@@ -305,12 +310,14 @@ class StoryvoxDatabaseMigrationTest {
         helper.runMigrationsAndValidate(dbName, 10, true, MIGRATION_9_10).close()
         // #965 — chain through v11 (playback_position composite PK).
         helper.runMigrationsAndValidate(dbName, 11, true, MIGRATION_10_11).close()
+        // #981 — chain through v12 (fiction.metadataBackfillFailedAt).
+        helper.runMigrationsAndValidate(dbName, 12, true, MIGRATION_11_12).close()
 
         val ctx = org.robolectric.RuntimeEnvironment.getApplication() as android.content.Context
         val db = Room.databaseBuilder(ctx, StoryvoxDatabase::class.java, dbName)
             .addMigrations(
                 MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8,
-                MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11,
+                MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12,
             )
             .build()
 
@@ -842,6 +849,88 @@ class StoryvoxDatabaseMigrationTest {
             assertEquals("rr:42:0", c.getString(0))
             assertTrue(
                 "bookmarkCharOffset must default to NULL for existing rows",
+                c.isNull(1),
+            )
+        }
+
+        db.close()
+    }
+
+    /**
+     * Issue #981 — v12 adds the nullable `fiction.metadataBackfillFailedAt`
+     * column so synced placeholder rows that the back-fill worker can't
+     * hydrate surface a "Couldn't load" state instead of an eternal
+     * "Loading…". Purely additive; existing rows get NULL (never-attempted
+     * / last attempt succeeded).
+     *
+     * Mirrors the `migrate v3 to v4 adds chapter bookmarkCharOffset` shape:
+     * seed a v11 fiction row, run 11→12, verify the column exists, is
+     * nullable, and defaults to NULL on the pre-existing row.
+     */
+    @Test fun `migrate v11 to v12 adds fiction metadataBackfillFailedAt column`() {
+        val dbName = "metadata-backfill-failed-migration-test.db"
+
+        helper.createDatabase(dbName, 4).close()
+        helper.runMigrationsAndValidate(dbName, 5, true, MIGRATION_4_5).close()
+        helper.runMigrationsAndValidate(dbName, 6, true, MIGRATION_5_6).close()
+        helper.runMigrationsAndValidate(dbName, 7, true, MIGRATION_6_7).close()
+        helper.runMigrationsAndValidate(dbName, 8, true, MIGRATION_7_8).close()
+        helper.runMigrationsAndValidate(dbName, 9, true, MIGRATION_8_9).close()
+        helper.runMigrationsAndValidate(dbName, 10, true, MIGRATION_9_10).close()
+        helper.runMigrationsAndValidate(dbName, 11, true, MIGRATION_10_11).use { db ->
+            // Seed a placeholder-shaped fiction at v11 so the existing row
+            // exercises the NULL-default behaviour after the column lands.
+            db.execSQL(
+                """
+                INSERT INTO fiction(
+                    id, sourceId, title, author, genres, tags, status,
+                    chapterCount, firstSeenAt, metadataFetchedAt,
+                    inLibrary, followedRemotely, notesEverSeen
+                ) VALUES (
+                    'gutenberg:84', 'gutenberg', 'Loading…', '',
+                    '[]', '[]', 'ONGOING', 0, 0, 0, 1, 0, 0
+                )
+                """.trimIndent(),
+            )
+        }
+
+        val db = helper.runMigrationsAndValidate(
+            dbName,
+            12,
+            /* validateDroppedTables = */ true,
+            MIGRATION_11_12,
+        )
+
+        db.query("PRAGMA table_info('fiction')").use { c ->
+            var sawColumn = false
+            while (c.moveToNext()) {
+                val name = c.getString(c.getColumnIndexOrThrow("name"))
+                if (name == "metadataBackfillFailedAt") {
+                    sawColumn = true
+                    val type = c.getString(c.getColumnIndexOrThrow("type"))
+                    assertEquals("INTEGER", type)
+                    val notnull = c.getInt(c.getColumnIndexOrThrow("notnull"))
+                    assertEquals(
+                        "metadataBackfillFailedAt must be nullable (NULL = never failed)",
+                        0,
+                        notnull,
+                    )
+                }
+            }
+            assertTrue(
+                "fiction.metadataBackfillFailedAt column must exist post-migration",
+                sawColumn,
+            )
+        }
+
+        // Pre-existing v11 placeholder row must round-trip with NULL stamp.
+        db.query(
+            "SELECT id, metadataBackfillFailedAt FROM fiction WHERE id = 'gutenberg:84'",
+        ).use { c ->
+            assertTrue("seeded v11 fiction row must survive the migration", c.moveToFirst())
+            assertEquals("gutenberg:84", c.getString(0))
+            assertTrue(
+                "metadataBackfillFailedAt must default to NULL for existing rows",
                 c.isNull(1),
             )
         }

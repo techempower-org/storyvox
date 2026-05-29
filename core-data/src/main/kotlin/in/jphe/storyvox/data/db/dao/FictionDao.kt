@@ -91,6 +91,88 @@ interface FictionDao {
     suspend fun touchMetadata(id: String, now: Long)
 
     /**
+     * Issue #981 — correct a placeholder row's `sourceId`. Synced
+     * placeholders were historically written with
+     * `sourceId = id.substringBefore(':')`, which is wrong for bare
+     * Royal Road numeric ids and radio station-prefixed ids (see
+     * [in.jphe.storyvox.data.source.FictionSourceIdResolver]). The
+     * back-fill worker re-derives the correct key and stamps it here
+     * before fetching so the row routes to a real source — and so a
+     * subsequent tap-to-open / poll also routes correctly.
+     */
+    @Query("UPDATE fiction SET sourceId = :sourceId WHERE id = :id")
+    suspend fun setSourceId(id: String, sourceId: String)
+
+    /**
+     * Issue #981 — placeholder rows the [MetadataBackfillWorker] should
+     * hydrate. A placeholder is a library / source-follow row that was
+     * inserted by `LibrarySyncer`/`FollowsSyncer.localAdd` with
+     * `metadataFetchedAt = 0` and a sentinel `title = "Loading…"` — it
+     * carries only an id + sourceId, no real metadata.
+     *
+     * Inclusion criteria:
+     *  - `metadataFetchedAt = 0` — never successfully hydrated. A real
+     *    metadata fetch stamps this to `now` (see
+     *    `FictionRepository.upsertDetail`), which drops the row out of
+     *    this set permanently.
+     *  - `inLibrary = 1 OR followedRemotely = 1` — only user-meaningful
+     *    rows. A transient browse-cache stub (neither flag) isn't worth a
+     *    background fetch; it'll hydrate on tap and get GC'd otherwise.
+     *  - cool-down: skip rows whose last back-fill attempt FAILED within
+     *    [cutoff] (caller passes `now - COOLDOWN_MS`). A row that has
+     *    never been attempted (`metadataBackfillFailedAt IS NULL`) is
+     *    always eligible. This stops a permanently-unreachable source
+     *    (auth-gated, 404'd upstream) from being re-fetched on every
+     *    single Library-screen open while still letting it retry later.
+     *
+     * Ordered oldest-added first so the longest-stuck items resolve
+     * first.
+     */
+    @Query(
+        """
+        SELECT * FROM fiction
+         WHERE metadataFetchedAt = 0
+           AND (inLibrary = 1 OR followedRemotely = 1)
+           AND (metadataBackfillFailedAt IS NULL OR metadataBackfillFailedAt < :cutoff)
+         ORDER BY addedToLibraryAt ASC
+        """,
+    )
+    suspend fun placeholdersToBackfill(cutoff: Long): List<Fiction>
+
+    /**
+     * Issue #981 — count of un-hydrated placeholder rows still in the
+     * library/follows set, ignoring the cool-down. Drives the decision to
+     * enqueue the back-fill worker at all (skip the WorkManager round-trip
+     * when there's nothing to do) and is a cheap COUNT vs materialising
+     * full rows.
+     */
+    @Query(
+        """
+        SELECT COUNT(*) FROM fiction
+         WHERE metadataFetchedAt = 0
+           AND (inLibrary = 1 OR followedRemotely = 1)
+        """,
+    )
+    suspend fun placeholderCount(): Int
+
+    /**
+     * Issue #981 — stamp a failed back-fill attempt. Leaves
+     * `metadataFetchedAt = 0` so the row stays in the placeholder set and
+     * a later run can retry once the cool-down elapses; the UI reads this
+     * column to show "Couldn't load" instead of "Loading…".
+     */
+    @Query("UPDATE fiction SET metadataBackfillFailedAt = :now WHERE id = :id")
+    suspend fun markBackfillFailed(id: String, now: Long)
+
+    /**
+     * Issue #981 — clear the failure stamp after a successful hydrate.
+     * Called alongside the metadata upsert so a row that recovered (new
+     * cookies, network back) doesn't keep a stale "Couldn't load" flag.
+     */
+    @Query("UPDATE fiction SET metadataBackfillFailedAt = NULL WHERE id = :id")
+    suspend fun clearBackfillFailure(id: String)
+
+    /**
      * Source-side revision token captured the last time we successfully
      * polled the fiction. See [Fiction.lastSeenRevision].
      */

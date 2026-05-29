@@ -53,7 +53,12 @@ import `in`.jphe.storyvox.data.db.entity.PlaybackPosition
     // v11 (#965 per-chapter playback position) — PlaybackPosition PK changes
     // from `fictionId` to composite `(fictionId, chapterId)` so each chapter
     // remembers its own offset. Table-rebuild migration, zero data loss.
-    version = 11,
+    //
+    // v12 (#981 metadata back-fill) — adds `fiction.metadataBackfillFailedAt`
+    // so synced placeholder rows that a source can't hydrate surface a
+    // distinct "Couldn't load" state instead of an eternal "Loading…".
+    // Purely additive nullable column.
+    version = 12,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)

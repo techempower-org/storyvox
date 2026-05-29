@@ -39,4 +39,23 @@ data class FictionSummary(
      *  on browse / search summaries. Drives "recently played" +
      *  "longest unread" sort modes. */
     val lastPlayedAt: Long? = null,
+    /**
+     * Issue #981 — true when this is an un-hydrated synced placeholder
+     * (`fiction.metadataFetchedAt == 0`): a library/follows row added on
+     * another device that carries only id + sourceId + the sentinel
+     * `title = "Loading…"`. The `MetadataBackfillWorker` hydrates these in
+     * the background; the Library card uses this to show a neutral
+     * "Loading…" caption rather than the raw stored title. Always false
+     * for browse / search / fully-fetched rows.
+     */
+    val isPlaceholder: Boolean = false,
+    /**
+     * Issue #981 — true when the most recent back-fill attempt for a
+     * placeholder row FAILED (`fiction.metadataBackfillFailedAt != null`):
+     * the source couldn't be reached (auth-gated, removed upstream,
+     * network). The Library card shows a distinct "Couldn't load" state
+     * instead of an eternal "Loading…"; the worker still retries after a
+     * cool-down. Only meaningful when [isPlaceholder] is also true.
+     */
+    val backfillFailed: Boolean = false,
 )

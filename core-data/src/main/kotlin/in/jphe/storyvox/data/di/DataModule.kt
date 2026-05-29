@@ -50,6 +50,8 @@ import `in`.jphe.storyvox.data.repository.PlaybackPositionRepositoryImpl
 import `in`.jphe.storyvox.data.repository.ShelfRepository
 import `in`.jphe.storyvox.data.repository.ShelfRepositoryImpl
 import `in`.jphe.storyvox.data.repository.WorkManagerChapterDownloadScheduler
+import `in`.jphe.storyvox.data.work.MetadataBackfillScheduler
+import `in`.jphe.storyvox.data.work.WorkManagerMetadataBackfillScheduler
 import javax.inject.Singleton
 
 /**
@@ -303,4 +305,9 @@ abstract class RepositoryBindings {
     abstract fun bindChapterDownloadScheduler(
         impl: WorkManagerChapterDownloadScheduler,
     ): ChapterDownloadScheduler
+
+    @Binds @Singleton
+    abstract fun bindMetadataBackfillScheduler(
+        impl: WorkManagerMetadataBackfillScheduler,
+    ): MetadataBackfillScheduler
 }
