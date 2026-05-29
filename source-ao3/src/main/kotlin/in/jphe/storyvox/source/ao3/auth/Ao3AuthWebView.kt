@@ -91,6 +91,7 @@ fun Ao3AuthWebView(
                     // it pre- or post-redirect.
                     override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
                         super.onPageStarted(view, url, favicon)
+                        canGoBack = view?.canGoBack() == true
                         tryCapture(url)
                     }
 
@@ -98,6 +99,19 @@ fun Ao3AuthWebView(
                         super.onPageFinished(view, url)
                         canGoBack = view?.canGoBack() == true
                         tryCapture(url)
+                    }
+
+                    // #934 — `onPageFinished` doesn't fire for JS-driven
+                    // navigation (history.pushState / replaceState, hash
+                    // changes, in-page redirects). Without this override,
+                    // `canGoBack` goes stale between full-page loads and
+                    // BackHandler's `enabled` lambda evaluates against
+                    // out-of-date state. `doUpdateVisitedHistory` is the
+                    // canonical WebView hook that fires for every history
+                    // mutation, JS-initiated or otherwise.
+                    override fun doUpdateVisitedHistory(view: WebView?, url: String?, isReload: Boolean) {
+                        super.doUpdateVisitedHistory(view, url, isReload)
+                        canGoBack = view?.canGoBack() == true
                     }
 
                     private fun tryCapture(currentUrl: String?) {
