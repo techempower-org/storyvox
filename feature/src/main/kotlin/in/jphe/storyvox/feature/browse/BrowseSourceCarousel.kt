@@ -82,6 +82,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.onLongClick
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -340,7 +341,14 @@ private fun BrowseSourceCard(
             // Role.Button (not Role.Tab) keeps the "double-tap to activate"
             // hint intact even on the selected cell — same rationale as
             // BottomTabBar #645.
-            .semantics { this.selected = selected }
+            // onLongClick label restores the TalkBack announcement that was
+            // dropped when combinedClickable was split into clickable +
+            // pointerInput (#941). The actual long-press handler lives in the
+            // pointerInput below; this just provides the spoken hint.
+            .semantics {
+                this.selected = selected
+                onLongClick(label = "Reorder or open options") { true }
+            }
             // Tap handler — selects the source. Separated from the long-
             // press gesture below so they don't fight over pointer events.
             .clickable(
