@@ -111,6 +111,16 @@ interface FictionRepository {
     suspend fun setFollowedRemote(id: String, followed: Boolean): FictionResult<Unit>
 
     /**
+     * Issue #982 — "Mark all caught up" on the Follows tab. Marks every unread
+     * chapter of every followed fiction (`followedRemotely = 1`) as read in a
+     * single statement, persisting to the same `chapter.userMarkedRead` column
+     * playback and the chat tools write. Returns the number of chapters this
+     * transitioned, so the caller can avoid signalling a save when there was
+     * nothing unread to catch up on.
+     */
+    suspend fun markAllCaughtUp(): Int
+
+    /**
      * Resolve a pasted URL (or short form like `owner/repo`) to a fiction,
      * persist a stub row, and refresh its detail. Returns the resolved
      * `fictionId` on success so the UI can navigate to the detail screen.
@@ -380,6 +390,10 @@ class FictionRepositoryImpl @Inject constructor(
                 is FictionResult.Failure -> r
             }
         }
+
+    override suspend fun markAllCaughtUp(): Int = withContext(Dispatchers.IO) {
+        chapterDao.markFollowedCaughtUp(System.currentTimeMillis())
+    }
 
     override suspend fun addByUrl(
         url: String,

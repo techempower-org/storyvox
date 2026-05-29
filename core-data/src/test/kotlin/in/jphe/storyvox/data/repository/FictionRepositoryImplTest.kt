@@ -276,6 +276,7 @@ class FictionRepositoryImplTest {
         override suspend fun playbackChapter(id: String): PlaybackChapterRow? = null
         override suspend fun unreadChapters(limit: Int): List<UnreadChapterRow> = emptyList()
         override suspend fun setRead(id: String, read: Boolean, now: Long) {}
+        override suspend fun markFollowedCaughtUp(now: Long): Int = 0
         override suspend fun trimDownloadedBodies(fictionId: String, keepLast: Int) {}
         override suspend fun cacheUsage(): `in`.jphe.storyvox.data.db.dao.ChapterCacheUsageRow =
             `in`.jphe.storyvox.data.db.dao.ChapterCacheUsageRow(count = 0, bytes = 0L)

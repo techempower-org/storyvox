@@ -444,6 +444,54 @@ class ChapterDaoTest {
         assertEquals(100L, dao.get("c1")!!.firstReadAt)
     }
 
+    // ----- markFollowedCaughtUp (#982) ------------------------------------------
+
+    @Test
+    fun markFollowedCaughtUp_marksOnlyFollowedUnreadChapters_andStampsFirstRead() = runTest {
+        // f1 is followed; f2 is in-library-only (not followed). The action must
+        // flip f1's unread chapters and leave f2 alone — that's the exact set
+        // the Follows tab renders (followedRemotely = 1).
+        val followed = fiction.copy(id = "f1", followedRemotely = true)
+        val notFollowed = fiction.copy(id = "f2", followedRemotely = false)
+        fictionDao.upsert(followed)
+        fictionDao.upsert(notFollowed)
+        dao.upsertAll(
+            listOf(
+                // f1: one unread, one already read with an existing firstReadAt.
+                chapter("a1", index = 0, fictionId = "f1", userMarkedRead = false),
+                chapter("a2", index = 1, fictionId = "f1", userMarkedRead = true),
+                // f2 (not followed): unread, must stay unread.
+                chapter("b1", index = 0, fictionId = "f2", userMarkedRead = false),
+            ),
+        )
+        // Stamp f1's already-read chapter so we can prove it isn't re-stamped.
+        dao.setRead("a2", read = true, now = 50L)
+
+        val flipped = dao.markFollowedCaughtUp(now = 100L)
+
+        // Only the single genuinely-unread followed chapter transitioned.
+        assertEquals(1, flipped)
+        assertTrue(dao.get("a1")!!.userMarkedRead)
+        assertEquals(100L, dao.get("a1")!!.firstReadAt)
+        // Already-read followed chapter keeps its original firstReadAt.
+        assertTrue(dao.get("a2")!!.userMarkedRead)
+        assertEquals(50L, dao.get("a2")!!.firstReadAt)
+        // Non-followed fiction is untouched.
+        assertEquals(false, dao.get("b1")!!.userMarkedRead)
+        assertNull(dao.get("b1")!!.firstReadAt)
+    }
+
+    @Test
+    fun markFollowedCaughtUp_noUnreadFollowed_returnsZero() = runTest {
+        // Already-caught-up followed fiction: nothing to transition, so the
+        // count is 0 and the caller can avoid claiming a fresh save.
+        val followed = fiction.copy(id = "f1", followedRemotely = true)
+        fictionDao.upsert(followed)
+        dao.upsert(chapter("a1", index = 0, fictionId = "f1", userMarkedRead = true))
+
+        assertEquals(0, dao.markFollowedCaughtUp(now = 100L))
+    }
+
     // ----- trimDownloadedBodies -------------------------------------------------
 
     @Test

@@ -216,6 +216,8 @@ class ChapterRepositoryImplTest {
             publishRow(id)
         }
 
+        override suspend fun markFollowedCaughtUp(now: Long): Int = 0
+
         override suspend fun cacheUsage(): `in`.jphe.storyvox.data.db.dao.ChapterCacheUsageRow {
             val cached = rows.values.filter { !it.plainBody.isNullOrEmpty() }
             return `in`.jphe.storyvox.data.db.dao.ChapterCacheUsageRow(

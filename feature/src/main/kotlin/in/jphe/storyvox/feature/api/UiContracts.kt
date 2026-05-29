@@ -168,7 +168,15 @@ interface FictionRepositoryUi {
      * library Add/Remove.
      */
     suspend fun setFollowedRemote(fictionId: String, followed: Boolean): SetFollowedRemoteResult
-    suspend fun markAllCaughtUp()
+    /**
+     * Issue #982 — Follows tab "Mark all caught up". Marks every unread
+     * chapter of every followed fiction as read and persists it (the same
+     * `userMarkedRead` column playback writes). Returns how many chapters
+     * were transitioned so the screen only signals success when a write
+     * actually happened — the previous v1 no-op claimed success while
+     * writing nothing.
+     */
+    suspend fun markAllCaughtUp(): Int
     /**
      * Best-effort refresh of the user's source-side follows list. No-op if
      * the user isn't signed in. Caller doesn't await the result — the local

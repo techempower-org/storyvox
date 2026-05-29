@@ -617,7 +617,7 @@ private class FakeFictionRepo(
         followed: Boolean,
     ): `in`.jphe.storyvox.feature.api.SetFollowedRemoteResult =
         `in`.jphe.storyvox.feature.api.SetFollowedRemoteResult.Success
-    override suspend fun markAllCaughtUp() = Unit
+    override suspend fun markAllCaughtUp() = 0
     override suspend fun refreshFollows() = Unit
     override suspend fun addByUrl(url: String, preferredSourceId: String?): UiAddByUrlResult = UiAddByUrlResult.UnrecognizedUrl
     override fun previewUrl(url: String) = emptyList<`in`.jphe.storyvox.feature.api.UiRouteCandidate>()
@@ -646,7 +646,7 @@ private class FakeFictionRepoMulti(
         followed: Boolean,
     ): `in`.jphe.storyvox.feature.api.SetFollowedRemoteResult =
         `in`.jphe.storyvox.feature.api.SetFollowedRemoteResult.Success
-    override suspend fun markAllCaughtUp() = Unit
+    override suspend fun markAllCaughtUp() = 0
     override suspend fun refreshFollows() = Unit
     override suspend fun addByUrl(url: String, preferredSourceId: String?): UiAddByUrlResult = UiAddByUrlResult.UnrecognizedUrl
     override fun previewUrl(url: String) = emptyList<`in`.jphe.storyvox.feature.api.UiRouteCandidate>()

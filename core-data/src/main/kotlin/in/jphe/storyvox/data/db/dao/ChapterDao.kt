@@ -388,6 +388,32 @@ interface ChapterDao {
     )
     suspend fun setRead(id: String, read: Boolean, now: Long)
 
+    /**
+     * Issue #982 — "Mark all caught up" on the Follows screen. Flips every
+     * unread chapter (`userMarkedRead = 0`) belonging to a *followed* fiction
+     * (`fiction.followedRemotely = 1`) to read in one statement, stamping
+     * `firstReadAt` the same way [setRead] does for rows that hadn't been
+     * read before.
+     *
+     * Scoped to `followedRemotely` because that's exactly the set the Follows
+     * tab renders (see [FictionDao.observeFollowsRemote] and
+     * `FollowsRepositoryImpl.unreadChapters`, which join on the same two
+     * columns). The `userMarkedRead = 0` guard keeps `firstReadAt` from being
+     * re-stamped on already-read rows and makes the returned count meaningful:
+     * it's the number of chapters this action actually transitioned, which the
+     * caller uses to avoid claiming a save when nothing changed.
+     */
+    @Query(
+        """
+        UPDATE chapter
+           SET userMarkedRead = 1,
+               firstReadAt = CASE WHEN firstReadAt IS NULL THEN :now ELSE firstReadAt END
+         WHERE userMarkedRead = 0
+           AND fictionId IN (SELECT id FROM fiction WHERE followedRemotely = 1)
+        """,
+    )
+    suspend fun markFollowedCaughtUp(now: Long): Int
+
     @Query(
         """
         UPDATE chapter SET htmlBody = NULL, plainBody = NULL,

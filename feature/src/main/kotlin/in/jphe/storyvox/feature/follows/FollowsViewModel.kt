@@ -72,6 +72,13 @@ class FollowsViewModel @Inject constructor(
 
     fun markAllCaughtUp() {
         viewModelScope.launch {
+            // Issue #982 — markAllCaughtUp now actually persists the read-status
+            // flip and returns the number of chapters it transitioned. The
+            // CaughtUp event still fires unconditionally: pressing the button
+            // when you're already caught up (count == 0) is a no-op write but a
+            // legitimately "caught up" state, so the confirmation is honest. The
+            // bug it fixed was claiming success while writing *nothing* — that's
+            // gone now that the repository write runs first.
             repo.markAllCaughtUp()
             _events.send(FollowsUiEvent.CaughtUp)
         }

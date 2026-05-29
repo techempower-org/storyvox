@@ -567,9 +567,12 @@ private class RealFictionRepositoryUi(
                 `in`.jphe.storyvox.feature.api.SetFollowedRemoteResult.Error(r.message)
         }
 
-    override suspend fun markAllCaughtUp() {
-        // No-op for v1 — chapter-level "read" tracking lands when the reader is wired.
-    }
+    override suspend fun markAllCaughtUp(): Int =
+        // Issue #982 — was a "No-op for v1" stub that still let the VM emit a
+        // success event, so the UI claimed a save that never touched Room. Now
+        // delegates to the repository, which flips every followed fiction's
+        // unread chapters to read in one statement and returns the count.
+        repo.markAllCaughtUp()
 
     override suspend fun refreshFollows() {
         // Best-effort — failures are silent. AuthRequired returns when unauthed,
