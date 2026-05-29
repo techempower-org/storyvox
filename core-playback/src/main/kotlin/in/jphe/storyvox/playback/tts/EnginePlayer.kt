@@ -2219,6 +2219,14 @@ class EnginePlayer @AssistedInject constructor(
         // path and re-renders at the engine's current rate. Either
         // way, the AudioTrack sample rate, the cached PCM bytes,
         // and `silenceBytesFor` all agree.
+        // Issue #930 — the on-disk index read + JSON deserialization runs
+        // synchronously on whatever dispatcher called startPlaybackPipeline.
+        // The outer call sites are `scope.launch { startPlaybackPipeline() }`
+        // (scope is Dispatchers.Main), so on slow flash storage — e.g.
+        // Helio P22T tablet, where the read+parse measured ~30-80 ms — this
+        // block janks the UI thread and can trip StrictMode. Hop to IO for
+        // the read; the rest of pipeline construction stays on Main because
+        // it touches AudioTrack / Compose state which are main-thread-bound.
         val cachedIndexSampleRate: Int? = run {
             val chapId = _observableState.value.currentChapterId
             val voiceId = loadedVoiceId
@@ -2231,13 +2239,15 @@ class EnginePlayer @AssistedInject constructor(
                 chunkerVersion = CHUNKER_VERSION,
                 pronunciationDictHash = cachedPronunciationDict.contentHash,
             )
-            if (!pcmCache.isComplete(probeKey)) return@run null
-            val onDiskRate = runCatching {
-                pcmCacheJson.decodeFromString(
-                    PcmIndex.serializer(),
-                    pcmCache.indexFileFor(probeKey).readText(),
-                ).sampleRate
-            }.getOrNull() ?: return@run null
+            val onDiskRate = kotlinx.coroutines.withContext(Dispatchers.IO) {
+                if (!pcmCache.isComplete(probeKey)) return@withContext null
+                runCatching {
+                    pcmCacheJson.decodeFromString(
+                        PcmIndex.serializer(),
+                        pcmCache.indexFileFor(probeKey).readText(),
+                    ).sampleRate
+                }.getOrNull()
+            } ?: return@run null
             if (onDiskRate != engineSampleRate) {
                 android.util.Log.w(
                     "EnginePlayer",
@@ -2245,7 +2255,7 @@ class EnginePlayer @AssistedInject constructor(
                         "on-disk=$onDiskRate base=${probeKey.fileBaseName().take(12)}; " +
                         "invalidating cache entry and re-rendering",
                 )
-                runBlocking { pcmCache.delete(probeKey) }
+                pcmCache.delete(probeKey)
                 return@run null
             }
             onDiskRate
@@ -2805,8 +2815,18 @@ class EnginePlayer @AssistedInject constructor(
                         // exits promptly (50 ms polling matches the
                         // userPaused park above).
                         if (source.producerQueueCapacity() > 0) {
+                            // Issue #932 — capture startTimeNanos directly
+                            // rather than reconstructing it from
+                            // (deadlineNanos - PREBUFFER_TIMEOUT_MS *
+                            // 1_000_000L) in the elapsedMs log below. The
+                            // reconstruction was algebraically correct but
+                            // a future tweak to either side (timeout
+                            // constant, deadline computation) silently
+                            // diverges the two without a compile-time
+                            // failure.
+                            val startTimeNanos = System.nanoTime()
                             val deadlineNanos =
-                                System.nanoTime() + PREBUFFER_TIMEOUT_MS * 1_000_000L
+                                startTimeNanos + PREBUFFER_TIMEOUT_MS * 1_000_000L
                             val target = PREBUFFER_TARGET_CHUNKS - 1
                             while (pipelineRunning.get() &&
                                 !userPaused.get() &&
@@ -2827,8 +2847,7 @@ class EnginePlayer @AssistedInject constructor(
                                 "#862 prebuffer-gate: depth=${source.producerQueueDepth()} " +
                                     "target=$target producedAll=${source.producedAllSentences} " +
                                     "elapsedMs=${
-                                        (System.nanoTime() - (deadlineNanos -
-                                            PREBUFFER_TIMEOUT_MS * 1_000_000L)) / 1_000_000L
+                                        (System.nanoTime() - startTimeNanos) / 1_000_000L
                                     }"
                             }
                         }
@@ -3909,10 +3928,20 @@ class EnginePlayer @AssistedInject constructor(
         // Issue #929 — stamp a fresh token so an overlapping
         // `advanceChapter` (e.g. user double-tap, or watchdog firing
         // mid-body-wait) doesn't let our `finally` clear a latch the
-        // newer invocation owns. Order matters: bump token BEFORE
-        // writing direction so a concurrent reader either sees the new
-        // (token, direction) pair or the old one — never a torn
-        // (newToken, oldDirection).
+        // newer invocation owns. The token serves only as
+        // invocation-ownership proof for the matching `finally` block:
+        // no external reader inspects the (token, direction) pair as a
+        // tuple, so the brief window between the two writes (where a
+        // reader could observe `newToken` with `oldDirection`) is
+        // harmless. What we DO guarantee, and the watchdog relies on,
+        // is that the `finally` only clears `inFlightAdvanceDirection`
+        // when the current `inFlightAdvanceToken` still equals our
+        // captured `myToken` — so a later overlapping `advanceChapter`
+        // call (which has bumped the token past ours) is protected
+        // from our cleanup. Issue #953 — tightens the earlier KDoc
+        // claim that the two writes were torn-free as a tuple; they
+        // aren't, but the invariant the code needs is the finally-time
+        // token comparison, not pair-atomicity at write time.
         val myToken = advanceInvocationCounter.incrementAndGet()
         inFlightAdvanceToken = myToken
         inFlightAdvanceDirection = normalizedDir
