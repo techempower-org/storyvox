@@ -44,7 +44,11 @@ enum class FriendlyErrorKind {
  * reports; keep the user-facing copy short and recoverable-sounding.
  */
 fun categorizeFriendlyError(raw: String?): Pair<FriendlyErrorKind, String?> {
-    val s = raw ?: return FriendlyErrorKind.Generic to null
+    // #935 — blank input (whitespace-only or empty) used to fall through
+    // to the `Raw to s` branch and surface an empty user-facing message.
+    // Treat it the same as null: there's nothing actionable to show, so
+    // route to the generic fallback copy.
+    val s = raw?.takeIf { it.isNotBlank() } ?: return FriendlyErrorKind.Generic to null
     val lower = s.lowercase()
     return when {
         // Network timeouts / offline / DNS — by far the most common.

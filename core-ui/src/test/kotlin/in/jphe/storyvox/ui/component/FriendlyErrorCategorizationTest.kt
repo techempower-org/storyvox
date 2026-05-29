@@ -21,6 +21,24 @@ class FriendlyErrorCategorizationTest {
     }
 
     @Test
+    fun `empty raw maps to Generic with no fallback`() {
+        // #935 — empty string used to land on `Raw to ""`, surfacing an
+        // empty error to the user. Must behave the same as null.
+        val (kind, fallback) = categorizeFriendlyError("")
+        assertEquals(FriendlyErrorKind.Generic, kind)
+        assertNull(fallback)
+    }
+
+    @Test
+    fun `whitespace-only raw maps to Generic with no fallback`() {
+        // #935 — whitespace-only (spaces, tabs, newlines) is the other
+        // shape of "nothing to show" we used to leak through.
+        val (kind, fallback) = categorizeFriendlyError("   \t\n  ")
+        assertEquals(FriendlyErrorKind.Generic, kind)
+        assertNull(fallback)
+    }
+
+    @Test
     fun `HTTP 0 timeout maps to NetworkLost`() {
         assertEquals(
             FriendlyErrorKind.NetworkLost,
