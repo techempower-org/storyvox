@@ -931,6 +931,46 @@ class EnginePlayer @AssistedInject constructor(
     private var pipelineSetupJob: Job? = null
 
     /**
+     * Issue #944 / #956 — serialization guard for the *outer* `loadAndPlay`
+     * body. [pipelineBuildMutex] above only protects the inner
+     * [startPlaybackPipeline] build; the outer load (chapter fetch, voice
+     * activation, sentence chunking, the state update at line ~1496, the
+     * [stopPlaybackPipeline] at line ~1553) was NOT serialized. Because the
+     * function is `suspend` and the dispatcher is `Dispatchers.Main`, two
+     * `scope.launch { loadAndPlay(...) }` calls would interleave the moment
+     * the first hit a suspension point (the very first
+     * `chapterRepo.getChapter` is suspending), and both would proceed to
+     * tear down + rebuild the pipeline — yielding the "voice repeats
+     * itself" / "wedged not playing" / "stops by itself" symptoms tracked
+     * by #944 + #956. The token guard added in #929 stopped the second
+     * advance's `finally` from clobbering the first's
+     * [inFlightAdvanceDirection], but it did NOT stop both calls from
+     * proceeding through the body-wait and BOTH invoking `loadAndPlay`.
+     *
+     * The mutex serializes the whole body. The early-bail just inside the
+     * lock dedups the second of a double-fire: if the caller asks us to
+     * load the same `(fictionId, chapterId)` the player is already on with
+     * a live pipeline, we skip the rebuild and return. Net result: two
+     * concurrent `loadAndPlay(N+1)` calls resolve to one teardown + one
+     * rebuild (the second is a no-op), instead of the pre-fix two-pipeline
+     * race. We deliberately chose serialize-and-dedup over
+     * latest-wins-cancel — cancel-and-supersede has nicer UX but far more
+     * surface area in a 5100-line engine; correctness here is "never two
+     * pipelines for the same chapter."
+     */
+    private val loadAndPlayMutex = Mutex()
+
+    /**
+     * Issue #944 / #956 — serialization guard for [advanceChapter]. Separate
+     * from [loadAndPlayMutex] because `advanceChapter` calls `loadAndPlay`
+     * internally, so sharing one mutex would deadlock. Same shape as the
+     * load mutex: after acquiring, the call bails if `state.currentChapterId`
+     * no longer matches the chapter it would advance FROM — the prior
+     * advance has already done the work and we'd be a duplicate.
+     */
+    private val advanceChapterMutex = Mutex()
+
+    /**
      * Issue #540 — user-initiated pause flag. Set true by [pauseTts] when
      * the user taps the play-screen Pause; cleared by [resume]. The
      * consumer thread polls this each iteration and, when true, parks the
@@ -1371,8 +1411,32 @@ class EnginePlayer @AssistedInject constructor(
         chapterId: String,
         charOffset: Int,
         autoPlay: Boolean = true,
-    ) {
+    ) = loadAndPlayMutex.withLock {
         DebugLog.i("EnginePlayer") { "loadAndPlay fiction=$fictionId chapter=$chapterId charOffset=$charOffset autoPlay=$autoPlay" }
+        // Issue #944 / #956 — dedup double-fire (the second of a rapid
+        // handleChapterDone + watchdog or user-tap + MediaSession-Next
+        // pair). If we already point at the requested
+        // `(fictionId, chapterId)` with a live pipeline, the prior
+        // `loadAndPlay` has already finished its work — bail rather
+        // than tear down + rebuild. The `charOffset` check excludes
+        // legitimate seek-within-current-chapter calls (Library Resume
+        // tile, Recap return, MediaSession seekTo); those carry a
+        // non-zero charOffset and SHOULD rebuild. A duplicate auto-
+        // advance, by contrast, always carries `charOffset = 0` from
+        // [advanceChapter]'s call site.
+        val curState = _observableState.value
+        if (curState.currentFictionId == fictionId &&
+            curState.currentChapterId == chapterId &&
+            charOffset == 0 &&
+            curState.charOffset == 0 &&
+            pipelineRunning.get()
+        ) {
+            DebugLog.i("EnginePlayer") {
+                "loadAndPlay: already on $chapterId with live pipeline at charOffset=0; " +
+                    "bailing — #944/#956 dedup"
+            }
+            return@withLock
+        }
         // PR-6 (#185) — fallback toast dedupe is per-chapter; reset
         // here so the next chapter's first Azure failure can re-fire
         // the toast. Cheap (one volatile write) so we don't gate it
@@ -1411,7 +1475,7 @@ class EnginePlayer @AssistedInject constructor(
             // keep streaming under an empty player surface.
             stopPlaybackPipeline()
             invalidateState()
-            return
+            return@withLock
         }
 
         // Issue #373 — audio-stream backend (KVMR community radio + future
@@ -1421,7 +1485,7 @@ class EnginePlayer @AssistedInject constructor(
         // model + text body; neither applies to a live stream.
         if (chapter.audioUrl != null) {
             loadAndPlayAudioStream(fictionId, chapterId, chapter)
-            return
+            return@withLock
         }
 
         // Issue #373 — coming back to a text chapter from an audio
@@ -1439,7 +1503,7 @@ class EnginePlayer @AssistedInject constructor(
             _observableState.update {
                 it.copy(isPlaying = false, error = PlaybackError.EngineUnavailable)
             }
-            return
+            return@withLock
         }
 
         // Surface the chapter + isPlaying=true BEFORE the model loads so the
@@ -1478,7 +1542,7 @@ class EnginePlayer @AssistedInject constructor(
                 )
             }
             invalidateState()
-            return
+            return@withLock
         }
         currentSentenceIndex = sentences.indexOfFirst { charOffset <= it.endChar }
             .takeIf { it >= 0 } ?: 0
@@ -1521,6 +1585,28 @@ class EnginePlayer @AssistedInject constructor(
                 error = null,
             )
         }
+        // Issue #956 — synchronously align the persisted `playback_position`
+        // row with the just-loaded `(fictionId, chapterId, charOffset)` BEFORE
+        // any external surface (Library Resume tile, Auto/Wear browser,
+        // Recap return, Continue-listening flow) can re-read it. The Room
+        // PK is `fictionId` only, so there is ONE row per fiction; a stale
+        // row from a brief earlier listen of chapter N+1 (with charOffset=Q)
+        // survives across a back-up to chapter N+0 until the consumer
+        // thread fires its first sentence-boundary save (line ~2681).
+        // External surfaces reading the row in that window would
+        // `startListening(fictionId, chapter=N+1, charOffset=Q)` and the
+        // user perceives "skip forward to a future chapter you partially
+        // listened to" — exactly #956's second symptom. Persisting here,
+        // synchronously, closes the window. Wrapped in runCatching because
+        // a transient Room write hiccup must not block playback.
+        runCatching { persistPosition() }
+            .onFailure {
+                android.util.Log.w(
+                    "EnginePlayer",
+                    "loadAndPlay: pre-pipeline persistPosition failed " +
+                        "(${it.javaClass.simpleName}: ${it.message}) — continuing",
+                )
+            }
         // Issue #158 — stamp the History breadcrumb right after the state
         // flips to a new currentChapterId. We log the open BEFORE the
         // pipeline starts because the row should land even if the user
@@ -1599,7 +1685,7 @@ class EnginePlayer @AssistedInject constructor(
                 startPlaybackPipeline()
             }
             invalidateState()
-            return
+            return@withLock
         }
 
         val loadResult: String = withContext(Dispatchers.IO) {
@@ -1948,7 +2034,7 @@ class EnginePlayer @AssistedInject constructor(
                 )
             }
             invalidateState()
-            return
+            return@withLock
         }
         activeEngineType = active.engineType
         loadedVoiceId = active.id
@@ -3778,7 +3864,39 @@ class EnginePlayer @AssistedInject constructor(
     }
 
     suspend fun advanceChapter(direction: Int) {
+        // Issue #944 / #956 — snapshot the chapter the caller was on
+        // BEFORE we queue behind the mutex. If a prior `advanceChapter`
+        // moves us past this chapter while we wait, we bail when our
+        // turn comes (just below the `withLock`). Captured outside the
+        // lock so the snapshot reflects the caller's intent at call
+        // time, not the post-prior-advance state.
+        val callerChapterId = _observableState.value.currentChapterId
+        advanceChapterMutex.withLock {
         DebugLog.i("EnginePlayer") { "advanceChapter direction=$direction" }
+        // Issue #944 / #956 — bail if a prior `advanceChapter` already
+        // moved us past the chapter this call was queued on. Two
+        // overlapping advances (handleChapterDone-launched + watchdog,
+        // or user-tap + MediaSession-Next) both used to call
+        // `loadAndPlay(nextId)` after the body-wait; #929's token guard
+        // only prevented the second's `finally` from clobbering the
+        // first's `inFlightAdvanceDirection` latch — it didn't prevent
+        // the duplicate `loadAndPlay`. With the mutex serializing
+        // entry, the second call's `state.currentChapterId` no longer
+        // matches the snapshot it captured pre-lock; that's our
+        // "prior advance already did it" signal. `loadAndPlayMutex`
+        // provides belt-and-suspenders on the inner side; this is the
+        // cleaner outer-side dedup that avoids the wasted body-wait +
+        // state churn.
+        val nowChapterId = _observableState.value.currentChapterId
+        if (callerChapterId != null && nowChapterId != callerChapterId) {
+            android.util.Log.i(
+                "EnginePlayer",
+                "advanceChapter(dir=$direction): chapter moved from $callerChapterId " +
+                    "to $nowChapterId while we waited for the lock — prior advance " +
+                    "already did the work, bailing (#944/#956)",
+            )
+            return@withLock
+        }
         // Issue #726 — record the direction of the in-flight advance so
         // PlaybackController's buffering-stuck watchdog can mirror it
         // instead of hardcoding +1. Normalize to -1 / +1 so a Previous
@@ -3804,14 +3922,14 @@ class EnginePlayer @AssistedInject constructor(
                 "EnginePlayer",
                 "advanceChapter(dir=$direction): no currentChapterId, bailing — #553 ",
             )
-            return
+            return@withLock
         }
         val fiction = _observableState.value.currentFictionId ?: run {
             android.util.Log.w(
                 "EnginePlayer",
                 "advanceChapter(dir=$direction): no currentFictionId, bailing — #553",
             )
-            return
+            return@withLock
         }
         android.util.Log.i(
             "EnginePlayer",
@@ -3849,7 +3967,7 @@ class EnginePlayer @AssistedInject constructor(
                 invalidateState()
                 _uiEvents.tryEmit(PlaybackUiEvent.BookFinished)
             }
-            return
+            return@withLock
         }
         // Issue #524 — surface a Buffering state while we wait for the
         // next chapter's body to land in the DB. Pre-fix the engine sat
@@ -3906,7 +4024,7 @@ class EnginePlayer @AssistedInject constructor(
                 )
             }
             invalidateState()
-            return
+            return@withLock
         }
         // Issue #728 — snapshot the pause-truthful flag AFTER the body
         // wait completes and BEFORE calling loadAndPlay. If anything
@@ -3970,14 +4088,32 @@ class EnginePlayer @AssistedInject constructor(
                 inFlightAdvanceDirection = 0
             }
         }
+        }
     }
 
-    suspend fun rewindIntoPreviousChapter(overshootChars: Int) {
-        val current = _observableState.value.currentChapterId ?: return
-        val fiction = _observableState.value.currentFictionId ?: return
+    suspend fun rewindIntoPreviousChapter(overshootChars: Int) = withContext(Dispatchers.Main) {
+        // Issue #969 — main-thread confinement. PlaybackController's
+        // `skipBack30s` dispatches this call via `scope.launch { ... }`
+        // and its `scope` is `Dispatchers.Default`, so without this hop
+        // every `invalidateState()` / `_observableState.update` /
+        // `seekToCharOffset` / `loadAndPlay` touch below lands on a
+        // Default worker thread. [EnginePlayer] is a Media3
+        // `SimpleBasePlayer`, and `invalidateState()` asserts main-thread
+        // — off-main throws `IllegalStateException: Player is accessed
+        // on the wrong thread`. The suspend repo calls inside
+        // (`getPreviousChapterId`, `getChapter`, `queueChapterDownload`)
+        // hop to IO via their own `withContext(IO)`, so this Main hop
+        // doesn't block on disk I/O. Engine-internal callers already
+        // run on the engine's own `scope` (Main), so adding the
+        // `withContext(Main)` only adds a one-frame dispatch hop for
+        // those (a no-op via Main.immediate semantics) while making
+        // every external caller safe regardless of which dispatcher
+        // they used.
+        val current = _observableState.value.currentChapterId ?: return@withContext
+        val fiction = _observableState.value.currentFictionId ?: return@withContext
         val prevId = chapterRepo.getPreviousChapterId(current) ?: run {
             seekToCharOffset(0)
-            return
+            return@withContext
         }
         _observableState.update { it.copy(isBuffering = true) }
         invalidateState()
@@ -3987,13 +4123,18 @@ class EnginePlayer @AssistedInject constructor(
             _observableState.update { it.copy(isBuffering = false) }
             invalidateState()
             seekToCharOffset(0)
-            return
+            return@withContext
         }
         val targetOffset = (prevChapter.text.length - overshootChars).coerceAtLeast(0)
         loadAndPlay(fiction, prevId, charOffset = targetOffset, autoPlay = true)
-        kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
-            persistPosition()
-        }
+        // Issue #969 follow-up — `loadAndPlay` now (post-#956) does a
+        // synchronous `persistPosition()` runCatching'd right after the
+        // chapter-pointer state update, so the previous unguarded
+        // `withContext(NonCancellable) { persistPosition() }` here was
+        // both redundant AND a latent crash (an unguarded suspend call
+        // on the wrong dispatcher would surface as an exception that no
+        // one catches). Removed; the chapter-changed event still fires
+        // for downstream UI.
         _uiEvents.tryEmit(PlaybackUiEvent.ChapterChanged(prevId))
     }
 
