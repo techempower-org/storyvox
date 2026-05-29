@@ -9,6 +9,21 @@ Entries before v0.5.12 are reconstructed from the git log — see
 
 ## [Unreleased]
 
+## [1.0.0] -- 2026-05-29
+
+**1.0 — the launch.** First public release on Google Play. Caps a pre-launch hardening sweep: a backup-restore crash blocker, playback-engine concurrency fixes, sync-layer robustness, signing-continuity correction, accessibility, and a per-chapter playback-position migration — all on top of the v0.7.x feature set.
+
+### Added
+- **#965** Per-chapter playback position — `PlaybackPosition` primary key migrated to `(fictionId, chapterId)` so each chapter remembers its own offset. v10→v11 Room table-rebuild migration (data preservation covered by a dedicated migration test + validated on a real device upgrade), DAO multi-row queries, sync wire-format bump with legacy back-compat, and Library continue-listening join updates.
+
+### Fixed
+- **#931** Startup race — `runIfUpgraded` cache-clear could race `prerenderModeWatcher`; the upgrade handler now `join()`s before the watcher starts
+- **#964** `NotionUnofficialApi.pageCache` check-then-act TOCTOU — per-id `Mutex` (same pattern as #942)
+- **#970** Position/highlight A/V lag — tightened the position poll cadence 100ms→50ms (deeper `getTimestamp` extrapolation tracked as #974)
+
+### Changed
+- **#943** Extracted hardcoded user-facing strings (AddByUrlSheet, ManageShelvesSheet, SyncStatusComposables) to string resources
+
 ## [0.7.4] -- 2026-05-28
 
 **Magical reader polish + 7-bug sweep.** Two user-facing reader features (in-cover loading prompts overlay, magical auto-scroll toggle) plus seven audit-finding fixes across playback concurrency, sync layer, and library/browse polish.
