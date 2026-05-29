@@ -104,19 +104,28 @@ fun OnboardingHost(
                         onClick = {},
                     ),
             ) {
-                AnimatedContent(
-                    targetState = step,
-                    transitionSpec = { fadeIn() togetherWith fadeOut() },
-                    label = "onboarding-step",
-                ) { current ->
-                    // Issue #787 — wrap each screen in the shared
-                    // scaffold so the dot row + "Step X of 3" indicator
-                    // is rendered once at the host level, not
-                    // duplicated into each screen. The scaffold layers
-                    // the indicator over the screen's own scroll
-                    // content; each screen's existing padding keeps the
-                    // headline clear of the indicator row.
-                    OnboardingScaffold(stepIndex = current.ordinal) {
+                // Issue #787 — the shared scaffold (dot row +
+                // "Step X of 3" indicator) is hoisted OUTSIDE the
+                // AnimatedContent so the indicator and any future
+                // chrome stay mounted across step transitions; only
+                // the per-step page body cross-fades. Issue #933
+                // moved this hoist after a Gemini review on PR #836
+                // pointed out that the prior nesting tore down and
+                // recreated the scaffold on every step change, which
+                // (a) replayed the indicator's `liveRegion` TalkBack
+                // announcement mid-transition and (b) wasted a frame
+                // re-laying out the dot row on each fade.
+                //
+                // `stepIndex = step.ordinal` reads from the host's
+                // own state (not AnimatedContent's `current`), so the
+                // indicator updates the instant the user taps a CTA
+                // rather than waiting for the cross-fade to complete.
+                OnboardingScaffold(stepIndex = step.ordinal) {
+                    AnimatedContent(
+                        targetState = step,
+                        transitionSpec = { fadeIn() togetherWith fadeOut() },
+                        label = "onboarding-step",
+                    ) { current ->
                         when (current) {
                             OnboardingStep.Welcome -> WelcomeScreen(
                                 onGetStarted = { step = OnboardingStep.VoicePick },
