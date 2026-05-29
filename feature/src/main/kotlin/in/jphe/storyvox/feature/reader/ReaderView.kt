@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.VerticalAlignCenter
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.AutoStories
+import androidx.compose.material.icons.outlined.WhereToVote
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
@@ -189,6 +190,41 @@ fun ReaderTextView(
     }
     val showScrollFab = sentenceOutOfView && state.isPlaying
 
+    // Issue #954 — "skip playback to where the reader has scrolled to."
+    // The reverse of #919's recenter. Derives the topmost line currently
+    // inside the viewport (with the same 80px margin as #919's
+    // out-of-view test so the two gates agree on what "visible" means)
+    // and returns its first character offset. Null when layout/text
+    // aren't ready, so the FAB stays hidden during chapter cold-load.
+    val firstVisibleCharOffset by remember {
+        derivedStateOf {
+            val layout = textLayout ?: return@derivedStateOf null
+            if (chapterText.isEmpty()) return@derivedStateOf null
+            if (viewportHeightPx <= 0f) return@derivedStateOf null
+            val margin = 80f
+            val viewportTopInBody = scroll.value.toFloat() - bodyTopPx + margin
+            if (viewportTopInBody < 0f) return@derivedStateOf 0
+            val lineCount = layout.lineCount
+            if (lineCount <= 0) return@derivedStateOf null
+            // Find the first line whose bottom is at or below the
+            // viewport top — that's the first line the user can
+            // actually read.
+            for (line in 0 until lineCount) {
+                if (layout.getLineBottom(line) > viewportTopInBody) {
+                    return@derivedStateOf layout.getLineStart(line)
+                }
+            }
+            layout.getLineStart(lineCount - 1)
+        }
+    }
+    // Show the "skip playback to here" FAB only when (a) the active
+    // sentence isn't already visible (otherwise the button would
+    // re-seek to a position you're already at — confusing) and (b) we
+    // have a valid first-visible offset to seek to. Independent of
+    // `state.isPlaying` — the user might be paused and want to start
+    // playing FROM the scroll position, which is exactly this verb.
+    val showSeekToReaderFab = sentenceOutOfView && firstVisibleCharOffset != null
+
     Box(modifier = modifier.fillMaxSize().onSizeChanged { viewportHeightPx = it.height.toFloat() }) {
         Column(
             modifier = Modifier
@@ -220,6 +256,51 @@ fun ReaderTextView(
                         onLayout = { layout -> textLayout = layout },
                     )
                 }
+            }
+        }
+
+        // Issue #954 — "skip playback to where the reader has scrolled
+        // to." The TOP of the three-FAB brass cluster. Reverse direction
+        // of the #919 recenter below: that FAB pulls the reader to the
+        // playback's position; this one sends the playback to the
+        // reader's position. Same visual vocabulary (SmallFAB, primary
+        // tint) so the cluster reads as a related set of sync verbs.
+        //
+        // Visibility mirrors the #919 recenter's `sentenceOutOfView`
+        // gate — there's nothing to sync when the active sentence is
+        // already on screen — but DROPS the `state.isPlaying` half of
+        // the gate because the verb makes sense paused too (the user
+        // wants playback to start *from this point*).
+        //
+        // Tap computes the first visible character offset from the
+        // current scroll position + textLayout, then forwards it to
+        // [onSeekToChar] — the same callback tap-on-word already uses.
+        // No new VM method required; ReaderViewModel.seekToChar handles
+        // both word-taps and this FAB-tap identically.
+        AnimatedVisibility(
+            visible = showSeekToReaderFab,
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(end = spacing.md, bottom = 232.dp),
+            enter = fadeIn() + slideInVertically { it / 2 },
+            exit = fadeOut() + slideOutVertically { it / 2 },
+        ) {
+            SmallFloatingActionButton(
+                onClick = {
+                    firstVisibleCharOffset?.let { offset ->
+                        onSeekToChar(offset.coerceIn(0, chapterText.length))
+                    }
+                },
+                modifier = Modifier.semantics {
+                    contentDescription = "Skip playback to where you're reading"
+                },
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.WhereToVote,
+                    contentDescription = null,
+                )
             }
         }
 

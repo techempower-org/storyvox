@@ -685,6 +685,14 @@ private fun StoryvoxNavHostContent(
                             }
                         }
                     },
+                    // Issue #955 — brass MenuBook on the player top-bar
+                    // jumps into the currently-playing fiction's detail
+                    // page (cover + full chapter list). Routes via the
+                    // normal nav push so the back stack restores the
+                    // player on Back.
+                    onOpenLibrary = { fId ->
+                        navController.navigate(StoryvoxRoutes.fictionDetail(fId))
+                    },
                 )
             }
             composable(
@@ -856,6 +864,10 @@ private fun StoryvoxNavHostContent(
                             }
                         }
                     },
+                    // Issue #955 — see PLAYING-route comment.
+                    onOpenLibrary = { fId ->
+                        navController.navigate(StoryvoxRoutes.fictionDetail(fId))
+                    },
                 )
             }
 
@@ -898,6 +910,10 @@ private fun StoryvoxNavHostContent(
                                 launchSingleTop = true
                             }
                         }
+                    },
+                    // Issue #955 — see PLAYING-route comment.
+                    onOpenLibrary = { fId ->
+                        navController.navigate(StoryvoxRoutes.fictionDetail(fId))
                     },
                 )
             }

@@ -76,6 +76,13 @@ fun HybridReaderScreen(
      *  the back stack is empty (deep-link / cold-launch into the
      *  player). Default no-op for previews. */
     onBack: () -> Unit = {},
+    /** Issue #955 — open the currently-playing fiction's detail page
+     *  (cover + full chapter list). Receives the fictionId; this screen
+     *  pulls it from the live playback state and guards the call so the
+     *  AudiobookView never has to know about routing. Default no-op for
+     *  previews / tests; production callsites pass
+     *  `navController.navigate(StoryvoxRoutes.fictionDetail(fId))`. */
+    onOpenLibrary: (fictionId: String) -> Unit = {},
     viewModel: ReaderViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -282,6 +289,15 @@ fun HybridReaderScreen(
                 },
                 onOpenSettings = onOpenSettings,
                 onBack = onBack,
+                // Issue #955 — guard against the brief blank-ids window
+                // (cold-load before the controller has filled in
+                // fictionId). The AudiobookView default is a no-op, so a
+                // tap during that window is harmless; we just skip the
+                // navigation so a malformed fictionDetail route isn't
+                // pushed onto the back stack.
+                onOpenLibrary = {
+                    playbackState.fictionId?.let { onOpenLibrary(it) }
+                },
                 // Issue #278 — surface loading-phase + retry path. The
                 // view decides what to render based on phase (regular /
                 // slow-hint at 10s / full error block at 30s).

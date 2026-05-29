@@ -36,6 +36,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.ripple
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.automirrored.outlined.FormatListBulleted
 import androidx.compose.material.icons.filled.Forward30
 import androidx.compose.material.icons.filled.Replay
@@ -156,6 +157,16 @@ fun AudiobookView(
      *  Default no-op for previews / tests; production callsites pass a
      *  real `navController.popBackStack()`. */
     onBack: () -> Unit = {},
+    /** Issue #955 — "magical way to get to the library page from the
+     *  playing page." The bottom-of-player mini chapter pulldown doesn't
+     *  scale to long fictions, and there's no first-class affordance to
+     *  jump from playback into the fiction's full chapter list. This
+     *  callback opens the per-fiction detail surface (cover + chapters)
+     *  for whatever's currently loaded. HybridReaderScreen guards
+     *  against null fictionId before invoking. Default no-op for
+     *  previews / tests; production callsites pass
+     *  `navController.navigate(StoryvoxRoutes.fictionDetail(fId))`. */
+    onOpenLibrary: () -> Unit = {},
     /** Issue #278 — loading-phase from the ReaderViewModel. Drives the
      *  soft "Still working…" hint at 10s and the hard timeout/retry
      *  error block at 30s. Defaults to NotLoading so previews / tests
@@ -325,14 +336,40 @@ fun AudiobookView(
                 // arrow: the a11y label matches the icon's perceived
                 // shape and there's a fast escape from the player
                 // without reaching for the system Back button.
-                IconButton(
-                    onClick = onBack,
+                //
+                // Issue #955 — paired with a brass MenuBook to the
+                // right of Back. JP's complaint: the mini chapter
+                // pulldown at the bottom doesn't scale, and there's
+                // no first-class way to land on the fiction's full
+                // chapter list from the player. MenuBook (the
+                // open-book glyph) lives at the leading edge alongside
+                // Back because both are "leave this surface" verbs —
+                // Back returns to wherever you came from, MenuBook
+                // takes you into the fiction's library page. Trailing
+                // edge stays reserved for the playback-modifying
+                // affordances (voice quick sheet, overflow sheet).
+                Row(
                     modifier = Modifier.align(Alignment.CenterStart),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Icon(
-                        Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Back",
-                    )
+                    IconButton(onClick = onBack) {
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back",
+                        )
+                    }
+                    IconButton(
+                        onClick = onOpenLibrary,
+                        modifier = Modifier.semantics {
+                            contentDescription = "Open chapter list"
+                        },
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.MenuBook,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                        )
+                    }
                 }
                 Column(
                     modifier = Modifier
@@ -340,11 +377,13 @@ fun AudiobookView(
                         // Issue #418 — bumped from 56 dp to 104 dp on the
                         // trailing side because the top bar now carries
                         // TWO trailing affordances (brass voice icon +
-                        // ⋮ overflow). Leading side stays at 56 dp for
-                        // the Settings gear. Asymmetric padding via
-                        // start/end keeps the title visually centered
-                        // across both sides' negative space.
-                        .padding(start = 56.dp, end = 104.dp),
+                        // ⋮ overflow). Issue #955 — leading side also
+                        // goes to 104 dp now that Back is paired with
+                        // the brass MenuBook (Open chapter list) for
+                        // the player → fiction-detail jump. Asymmetric
+                        // padding via start/end keeps the title visually
+                        // centered across both sides' negative space.
+                        .padding(start = 104.dp, end = 104.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     Text(
