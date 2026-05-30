@@ -123,6 +123,52 @@ object ConflictPolicies {
             else -> remote
         }
     }
+
+    /**
+     * Field-level LWW for a map of independently-stamped values — the
+     * settings-domain fix for #978.
+     *
+     * The whole-blob [lastWriteWins] above picks ONE side's entire blob
+     * by a single `updatedAt`, discarding every key on the loser. That
+     * silently drops cross-device concurrent edits: device A reorders
+     * its sources, device B flips a theme, B's blob wins on timestamp,
+     * A's reorder is gone. This merge instead resolves **each key
+     * independently**:
+     *
+     *  - **Union of keys** — a key present on only one side survives
+     *    (the other side simply has "no opinion" about it; settings has
+     *    no delete semantic — a cleared pref is an *omitted* key, not a
+     *    tombstone, per `SettingsSnapshotSource.apply`'s kdoc). This
+     *    union is the actual fix: A's local-only edit and B's local-only
+     *    edit both land.
+     *  - **Per-key newest-wins** — for a key on both sides, the higher
+     *    `updatedAt` wins.
+     *  - **Tie → local** — mirrors [lastWriteWins]'s "ties go to local"
+     *    rule, applied per key instead of per blob (same anti-churn
+     *    intent: don't rewrite a value that didn't meaningfully change).
+     *
+     * Order note: `merge(a, b)` and `merge(b, a)` agree on every key
+     * except exact-`updatedAt`-tie keys, where each call keeps its own
+     * `local`. That's the intended "don't churn the local store"
+     * behavior, not a correctness bug — tied values are equal-priority
+     * by definition.
+     */
+    fun <T> mergeStampedMap(
+        local: Map<String, Stamped<T>>,
+        remote: Map<String, Stamped<T>>,
+    ): Map<String, Stamped<T>> {
+        if (remote.isEmpty()) return local
+        if (local.isEmpty()) return remote
+        val out = LinkedHashMap<String, Stamped<T>>(local.size + remote.size)
+        out.putAll(local)
+        for ((key, r) in remote) {
+            val l = out[key]
+            // Remote-only key, or remote strictly newer → take remote.
+            // Local-only key, or tie → keep local (already in `out`).
+            if (l == null || r.updatedAt > l.updatedAt) out[key] = r
+        }
+        return out
+    }
 }
 
 /**

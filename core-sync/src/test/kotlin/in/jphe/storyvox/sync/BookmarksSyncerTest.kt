@@ -163,6 +163,9 @@ class BookmarksSyncerTest {
         override suspend fun previousChapterId(currentId: String): String? = null
         override suspend fun playbackChapter(id: String): PlaybackChapterRow? = null
         override suspend fun unreadChapters(limit: Int): List<UnreadChapterRow> = emptyList()
+        // #982 — not exercised by BookmarksSyncer; stub to satisfy the
+        // ChapterDao contract (added to the interface after this fake).
+        override suspend fun markFollowedCaughtUp(now: Long): Int = error("not used")
         override suspend fun upsert(chapter: Chapter) = error("not used")
         override suspend fun upsertAll(chapters: List<Chapter>) = error("not used")
         override suspend fun parkChapterIndexesFor(fictionId: String) = error("not used")

@@ -110,4 +110,46 @@ interface SettingsSnapshotSource {
      * carries an `updatedAt` later than the previous one.
      */
     suspend fun stampLocalWrite(at: Long = System.currentTimeMillis())
+
+    // ── Field-level sync (#978) ────────────────────────────────────
+    /**
+     * Per-key `updatedAt` (epoch-ms) for the keys returned by
+     * [snapshot] — the field-level-merge fix for #978.
+     *
+     * The whole-blob model carried ONE [lastLocalWriteAt] for every
+     * synced key, so a sync conflict resolved at blob granularity and
+     * dropped concurrent cross-device edits to *different* keys. This
+     * method surfaces a stamp per key so the syncer can merge
+     * key-by-key (newest-per-key wins) instead of blob-by-blob.
+     *
+     * Contract:
+     *  - The returned map's keys MUST be a subset of [snapshot]'s keys
+     *    (a stamp for a key not in the snapshot is meaningless).
+     *  - A key present in [snapshot] but ABSENT here means "this build
+     *    has no per-key stamp for it" — the syncer falls back to
+     *    [lastLocalWriteAt] for that key. This is what makes the
+     *    first run after upgrade (no per-key stamps yet) behave
+     *    exactly like the old blob-level model.
+     *
+     * Default: empty map → every key falls back to [lastLocalWriteAt],
+     * reproducing the pre-#978 behavior. Only the `:app` impl overrides
+     * this; in-memory test/fake sources inherit the default and keep
+     * working unchanged.
+     */
+    suspend fun fieldStamps(): Map<String, Long> = emptyMap()
+
+    /**
+     * Apply a snapshot received from a remote device **with** the
+     * per-key `updatedAt` that the merge selected for each key, so the
+     * local per-key stamp store stays in lockstep with the values.
+     *
+     * Same tolerance rules as [apply] for the values. [stamps] keys
+     * SHOULD line up with [snapshot] keys; any stamp for a key the
+     * impl can't apply is simply ignored.
+     *
+     * Default: ignore [stamps] and delegate to [apply], so an impl
+     * that doesn't track per-key stamps (every fake/test source) keeps
+     * working. The `:app` impl overrides to persist the stamps.
+     */
+    suspend fun applyStamped(snapshot: Map<String, String>, stamps: Map<String, Long>) = apply(snapshot)
 }

@@ -101,4 +101,56 @@ class ConflictPoliciesTest {
         val remote = Stamped(value = 5, updatedAt = 100L)
         assertTrue(local === ConflictPolicies.maxScalarStamped(local, remote))
     }
+
+    // ── mergeStampedMap (#978 field-level merge) ───────────────────
+
+    @Test fun `mergeStampedMap unions disjoint keys — both survive`() {
+        val local = mapOf("theme" to Stamped("dark", 1L))
+        val remote = mapOf("speed" to Stamped("1.5", 1L))
+        val merged = ConflictPolicies.mergeStampedMap(local, remote)
+        assertEquals(2, merged.size)
+        assertEquals("dark", merged["theme"]!!.value)
+        assertEquals("1.5", merged["speed"]!!.value)
+    }
+
+    @Test fun `mergeStampedMap newest-per-key wins independently`() {
+        val local = mapOf(
+            "theme" to Stamped("light", 2_000L), // older
+            "speed" to Stamped("3.0", 9_000L),   // newer
+        )
+        val remote = mapOf(
+            "theme" to Stamped("dark", 5_000L),  // newer → wins
+            "speed" to Stamped("1.0", 1_000L),   // older
+        )
+        val merged = ConflictPolicies.mergeStampedMap(local, remote)
+        assertEquals("dark", merged["theme"]!!.value)
+        assertEquals("3.0", merged["speed"]!!.value)
+    }
+
+    @Test fun `mergeStampedMap tie on a key prefers local value`() {
+        val local = mapOf("k" to Stamped("LOCAL", 100L))
+        val remote = mapOf("k" to Stamped("REMOTE", 100L))
+        val merged = ConflictPolicies.mergeStampedMap(local, remote)
+        assertEquals("LOCAL", merged["k"]!!.value)
+    }
+
+    @Test fun `mergeStampedMap empty remote returns local unchanged`() {
+        val local = mapOf("k" to Stamped("v", 1L))
+        assertEquals(local, ConflictPolicies.mergeStampedMap(local, emptyMap()))
+    }
+
+    @Test fun `mergeStampedMap empty local returns remote unchanged`() {
+        val remote = mapOf("k" to Stamped("v", 1L))
+        assertEquals(remote, ConflictPolicies.mergeStampedMap(emptyMap(), remote))
+    }
+
+    @Test fun `mergeStampedMap keeps each side's local-only keys plus newest shared`() {
+        val local = mapOf("a" to Stamped("la", 5L), "shared" to Stamped("ls", 5L))
+        val remote = mapOf("b" to Stamped("rb", 5L), "shared" to Stamped("rs", 9L))
+        val merged = ConflictPolicies.mergeStampedMap(local, remote)
+        assertEquals("la", merged["a"]!!.value)
+        assertEquals("rb", merged["b"]!!.value)
+        assertEquals("rs", merged["shared"]!!.value) // remote newer (9 > 5)
+        assertEquals(9L, merged["shared"]!!.updatedAt)
+    }
 }

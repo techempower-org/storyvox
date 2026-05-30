@@ -240,6 +240,9 @@ class PlaybackPositionSyncerTest {
         override suspend fun previousChapterId(currentId: String): String? = null
         override suspend fun playbackChapter(id: String): PlaybackChapterRow? = null
         override suspend fun unreadChapters(limit: Int): List<UnreadChapterRow> = emptyList()
+        // #982 — not exercised by PlaybackPositionSyncer; stub to
+        // satisfy the ChapterDao contract (added after this fake).
+        override suspend fun markFollowedCaughtUp(now: Long): Int = error("not used")
         override suspend fun allBookmarks() = emptyList<`in`.jphe.storyvox.data.db.dao.BookmarkRow>()
         override suspend fun setBookmark(id: String, charOffset: Int?) = error("not used")
         override suspend fun getBookmark(id: String): Int? = null

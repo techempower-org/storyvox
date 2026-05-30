@@ -3,6 +3,8 @@ package `in`.jphe.storyvox.data
 import android.content.Context
 import androidx.datastore.core.DataMigration
 import androidx.datastore.core.DataStore
+import kotlinx.serialization.builtins.MapSerializer
+import kotlinx.serialization.builtins.serializer
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
@@ -2806,6 +2808,47 @@ class SettingsRepositoryUiImpl(
     }
 
     override suspend fun apply(snapshot: Map<String, String>) {
+        applyValues(snapshot)
+        // After applying, mark this as a fresh local write so the
+        // next sync round push carries the merged-blob timestamp.
+        // (Flat path — no incoming per-key stamps; treat the whole
+        // applied set as "written now" for diff purposes.)
+        stampSyncedWrite()
+    }
+
+    /**
+     * #978 — field-level apply. Writes the values exactly like [apply],
+     * then records the **incoming** per-key stamps (the timestamps the
+     * merge already chose) into the local stamp store instead of
+     * stamping everything `now`. This keeps the local per-key clock in
+     * lockstep with the value the merge selected, so a key the remote
+     * won doesn't get re-stamped fresher than its true edit time (which
+     * would make it spuriously win the next merge).
+     */
+    override suspend fun applyStamped(snapshot: Map<String, String>, stamps: Map<String, Long>) {
+        applyValues(snapshot)
+        // Persist the incoming stamps for the applied keys, and rebase
+        // the diff baseline to the values we just wrote so the next
+        // LOCAL edit diffs against the merged state (not a stale one).
+        val existingStamps = readFieldStamps().toMutableMap()
+        val baseline = readSnapshotBaseline().toMutableMap()
+        for ((key, value) in snapshot) {
+            stamps[key]?.let { existingStamps[key] = it }
+            baseline[key] = value
+        }
+        writeFieldStamps(existingStamps)
+        writeSnapshotBaseline(baseline)
+        // Advance the legacy global stamp to the newest applied field
+        // (still the v1 row updatedAt + the per-key fallback). Do NOT
+        // call stampSyncedWrite — that would re-stamp everything `now`
+        // and schedule a redundant push of state we just received.
+        stamps.values.maxOrNull()?.let { stampLocalWrite(it) }
+    }
+
+    /** Shared value-application body for [apply] / [applyStamped].
+     *  Per-key tolerant: a remote that omits a key leaves the local
+     *  value alone. */
+    private suspend fun applyValues(snapshot: Map<String, String>) {
         // 1. Main settings DataStore.
         val mainSlice = snapshot.filterKeys { it.startsWith("settings.") }
             .mapKeys { (k, _) -> k.removePrefix("settings.") }
@@ -2829,9 +2872,6 @@ class SettingsRepositoryUiImpl(
         snapshot["outline.pref_outline_host"]?.let { outlineConfig.setHost(it) }
         snapshot["wikipedia.pref_wikipedia_language_code"]?.let { wikipediaConfig.setLanguageCode(it) }
         snapshot["palace.pref_palace_host"]?.let { palaceConfig.setHost(it) }
-        // After applying, mark this as a fresh local write so the
-        // next sync round push carries the merged-blob timestamp.
-        stampSyncedWrite()
     }
 
     /**
@@ -2874,6 +2914,18 @@ class SettingsRepositoryUiImpl(
         store.edit { it[SYNC_LAST_WRITE_KEY] = at }
     }
 
+    /**
+     * #978 — per-key `updatedAt` for the synced settings. The map is
+     * persisted as a stringified JSON `Map<String,Long>` in the main
+     * store under the non-synced [SYNC_FIELD_STAMPS_KEY], maintained
+     * by the diff in [stampSyncedWrite] (local edits) and by
+     * [applyStamped] (remote merges). A key absent here has never been
+     * individually stamped on this device; the syncer falls back to
+     * [lastLocalWriteAt] for it — which reproduces the pre-#978
+     * blob-level behavior for untouched keys after an upgrade.
+     */
+    override suspend fun fieldStamps(): Map<String, Long> = readFieldStamps()
+
     /** Convenience used by every setter on this class so writes to a
      *  synced key automatically advance the sync timestamp. Settings UI
      *  that calls one of the existing `set*` mutators will get its
@@ -2883,10 +2935,59 @@ class SettingsRepositoryUiImpl(
      *  debounced push of the "settings" domain, so a preference change
      *  reaches InstantDB right away instead of waiting for a cold-start
      *  or manual "Sync now" (a window in which an intervening pull could
-     *  clobber the un-pushed local change). */
+     *  clobber the un-pushed local change).
+     *
+     *  Issue #978 — diff-based per-key stamping. Because this is the
+     *  single funnel for every synced local write, we can derive
+     *  per-key timestamps WITHOUT touching the ~70 `set*` mutators:
+     *  snapshot the current allowlisted map, diff it against the
+     *  persisted baseline, and bump `updatedAt = now` only for keys
+     *  whose value actually changed (or are new). Keys removed from
+     *  the snapshot drop their stamp. The baseline is then rebased to
+     *  the current snapshot so the next edit diffs against it. Two keys
+     *  changed inside one debounce window share a `now` stamp — fine,
+     *  they're genuinely concurrent local edits. */
     private suspend fun stampSyncedWrite() {
-        stampLocalWrite(System.currentTimeMillis())
+        val now = System.currentTimeMillis()
+        stampLocalWrite(now)
+        runCatching { reconcileFieldStamps(now) }
         scheduleSettingsPush()
+    }
+
+    /** Recompute the per-key stamp map from a fresh snapshot vs the
+     *  persisted baseline, bumping changed/new keys to [now]. */
+    private suspend fun reconcileFieldStamps(now: Long) {
+        val current = snapshot()
+        val baseline = readSnapshotBaseline()
+        val stamps = readFieldStamps().toMutableMap()
+        // Bump changed / new keys.
+        for ((key, value) in current) {
+            if (baseline[key] != value) stamps[key] = now
+        }
+        // Forget stamps for keys no longer present.
+        stamps.keys.retainAll(current.keys)
+        writeFieldStamps(stamps)
+        writeSnapshotBaseline(current)
+    }
+
+    private suspend fun readFieldStamps(): Map<String, Long> {
+        val raw = store.data.first()[SYNC_FIELD_STAMPS_KEY] ?: return emptyMap()
+        return runCatching { syncJson.decodeFromString(STAMP_MAP_SERIALIZER, raw) }.getOrDefault(emptyMap())
+    }
+
+    private suspend fun writeFieldStamps(stamps: Map<String, Long>) {
+        val encoded = syncJson.encodeToString(STAMP_MAP_SERIALIZER, stamps)
+        store.edit { it[SYNC_FIELD_STAMPS_KEY] = encoded }
+    }
+
+    private suspend fun readSnapshotBaseline(): Map<String, String> {
+        val raw = store.data.first()[SYNC_SNAPSHOT_BASELINE_KEY] ?: return emptyMap()
+        return runCatching { syncJson.decodeFromString(STRING_MAP_SERIALIZER, raw) }.getOrDefault(emptyMap())
+    }
+
+    private suspend fun writeSnapshotBaseline(snapshot: Map<String, String>) {
+        val encoded = syncJson.encodeToString(STRING_MAP_SERIALIZER, snapshot)
+        store.edit { it[SYNC_SNAPSHOT_BASELINE_KEY] = encoded }
     }
 
     companion object {
@@ -2894,6 +2995,32 @@ class SettingsRepositoryUiImpl(
          *  [SYNC_ALLOWLIST] (we never sync the sync timestamp itself
          *  — that'd be a loop). */
         private val SYNC_LAST_WRITE_KEY = longPreferencesKey("instantdb.settings_synced_at")
+
+        /** Issue #978 — per-key `updatedAt` map (stringified JSON
+         *  `Map<String,Long>`) for field-level merge. Same non-synced
+         *  `instantdb.*` convention as [SYNC_LAST_WRITE_KEY] /
+         *  `instantdb.pronunciation_dict_write_at` — excluded from
+         *  [SYNC_ALLOWLIST] so we never sync the sync clock itself. */
+        private val SYNC_FIELD_STAMPS_KEY =
+            stringPreferencesKey("instantdb.settings_field_stamps_v1")
+
+        /** Issue #978 — the last snapshot the per-key stamping diffed
+         *  against (stringified JSON `Map<String,String>`). Lets
+         *  [reconcileFieldStamps] bump only the keys that actually
+         *  changed since the previous synced write, without touching
+         *  any `set*` mutator. Non-synced `instantdb.*` key. */
+        private val SYNC_SNAPSHOT_BASELINE_KEY =
+            stringPreferencesKey("instantdb.settings_snapshot_baseline_v1")
+
+        /** JSON + serializers for the #978 per-key stamp / baseline
+         *  maps. Lenient on read so a corrupt sidecar degrades to
+         *  "empty" (every key falls back to the global stamp) rather
+         *  than crashing. */
+        private val syncJson = kotlinx.serialization.json.Json {
+            ignoreUnknownKeys = true; encodeDefaults = true; coerceInputValues = true
+        }
+        private val STAMP_MAP_SERIALIZER = MapSerializer(String.serializer(), Long.serializer())
+        private val STRING_MAP_SERIALIZER = MapSerializer(String.serializer(), String.serializer())
 
         /** Issue #977 — domain name for the push-on-write seam. Must match
          *  `SettingsSyncer.DOMAIN`; [SyncCoordinator.requestPush] no-ops if

@@ -8,7 +8,11 @@ import `in`.jphe.storyvox.sync.client.SignedInUser
 import `in`.jphe.storyvox.sync.coordinator.SyncOutcome
 import `in`.jphe.storyvox.sync.domain.SettingsSyncer
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.builtins.MapSerializer
+import kotlinx.serialization.builtins.serializer
+import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -36,6 +40,11 @@ class SettingsSyncerTest {
     private class FakeSource(initial: Map<String, String> = emptyMap()) : SettingsSnapshotSource {
         val store: MutableMap<String, String> = initial.toMutableMap()
         var stamp: Long = 0L
+        /** Per-key stamps (#978). Empty by default → every key falls
+         *  back to [stamp], reproducing the pre-#978 single-stamp
+         *  behavior. Tests that exercise field-level merge populate
+         *  this to give two keys independent timestamps. */
+        val keyStamps: MutableMap<String, Long> = mutableMapOf()
 
         override suspend fun snapshot(): Map<String, String> = store.toMap()
 
@@ -46,6 +55,20 @@ class SettingsSyncerTest {
         override suspend fun lastLocalWriteAt(): Long = stamp
 
         override suspend fun stampLocalWrite(at: Long) { stamp = at }
+
+        override suspend fun fieldStamps(): Map<String, Long> = keyStamps.toMap()
+
+        override suspend fun applyStamped(snapshot: Map<String, String>, stamps: Map<String, Long>) {
+            for ((k, v) in snapshot) store[k] = v
+            for ((k, t) in stamps) keyStamps[k] = t
+        }
+
+        /** Convenience for tests: set a key + its per-key stamp. */
+        fun put(key: String, value: String, at: Long) {
+            store[key] = value
+            keyStamps[key] = at
+            if (at > stamp) stamp = at
+        }
     }
 
     @Test fun `local write gets pushed to remote on first sync`() = runTest {
@@ -141,12 +164,16 @@ class SettingsSyncerTest {
         assertNull(backend.fetch(USER, "blobs", SyncIds.rowUuid("settings", USER.userId)).getOrNull())
     }
 
-    @Test fun `tombstone propagates — local clears a key, remote sees the clear`() = runTest {
-        // Settings sync uses LWW on the whole blob; "clearing a key
-        // locally" is encoded as "the next local snapshot omits the
-        // key." Pushing the smaller snapshot replaces the remote blob
-        // entirely (no per-key tombstones — that's the v1 model
-        // documented in design-decisions.md).
+    @Test fun `field-level merge — omitting a key on push does NOT delete it remotely (#978 union)`() = runTest {
+        // BEHAVIOR CHANGE (#978): settings sync moved from whole-blob
+        // LWW to per-key UNION merge. Settings has no delete semantic
+        // — an omitted key means "no opinion," not "tombstone" (see
+        // SettingsSnapshotSource.apply kdoc). So pushing a smaller
+        // snapshot no longer wipes the omitted key from the remote;
+        // the union preserves it. This is intentional and is the flip
+        // side of the cross-device-clobber fix: device A omitting a
+        // key it doesn't know about must not erase device B's value
+        // for it.
         val backend = FakeInstantBackend()
         val source = FakeSource(
             initial = mapOf(
@@ -156,7 +183,7 @@ class SettingsSyncerTest {
         ).also { it.stamp = 1_000L }
         SettingsSyncer(source, backend).push(USER)
 
-        // User clears the speed override.
+        // A later snapshot omits the speed key.
         source.store.remove("settings.pref_default_speed")
         source.stamp = 2_000L
         SettingsSyncer(source, backend).push(USER)
@@ -164,8 +191,8 @@ class SettingsSyncerTest {
         val row = backend.fetch(USER, "blobs", SyncIds.rowUuid("settings", USER.userId)).getOrNull()!!
         assertTrue("remote should retain the theme", row.payload.contains("\"DARK\""))
         assertTrue(
-            "remote should NOT carry the cleared default-speed",
-            !row.payload.contains("\"settings.pref_default_speed\""),
+            "remote should STILL carry the omitted default-speed (union, no delete semantic)",
+            row.payload.contains("\"settings.pref_default_speed\""),
         )
     }
 
@@ -339,5 +366,174 @@ class SettingsSyncerTest {
         SettingsSyncer(source, backend).push(USER)
         val row = backend.fetch(USER, "blobs", SyncIds.rowUuid("settings", USER.userId)).getOrNull()!!
         assertEquals(42L, row.updatedAt)
+    }
+
+    // ── #978 field-level merge ─────────────────────────────────────
+
+    @Test fun `field-level merge — A edits X, B edits Y concurrently, BOTH survive`() = runTest {
+        // THE bug #978 fixes. Device A edits the theme; device B edits
+        // the default speed; neither knows about the other's edit.
+        // Under whole-blob LWW one would clobber the other. Under
+        // per-key merge both land.
+        val backend = FakeInstantBackend()
+
+        // Device A: had theme=LIGHT + speed=1.0 at t=1000, then edits
+        // theme→DARK at t=3000 (only the theme key bumps).
+        val deviceA = FakeSource()
+        deviceA.put("settings.pref_theme_override", "LIGHT", 1_000L)
+        deviceA.put("settings.pref_default_speed", "1.0", 1_000L)
+        deviceA.put("settings.pref_theme_override", "DARK", 3_000L) // A's edit
+        SettingsSyncer(deviceA, backend).push(USER) // A uploads first
+
+        // Device B: same starting state, edits speed→2.0 at t=2000
+        // (only the speed key bumps), still thinks theme=LIGHT.
+        val deviceB = FakeSource()
+        deviceB.put("settings.pref_theme_override", "LIGHT", 1_000L)
+        deviceB.put("settings.pref_default_speed", "1.0", 1_000L)
+        deviceB.put("settings.pref_default_speed", "2.0", 2_000L) // B's edit
+        SettingsSyncer(deviceB, backend).push(USER) // B syncs against A's row
+
+        // After B's merge: theme=DARK (A's t=3000 beats B's t=1000) and
+        // speed=2.0 (B's t=2000 beats A's t=1000). BOTH edits survived.
+        assertEquals("A's theme edit survives on B", "DARK", deviceB.store["settings.pref_theme_override"])
+        assertEquals("B's speed edit survives on B", "2.0", deviceB.store["settings.pref_default_speed"])
+
+        // And the remote reflects both, so a third device pulls both.
+        val deviceC = FakeSource()
+        SettingsSyncer(deviceC, backend).pull(USER)
+        assertEquals("DARK", deviceC.store["settings.pref_theme_override"])
+        assertEquals("2.0", deviceC.store["settings.pref_default_speed"])
+    }
+
+    @Test fun `field-level merge — newest-per-key wins independently`() = runTest {
+        val backend = FakeInstantBackend()
+        // Remote: theme edited late (t=5000), speed edited early (t=1000).
+        val a = FakeSource()
+        a.put("settings.pref_theme_override", "DARK", 5_000L)
+        a.put("settings.pref_default_speed", "1.0", 1_000L)
+        SettingsSyncer(a, backend).push(USER)
+
+        // Local: theme edited early (t=2000 < 5000 → loses), speed
+        // edited late (t=9000 > 1000 → wins).
+        val b = FakeSource()
+        b.put("settings.pref_theme_override", "LIGHT", 2_000L)
+        b.put("settings.pref_default_speed", "3.0", 9_000L)
+        SettingsSyncer(b, backend).pull(USER)
+
+        assertEquals("remote's newer theme wins", "DARK", b.store["settings.pref_theme_override"])
+        assertEquals("local's newer speed wins", "3.0", b.store["settings.pref_default_speed"])
+    }
+
+    @Test fun `field-level merge — equal per-key timestamp ties to local`() = runTest {
+        // Mirrors the whole-blob "tie → local" rule, applied per key.
+        val backend = FakeInstantBackend()
+        val a = FakeSource()
+        a.put("settings.pref_theme_override", "REMOTE_VAL", 777L)
+        SettingsSyncer(a, backend).push(USER)
+
+        val b = FakeSource()
+        b.put("settings.pref_theme_override", "LOCAL_VAL", 777L) // exact tie
+        SettingsSyncer(b, backend).pull(USER)
+
+        assertEquals("tie keeps local", "LOCAL_VAL", b.store["settings.pref_theme_override"])
+    }
+
+    @Test fun `v1 to v2 — a flat (v1) remote row synthesizes per-key stamps from the row updatedAt`() = runTest {
+        // A pre-#978 device wrote a flat blob with a single row
+        // updatedAt and NO _field_stamps sidecar. A #978 device must
+        // read it, synthesize every key's stamp = row.updatedAt, and
+        // merge correctly (no data loss, no crash).
+        val backend = FakeInstantBackend()
+        val rowId = SyncIds.rowUuid("settings", USER.userId)
+        // Hand-craft a v1 flat payload (exactly what old code wrote).
+        backend.upsert(
+            USER,
+            entity = "blobs",
+            id = rowId,
+            payload = """{"settings.pref_theme_override":"DARK","settings.pref_default_speed":"1.5"}""",
+            updatedAt = 8_000L,
+        )
+
+        // Local device has a NEWER edit to one key (t=9000) and an
+        // OLDER value for another (no per-key stamp → falls back to
+        // global stamp 500, which loses to the v1 row's 8000).
+        val local = FakeSource()
+        local.put("settings.pref_theme_override", "LIGHT", 9_000L) // newer than 8000 → wins
+        local.store["settings.pref_default_speed"] = "2.0"          // no per-key stamp
+        local.stamp = 500L                                          // fallback < 8000 → loses
+        SettingsSyncer(local, backend).pull(USER)
+
+        assertEquals("local's newer theme wins over v1 row", "LIGHT", local.store["settings.pref_theme_override"])
+        assertEquals("v1 row's speed (8000) beats local fallback (500)", "1.5", local.store["settings.pref_default_speed"])
+    }
+
+    @Test fun `HARD GATE — a v1 client can decode a v2 payload without throwing and reads every real key`() = runTest {
+        // This is the back-compat gate Sandman flagged: JP's other
+        // devices run v1.0.1 (pre-#978) and will read v2 payloads this
+        // build writes. A v1 client deserializes the payload with
+        // MapSerializer(String, String). If a v2 payload had an
+        // OBJECT-typed value (e.g. a nested {value,updatedAt}) that
+        // decode would throw and sync would BREAK for the old device.
+        // The stringified _field_stamps sidecar keeps every top-level
+        // value a String, so the old decoder reads every real
+        // preference and silently ignores _v / _field_stamps.
+        val backend = FakeInstantBackend()
+        val rowId = SyncIds.rowUuid("settings", USER.userId)
+
+        // Produce a REAL v2 payload by pushing through the new syncer.
+        val producer = FakeSource()
+        producer.put("settings.pref_theme_override", "DARK", 1_000L)
+        producer.put("settings.pref_default_speed", "1.25", 2_000L)
+        producer.put("notion.pref_notion_database_id", "db-9999", 3_000L)
+        SettingsSyncer(producer, backend).push(USER)
+        val v2payload = backend.fetch(USER, "blobs", rowId).getOrNull()!!.payload
+
+        // Sanity: it really is v2 (carries the sidecar markers).
+        assertTrue("payload must be v2", v2payload.contains("\"_v\""))
+        assertTrue("payload must carry _field_stamps", v2payload.contains("\"_field_stamps\""))
+
+        // Decode it EXACTLY as a v1 client would: flat Map<String,String>.
+        val v1Json = Json { ignoreUnknownKeys = true; coerceInputValues = true }
+        val flat: Map<String, String> = v1Json.decodeFromString(
+            MapSerializer(String.serializer(), String.serializer()),
+            v2payload,
+        ) // <-- must not throw
+
+        // Every real preference is present and correct for the old reader.
+        assertEquals("DARK", flat["settings.pref_theme_override"])
+        assertEquals("1.25", flat["settings.pref_default_speed"])
+        assertEquals("db-9999", flat["notion.pref_notion_database_id"])
+        // The reserved sidecar keys are visible to the old reader as
+        // opaque strings, never as objects (which would have thrown).
+        // They don't collide with any real key (all real keys are
+        // namespaced, none start with `_`).
+        assertEquals("2", flat["_v"])
+        assertTrue("_field_stamps is an opaque string to the v1 reader", flat["_field_stamps"]!!.contains("updatedAt").not())
+        assertFalse("no real preference key starts with _", flat.keys.filter { it.startsWith("_") }.any { it != "_v" && it != "_field_stamps" })
+    }
+
+    @Test fun `round-trip — v2 producer to v2 consumer preserves per-key stamps`() = runTest {
+        // A v2 consumer reading a v2 row must recover the SAME per-key
+        // stamps the producer wrote, so a subsequent merge resolves
+        // correctly. We verify indirectly: after C pulls, C re-pushes
+        // and the row is byte-identical (stamps round-tripped).
+        val backend = FakeInstantBackend()
+        val rowId = SyncIds.rowUuid("settings", USER.userId)
+        val producer = FakeSource()
+        producer.put("settings.pref_theme_override", "DARK", 1_111L)
+        producer.put("settings.pref_default_speed", "1.25", 2_222L)
+        SettingsSyncer(producer, backend).push(USER)
+        val first = backend.fetch(USER, "blobs", rowId).getOrNull()!!.payload
+
+        val consumer = FakeSource()
+        SettingsSyncer(consumer, backend).pull(USER)
+        // Consumer recorded the producer's per-key stamps via applyStamped.
+        assertEquals(1_111L, consumer.keyStamps["settings.pref_theme_override"])
+        assertEquals(2_222L, consumer.keyStamps["settings.pref_default_speed"])
+
+        // Re-push from the consumer — identical state → identical bytes.
+        SettingsSyncer(consumer, backend).push(USER)
+        val second = backend.fetch(USER, "blobs", rowId).getOrNull()!!.payload
+        assertEquals("v2 round-trip must be byte-stable", first, second)
     }
 }
