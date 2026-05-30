@@ -28,6 +28,20 @@ class SetSyncer(
     private val localAdd: suspend (String) -> Unit,
     private val localRemove: suspend (String) -> Unit,
     private val remote: SetRemote,
+    /**
+     * Issue #989 — per-member rebuild data (id → source URL) that some
+     * sources need to reconstruct a fiction on a device that never saw
+     * the original paste (Readability/RSS/EPUB-direct, whose id is an
+     * opaque hash of the URL). Defaults make this a no-op for set
+     * domains that have no per-member aux data (Follows, voices):
+     *  - [localMemberData] returns the URLs this device knows for the
+     *    given member ids (only the hash-id sources contribute);
+     *  - [persistMemberData] is called for each merged member with a
+     *    known URL so the pull side can store it durably before the
+     *    back-fill worker tries to hydrate the placeholder.
+     */
+    private val localMemberData: suspend (Set<String>) -> Map<String, String> = { emptyMap() },
+    private val persistMemberData: suspend (String, String) -> Unit = { _, _ -> },
 ) : Syncer {
 
     /** Abstraction over InstantDB calls so tests don't need a live
@@ -38,13 +52,27 @@ class SetSyncer(
      *  with the long being the epoch-ms stamp the tombstone was
      *  recorded — load-bearing for [ConflictPolicies.unionWithTombstoneStamps]
      *  to apply a freshness window so a re-add of a previously-
-     *  tombstoned id can win. */
+     *  tombstoned id can win.
+     *
+     *  Issue #989: [memberData] (id → source URL) rides alongside the
+     *  member set so hash-id fictions can be rebuilt cross-device. The
+     *  wire field is additive and defaulted empty, so old clients
+     *  ignore it and a new client reading an old payload sees no URLs. */
     interface SetRemote {
         suspend fun fetch(user: SignedInUser): Result<RemoteSet>
-        suspend fun push(user: SignedInUser, members: Set<String>, tombstones: Map<String, Long>): Result<Unit>
+        suspend fun push(
+            user: SignedInUser,
+            members: Set<String>,
+            tombstones: Map<String, Long>,
+            memberData: Map<String, String>,
+        ): Result<Unit>
     }
 
-    data class RemoteSet(val members: Set<String>, val tombstones: Map<String, Long>)
+    data class RemoteSet(
+        val members: Set<String>,
+        val tombstones: Map<String, Long>,
+        val memberData: Map<String, String> = emptyMap(),
+    )
 
     override suspend fun push(user: SignedInUser): SyncOutcome = pushImpl(user)
 
@@ -85,6 +113,17 @@ class SetSyncer(
         )
         android.util.Log.d(tag, "merged: ${mergedMembers.size} members (${combinedTombs.size} combined tombstones)")
 
+        // Issue #989 — combine the per-member rebuild URLs from both
+        // sides. Local wins on conflict: this device's persisted URL is
+        // first-hand (it captured the paste) and we don't want a stale
+        // remote value to shadow it. Remote-only URLs fill in members we
+        // received from another device.
+        val localData = runCatching { localMemberData(local) }
+            .getOrElse { return SyncOutcome.Transient("local member data: ${it.message}") }
+        val mergedData = (remoteSet.memberData + localData)
+            .filterKeys { it in mergedMembers }
+        android.util.Log.d(tag, "memberData: ${localData.size} local, ${remoteSet.memberData.size} remote, ${mergedData.size} merged")
+
         // Reconcile local — apply remote-only adds, drop remote tombs.
         val toAddLocally = mergedMembers - local
         val toRemoveLocally = (local - mergedMembers)
@@ -92,6 +131,15 @@ class SetSyncer(
         for ((i, id) in toAddLocally.withIndex()) {
             runCatching { localAdd(id) }
                 .getOrElse { return SyncOutcome.Transient("localAdd($id): ${it.message}") }
+            // Persist the rebuild URL onto the row localAdd just created
+            // so the back-fill worker (or a detail-open) can hydrate a
+            // hash-id fiction this device has never seen. After localAdd
+            // so the placeholder row exists for the UPDATE to land on.
+            // No-op default for aux-less domains.
+            mergedData[id]?.let { url ->
+                runCatching { persistMemberData(id, url) }
+                    .getOrElse { return SyncOutcome.Transient("persistMemberData($id): ${it.message}") }
+            }
             if ((i + 1) % 10 == 0) android.util.Log.d(tag, "localAdd progress: ${i+1}/${toAddLocally.size}")
         }
         for ((i, id) in toRemoveLocally.withIndex()) {
@@ -106,7 +154,7 @@ class SetSyncer(
         // round) so other devices see the same horizon we just
         // computed against.
         android.util.Log.d(tag, "pushing ${mergedMembers.size} members to remote")
-        val push = remote.push(user, mergedMembers, combinedTombs)
+        val push = remote.push(user, mergedMembers, combinedTombs, mergedData)
         if (push.isFailure) {
             return SyncOutcome.Transient("remote push: ${push.exceptionOrNull()?.message}")
         }

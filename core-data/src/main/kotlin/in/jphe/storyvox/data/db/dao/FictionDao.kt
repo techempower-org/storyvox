@@ -104,6 +104,25 @@ interface FictionDao {
     suspend fun setSourceId(id: String, sourceId: String)
 
     /**
+     * Issue #989 — read the persisted rebuild URL for a hash-id source
+     * (Readability/RSS/EPUB direct-download). Null for the many sources
+     * whose id is self-describing. Used both by `ReadabilitySource` as a
+     * durable fallback behind its in-memory URL cache and by
+     * `LibrarySyncer` to populate the synced library payload.
+     */
+    @Query("SELECT sourceUrl FROM fiction WHERE id = :id")
+    suspend fun getSourceUrl(id: String): String?
+
+    /**
+     * Issue #989 — persist the rebuild URL. Only overwrites a NULL: once
+     * a row has a remembered URL we never clobber it (the originating
+     * paste is authoritative; a synced placeholder that arrives later
+     * with the same URL is a no-op, and we never want to null it out).
+     */
+    @Query("UPDATE fiction SET sourceUrl = :url WHERE id = :id AND sourceUrl IS NULL")
+    suspend fun setSourceUrlIfAbsent(id: String, url: String)
+
+    /**
      * Issue #981 — placeholder rows the [MetadataBackfillWorker] should
      * hydrate. A placeholder is a library / source-follow row that was
      * inserted by `LibrarySyncer`/`FollowsSyncer.localAdd` with

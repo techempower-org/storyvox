@@ -117,6 +117,20 @@ class LibrarySyncer @Inject constructor(
             playbackDao.delete(id)
         },
         remote = BackendSetRemote(domain = DOMAIN, backend = backend),
+        // Issue #989 — carry the rebuild URL for hash-id sources
+        // (Readability/RSS/EPUB-direct) so a synced library member can be
+        // reconstructed on a device that never saw the paste. Only those
+        // sources persist a `sourceUrl`; everything else returns null and
+        // is naturally absent from the payload.
+        localMemberData = { ids ->
+            ids.mapNotNull { id -> fictionDao.getSourceUrl(id)?.let { id to it } }.toMap()
+        },
+        persistMemberData = { id, url ->
+            // Stamp the URL onto the placeholder row SetSyncer just
+            // created. setSourceUrlIfAbsent never clobbers a URL this
+            // device already captured first-hand.
+            fictionDao.setSourceUrlIfAbsent(id, url)
+        },
     )
 
     companion object {

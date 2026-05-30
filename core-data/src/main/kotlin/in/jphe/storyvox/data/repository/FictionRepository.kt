@@ -444,8 +444,19 @@ class FictionRepositoryImpl @Inject constructor(
                     author = "",
                     firstSeenAt = now,
                     metadataFetchedAt = now,
+                    // Issue #989 — remember the original URL for the
+                    // hash-id sources (Readability/RSS/EPUB-direct) whose
+                    // id can't be reversed to a URL. This is the durable
+                    // home that survives process death / cache-clear and
+                    // rides across devices via LibrarySyncer.
+                    sourceUrl = if (SourceIds.idNeedsSourceUrlToRebuild(picked.sourceId)) url else null,
                 ),
             )
+        } else if (SourceIds.idNeedsSourceUrlToRebuild(picked.sourceId)) {
+            // Row already exists (re-paste of the same URL, or a synced
+            // placeholder we're now hydrating): back-fill the URL if we
+            // never captured it. setSourceUrlIfAbsent never clobbers.
+            fictionDao.setSourceUrlIfAbsent(picked.fictionId, url)
         }
 
         when (val r = src.fictionDetail(picked.fictionId)) {

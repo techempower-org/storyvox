@@ -58,7 +58,12 @@ import `in`.jphe.storyvox.data.db.entity.PlaybackPosition
     // so synced placeholder rows that a source can't hydrate surface a
     // distinct "Couldn't load" state instead of an eternal "Loading…".
     // Purely additive nullable column.
-    version = 12,
+    //
+    // v13 (#989 rebuild-essential URL) — adds `fiction.sourceUrl`, the
+    // original source URL for hash-id sources (Readability/RSS/EPUB
+    // direct-download) so a synced placeholder can be rebuilt on a
+    // second device. Purely additive nullable column.
+    version = 13,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)

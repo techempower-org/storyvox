@@ -192,6 +192,18 @@ class FictionRepositoryImplTest {
             publish(id)
         }
 
+        override suspend fun getSourceUrl(id: String): String? = rows[id]?.sourceUrl
+
+        override suspend fun setSourceUrlIfAbsent(id: String, url: String) {
+            callLog += "setSourceUrlIfAbsent($id, $url)"
+            val r = rows[id] ?: return
+            // Mirror the real DAO's `WHERE sourceUrl IS NULL` — never clobber.
+            if (r.sourceUrl == null) {
+                rows[id] = r.copy(sourceUrl = url)
+                publish(id)
+            }
+        }
+
         override suspend fun markBackfillFailed(id: String, now: Long) {
             callLog += "markBackfillFailed($id, $now)"
             val r = rows[id] ?: return

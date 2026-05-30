@@ -15,6 +15,7 @@ import `in`.jphe.storyvox.data.db.migration.MIGRATION_8_9
 import `in`.jphe.storyvox.data.db.migration.MIGRATION_9_10
 import `in`.jphe.storyvox.data.db.migration.MIGRATION_10_11
 import `in`.jphe.storyvox.data.db.migration.MIGRATION_11_12
+import `in`.jphe.storyvox.data.db.migration.MIGRATION_12_13
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
@@ -146,12 +147,16 @@ class StoryvoxDatabaseMigrationTest {
         // so the latest-version Room.databaseBuilder opens without a
         // missing-migration failure.
         helper.runMigrationsAndValidate(dbName, 12, true, MIGRATION_11_12).close()
+        // #989 — v13 adds fiction.sourceUrl. Chain through so the
+        // latest-version Room.databaseBuilder opens cleanly.
+        helper.runMigrationsAndValidate(dbName, 13, true, MIGRATION_12_13).close()
 
         val ctx = org.robolectric.RuntimeEnvironment.getApplication() as android.content.Context
         val db = Room.databaseBuilder(ctx, StoryvoxDatabase::class.java, dbName)
             .addMigrations(
                 MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8,
                 MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12,
+                MIGRATION_12_13,
             )
             .build()
 
@@ -312,12 +317,15 @@ class StoryvoxDatabaseMigrationTest {
         helper.runMigrationsAndValidate(dbName, 11, true, MIGRATION_10_11).close()
         // #981 — chain through v12 (fiction.metadataBackfillFailedAt).
         helper.runMigrationsAndValidate(dbName, 12, true, MIGRATION_11_12).close()
+        // #989 — chain through v13 (fiction.sourceUrl).
+        helper.runMigrationsAndValidate(dbName, 13, true, MIGRATION_12_13).close()
 
         val ctx = org.robolectric.RuntimeEnvironment.getApplication() as android.content.Context
         val db = Room.databaseBuilder(ctx, StoryvoxDatabase::class.java, dbName)
             .addMigrations(
                 MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8,
                 MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12,
+                MIGRATION_12_13,
             )
             .build()
 
@@ -931,6 +939,89 @@ class StoryvoxDatabaseMigrationTest {
             assertEquals("gutenberg:84", c.getString(0))
             assertTrue(
                 "metadataBackfillFailedAt must default to NULL for existing rows",
+                c.isNull(1),
+            )
+        }
+
+        db.close()
+    }
+
+    /**
+     * Issue #989 — v13 adds the nullable `fiction.sourceUrl` column so a
+     * hash-id fiction (Readability/RSS/EPUB direct-download) can be
+     * rebuilt on a device that never saw the paste. Purely additive;
+     * existing rows get NULL (no remembered URL — the common case for
+     * self-describing-id sources).
+     *
+     * Same shape as the v11→v12 test: seed a v12 row, run 12→13, verify
+     * the column exists, is nullable, and defaults to NULL on the
+     * pre-existing row.
+     */
+    @Test fun `migrate v12 to v13 adds fiction sourceUrl column`() {
+        val dbName = "source-url-migration-test.db"
+
+        helper.createDatabase(dbName, 4).close()
+        helper.runMigrationsAndValidate(dbName, 5, true, MIGRATION_4_5).close()
+        helper.runMigrationsAndValidate(dbName, 6, true, MIGRATION_5_6).close()
+        helper.runMigrationsAndValidate(dbName, 7, true, MIGRATION_6_7).close()
+        helper.runMigrationsAndValidate(dbName, 8, true, MIGRATION_7_8).close()
+        helper.runMigrationsAndValidate(dbName, 9, true, MIGRATION_8_9).close()
+        helper.runMigrationsAndValidate(dbName, 10, true, MIGRATION_9_10).close()
+        helper.runMigrationsAndValidate(dbName, 11, true, MIGRATION_10_11).close()
+        helper.runMigrationsAndValidate(dbName, 12, true, MIGRATION_11_12).use { db ->
+            // Seed a Readability fiction at v12 so the existing row
+            // exercises the NULL-default behaviour after the column lands.
+            db.execSQL(
+                """
+                INSERT INTO fiction(
+                    id, sourceId, title, author, genres, tags, status,
+                    chapterCount, firstSeenAt, metadataFetchedAt,
+                    inLibrary, followedRemotely, notesEverSeen
+                ) VALUES (
+                    'readability:1a2b3c4d5e6f7a8b', 'readability', 'Loading…', '',
+                    '[]', '[]', 'COMPLETED', 1, 0, 0, 1, 0, 0
+                )
+                """.trimIndent(),
+            )
+        }
+
+        val db = helper.runMigrationsAndValidate(
+            dbName,
+            13,
+            /* validateDroppedTables = */ true,
+            MIGRATION_12_13,
+        )
+
+        db.query("PRAGMA table_info('fiction')").use { c ->
+            var sawColumn = false
+            while (c.moveToNext()) {
+                val name = c.getString(c.getColumnIndexOrThrow("name"))
+                if (name == "sourceUrl") {
+                    sawColumn = true
+                    val type = c.getString(c.getColumnIndexOrThrow("type"))
+                    assertEquals("TEXT", type)
+                    val notnull = c.getInt(c.getColumnIndexOrThrow("notnull"))
+                    assertEquals(
+                        "sourceUrl must be nullable (NULL = no remembered URL)",
+                        0,
+                        notnull,
+                    )
+                }
+            }
+            assertTrue(
+                "fiction.sourceUrl column must exist post-migration",
+                sawColumn,
+            )
+        }
+
+        // Pre-existing v12 row must round-trip with a NULL sourceUrl.
+        db.query(
+            "SELECT id, sourceUrl FROM fiction WHERE id = 'readability:1a2b3c4d5e6f7a8b'",
+        ).use { c ->
+            assertTrue("seeded v12 fiction row must survive the migration", c.moveToFirst())
+            assertEquals("readability:1a2b3c4d5e6f7a8b", c.getString(0))
+            assertTrue(
+                "sourceUrl must default to NULL for existing rows",
                 c.isNull(1),
             )
         }

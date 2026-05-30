@@ -198,6 +198,8 @@ class PlaybackPositionSyncerTest {
         override suspend fun setPinnedVoice(id: String, voiceId: String?, locale: String?) = error("not used")
         override suspend fun touchMetadata(id: String, now: Long) = error("not used")
         override suspend fun setSourceId(id: String, sourceId: String) = error("not used")
+        override suspend fun getSourceUrl(id: String): String? = error("not used")
+        override suspend fun setSourceUrlIfAbsent(id: String, url: String) = error("not used")
         override suspend fun placeholdersToBackfill(cutoff: Long): List<Fiction> = error("not used")
         override suspend fun placeholderCount(): Int = error("not used")
         override suspend fun markBackfillFailed(id: String, now: Long) = error("not used")
@@ -254,6 +256,7 @@ class PlaybackPositionSyncerTest {
             audioUrl: String?,
         ) = error("not used")
         override suspend fun setRead(id: String, read: Boolean, now: Long) = error("not used")
+        override suspend fun markFollowedCaughtUp(now: Long): Int = error("not used")
         override suspend fun trimDownloadedBodies(fictionId: String, keepLast: Int) = error("not used")
         override suspend fun cacheUsage(): ChapterCacheUsageRow = error("not used")
         override suspend fun chapterIdsForFiction(fictionId: String): List<String> = emptyList()

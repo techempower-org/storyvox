@@ -176,6 +176,7 @@ class BookmarksSyncerTest {
             audioUrl: String?,
         ) = error("not used")
         override suspend fun setRead(id: String, read: Boolean, now: Long) = error("not used")
+        override suspend fun markFollowedCaughtUp(now: Long): Int = error("not used")
         override suspend fun trimDownloadedBodies(fictionId: String, keepLast: Int) = error("not used")
         override suspend fun cacheUsage(): `in`.jphe.storyvox.data.db.dao.ChapterCacheUsageRow =
             error("not used")

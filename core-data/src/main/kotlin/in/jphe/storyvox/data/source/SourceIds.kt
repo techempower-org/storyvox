@@ -248,4 +248,29 @@ object SourceIds {
      *  source never wins when a specialized backend also claims the URL
      *  — it's a safety net, not a competitor. */
     const val READABILITY: String = "readability"
+
+    /**
+     * Issue #989 — the sources whose fiction `id` is an opaque,
+     * non-reversible hash of the source URL, so the id alone is NOT
+     * enough to rebuild the fiction on a device that never saw the
+     * paste. For these, the original URL must be persisted
+     * (`Fiction.sourceUrl`) and carried in the synced library payload so
+     * a second device can hydrate the placeholder.
+     *
+     * Audit (the "id alone isn't enough to rebuild" gap):
+     *  - [READABILITY] — `readability:<sha256-16>` of the article URL;
+     *  - [RSS] — `rss:<sha256-16>` of the feed URL;
+     *  - [EPUB] *direct-download* variant — `epub:url:<sha256-16>` of an
+     *    `.epub` URL. (SAF-imported EPUBs use a `content://` tree-uri id
+     *    that is device-local and not rebuildable on another device even
+     *    with the URI, so they are deliberately NOT in this set — their
+     *    file simply doesn't exist on a second device.)
+     *
+     * Every other source encodes a source-native id or URL-path in its
+     * fiction id (`gutenberg:84`, `ao3:123`, numeric Royal Road,
+     * `wikipedia:Foo`, `discord:guild/channel`, …) and rebuilds from the
+     * id alone via `MetadataBackfillWorker` → `refreshDetail`.
+     */
+    fun idNeedsSourceUrlToRebuild(sourceId: String): Boolean =
+        sourceId == READABILITY || sourceId == RSS || sourceId == EPUB
 }

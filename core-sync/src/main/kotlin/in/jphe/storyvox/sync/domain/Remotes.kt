@@ -41,6 +41,17 @@ class BackendSetRemote(
         val members: List<String> = emptyList(),
         val tombstones: List<String> = emptyList(),
         val tombstoneStamps: Map<String, Long> = emptyMap(),
+        /**
+         * Issue #989 — per-member rebuild data (fictionId → source URL)
+         * for hash-id sources (Readability/RSS/EPUB-direct) whose id
+         * can't be reversed to a URL. Additive + defaulted empty for
+         * round-trip back-compat: a pre-#989 client ignores the unknown
+         * key (Json.ignoreUnknownKeys), and this client reading a
+         * pre-#989 payload simply sees no member URLs. Only the handful
+         * of hash-id members appear here, so the map is tiny even for a
+         * large library.
+         */
+        val memberData: Map<String, String> = emptyMap(),
         val updatedAt: Long = 0L,
     )
 
@@ -61,11 +72,17 @@ class BackendSetRemote(
             SetSyncer.RemoteSet(
                 members = payload.members.toSet(),
                 tombstones = tombs,
+                memberData = payload.memberData,
             )
         }
     }
 
-    override suspend fun push(user: SignedInUser, members: Set<String>, tombstones: Map<String, Long>): Result<Unit> {
+    override suspend fun push(
+        user: SignedInUser,
+        members: Set<String>,
+        tombstones: Map<String, Long>,
+        memberData: Map<String, String>,
+    ): Result<Unit> {
         val now = System.currentTimeMillis()
         val payload = Payload(
             members = members.toList().sorted(),
@@ -73,6 +90,7 @@ class BackendSetRemote(
             // that hasn't been updated yet.
             tombstones = tombstones.keys.sorted(),
             tombstoneStamps = tombstones,
+            memberData = memberData,
             updatedAt = now,
         )
         val body = json.encodeToString(Payload.serializer(), payload)

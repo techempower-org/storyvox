@@ -64,4 +64,21 @@ class FictionSourceIdResolverTest {
         assertEquals("gutenberg", FictionSourceIdResolver.resolveByShape("gutenberg:84"))
         assertEquals("somafm-groove-salad", FictionSourceIdResolver.resolveByShape("somafm-groove-salad:live"))
     }
+
+    @Test fun `issue 988 - placeholder-creation stamps royalroad not the whole number`() {
+        // Regression for #988: LibrarySyncer/FollowsSyncer.localAdd stamp
+        // a fresh placeholder's sourceId via resolveByShape (the sync
+        // layer has no bound-source registry). The pre-fix code used
+        // `id.substringBefore(':')`, which on a colon-less Royal Road id
+        // returned the WHOLE number ("146000") — an unbindable sourceId
+        // that left the row stuck on "Loading…" forever. These are the
+        // exact ids Aria's #981 worker logged repairing on JP's device.
+        for (rrId in listOf("146000", "156215", "8894")) {
+            assertEquals(
+                "bare numeric RR id must resolve to royalroad at placeholder creation",
+                "royalroad",
+                FictionSourceIdResolver.resolveByShape(rrId),
+            )
+        }
+    }
 }

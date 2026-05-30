@@ -47,6 +47,34 @@ data class Fiction(
     val pinnedVoiceLocale: String? = null,
     val notesEverSeen: Boolean = false,
     /**
+     * Issue #989 — the original source URL needed to *rebuild* this
+     * fiction on a device that never saw the original paste.
+     *
+     * Most sources don't need this: their `id` already encodes
+     * everything required to re-fetch (`gutenberg:84`, `ao3:123`,
+     * numeric Royal Road, `wikipedia:Foo`, …), so the
+     * `MetadataBackfillWorker` can hydrate a placeholder from the id
+     * alone. But three backends hash the source URL into an opaque,
+     * non-reversible id:
+     *  - **Readability** (`readability:<sha256-16>`) — the catch-all
+     *    paste-anything article extractor;
+     *  - **RSS** (`rss:<sha256-16>`) — feed URL hashed;
+     *  - **EPUB direct download** (`epub:url:<sha256-16>`).
+     * For those, the URL is the *only* thing that can rebuild the
+     * fiction, and historically it lived purely in an in-memory cache
+     * on the originating device (see `ReadabilitySource.persistedUrlFor`)
+     * — so a synced placeholder on a second device had an id but no URL
+     * and could never hydrate (issue #989; the #981 worker logged "has
+     * no remembered URL").
+     *
+     * Persisting the URL here gives it a durable home that (a) survives
+     * process death / cache-clear on the originating device and (b) is
+     * readable by `LibrarySyncer` so it can ride across devices in the
+     * synced library payload. Null for the many sources whose id is
+     * self-describing.
+     */
+    val sourceUrl: String? = null,
+    /**
      * Source-side revision token captured the last time we successfully
      * polled this fiction. For GitHub it's the head commit SHA on the
      * default branch; for sources that don't expose a cheap revision

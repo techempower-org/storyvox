@@ -394,6 +394,18 @@ val MIGRATION_11_12: Migration = object : Migration(11, 12) {
     }
 }
 
+/**
+ * Issue #989 — add `fiction.sourceUrl`, the rebuild-essential original
+ * URL for sources whose id is an opaque hash of the URL (Readability,
+ * RSS, EPUB direct-download). Nullable: the column stays NULL for the
+ * many sources whose id already encodes everything needed to re-fetch.
+ */
+val MIGRATION_12_13: Migration = object : Migration(12, 13) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `fiction` ADD COLUMN `sourceUrl` TEXT")
+    }
+}
+
 val ALL_MIGRATIONS: Array<Migration> = arrayOf(
     MIGRATION_1_2,
     MIGRATION_2_3,
@@ -406,4 +418,5 @@ val ALL_MIGRATIONS: Array<Migration> = arrayOf(
     MIGRATION_9_10,
     MIGRATION_10_11,
     MIGRATION_11_12,
+    MIGRATION_12_13,
 )

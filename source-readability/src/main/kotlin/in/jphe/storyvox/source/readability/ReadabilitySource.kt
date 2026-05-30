@@ -72,6 +72,12 @@ import javax.inject.Singleton
 internal class ReadabilitySource @Inject constructor(
     private val fetcher: ReadabilityFetcher,
     private val extractor: ReadabilityExtractor,
+    // Issue #989 — durable URL lookup (the persisted `Fiction.sourceUrl`)
+    // so a fiction synced from another device (or surviving a process
+    // restart / cache-clear) can still be rebuilt. The in-memory
+    // [urlCache] remains the hot-path fast lane for the same-session
+    // paste-then-fetch flow; this is the cold fallback.
+    private val rememberedUrls: `in`.jphe.storyvox.data.source.RememberedUrlStore,
 ) : FictionSource, UrlMatcher {
 
     override val id: String = SourceIds.READABILITY
@@ -206,24 +212,26 @@ internal class ReadabilitySource @Inject constructor(
     }
 
     /**
-     * Look up the URL we stamped into `Fiction.sourceChapterId` when
-     * the user pasted this URL. The repository's `addByUrl` path
-     * pre-writes a stub row whose `id` is the readability fictionId
-     * and whose detail will be filled in here; we remember the URL
-     * by encoding it in the deterministic fictionId hash and
-     * persisting the original URL in [urlCache].
+     * Resolve the original URL for [fictionId] so detail/chapter can be
+     * re-extracted (the id is a non-reversible hash of the URL).
      *
-     * v1 keeps a tiny in-memory cache populated from `matchUrl` calls.
-     * That's enough for the paste-then-fetch happy path (the user pasted
-     * the URL in this session, so the cache is hot). A cold-app reopen
-     * with a previously-added Readability fiction needs a DB-side
-     * lookup; that path is wired through `Fiction.description` (which
-     * the repository persists per the kdoc on [fictionIdFor]) — but
-     * v1 punts on the proper persistence in favour of "remember the
-     * URL in-process, surface a clear NotFound when missing". Issue
-     * follow-up will move this into a small Room-backed map.
+     * Two tiers:
+     *  1. [urlCache] — the in-memory fast lane, populated by `matchUrl`
+     *     during the same-session paste-then-fetch happy path.
+     *  2. [rememberedUrls] — the durable `Fiction.sourceUrl` column
+     *     (issue #989). Survives process death and, crucially, is filled
+     *     in by `LibrarySyncer` for a fiction added on another device —
+     *     so a synced placeholder hydrates instead of dead-ending on
+     *     "has no remembered URL". A hit warms the in-memory cache so
+     *     subsequent same-session lookups skip the DAO.
+     *
+     * Returns null only when neither tier knows the URL (a genuinely
+     * un-rebuildable row — e.g. a pre-#989 placeholder added before the
+     * column existed); callers surface a clear NotFound in that case.
      */
-    private fun persistedUrlFor(fictionId: String): String? = urlCache[fictionId]
+    private suspend fun persistedUrlFor(fictionId: String): String? =
+        urlCache[fictionId]
+            ?: rememberedUrls.rememberedUrl(fictionId)?.also { urlCache[fictionId] = it }
 
     private fun fictionIdFor(url: String): String {
         val hash = MessageDigest.getInstance("SHA-256")

@@ -310,4 +310,12 @@ abstract class RepositoryBindings {
     abstract fun bindMetadataBackfillScheduler(
         impl: WorkManagerMetadataBackfillScheduler,
     ): MetadataBackfillScheduler
+
+    // Issue #989 — durable source-URL lookup for hash-id sources
+    // (Readability/RSS/EPUB-direct). DAO-backed; consumed by the leaf
+    // source modules so a synced fiction can be rebuilt from its URL.
+    @Binds @Singleton
+    abstract fun bindRememberedUrlStore(
+        impl: `in`.jphe.storyvox.data.source.DaoRememberedUrlStore,
+    ): `in`.jphe.storyvox.data.source.RememberedUrlStore
 }
