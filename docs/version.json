@@ -1,12 +1,12 @@
 {
   "name": "storyvox",
-  "description": "Neural-voice audiobook player for any text you have — offline TTS, optional Azure HD cloud voices, Library Nocturne aesthetic",
-  "version": "0.7.3",
-  "hash": "5e3582ab",
+  "description": "Neural-voice audiobook player for any text you have \u2014 offline TTS, optional Azure HD cloud voices, Library Nocturne aesthetic",
+  "version": "Mythic Monolith \u00b7 99362f055",
+  "hash": "99362f055",
   "branch": "main",
   "dirty": false,
-  "built": "2026-05-27T14:03:43Z",
+  "built": "2026-05-30T00:44:30Z",
   "realm": "fantasy",
   "repo": "https://github.com/techempower-org/storyvox",
-  "commit_url": "https://github.com/techempower-org/storyvox/commit/5e3582ab"
+  "commit_url": "https://github.com/techempower-org/storyvox/commit/99362f055"
 }
