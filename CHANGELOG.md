@@ -9,6 +9,17 @@ Entries before v0.5.12 are reconstructed from the git log — see
 
 ## [Unreleased]
 
+## [1.0.2] -- 2026-05-29
+
+**Deeper sync correctness.** Following v1.0.1's round-trip fixes, this closes the remaining cross-device sync gaps. This is the first build promoted to the Google Play Internal Test track.
+
+### Fixed
+- **#988** Library/Follows placeholders now resolve the correct `sourceId` at creation (via `FictionSourceIdResolver`) — colon-less RoyalRoad ids were mis-tagged and could never hydrate
+- **#989** Library sync now carries rebuild-essential fields (the source URL, persisted in a new `fiction.sourceUrl` column + `RememberedUrlStore`), so hash-id fictions (Readability/RSS/EPUB) reconstruct on any device instead of failing the metadata back-fill
+
+### Changed
+- **#978** Settings sync moved from whole-blob last-write-wins to **per-key field-level merge** — concurrent edits to *different* settings across devices no longer clobber each other. The settings payload gains per-key `updatedAt` stamps (diff-based, stamped at the existing write chokepoint) with a stringified `_field_stamps` sidecar that keeps the payload readable by pre-1.0.2 clients (v1↔v2 back-compat preserved; mixed-version fleets degrade safely to blob-level LWW)
+
 ## [1.0.1] -- 2026-05-29
 
 **Sync & persistence fixes.** Cloud sync worked locally but didn't round-trip — preferences never pushed on change, secrets never pulled to a second device, and a synced library arrived as a wall of "Loading…" placeholders. This release closes that cluster.
