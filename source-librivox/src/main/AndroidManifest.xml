@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Issue #1015 — :source-librivox.
+         The LibriVox catalog API (https://librivox.org/api/feed/audiobooks/)
+         and the archive.org-hosted MP3 sections are all HTTPS. INTERNET
+         is required for the catalog calls from this module;
+         ACCESS_NETWORK_STATE lets the client short-circuit when offline.
+         The audio fetch itself happens inside Media3 / ExoPlayer in
+         :core-playback whose own manifest also carries INTERNET —
+         duplicates are harmless (same wiring as :source-radio). -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+</manifest>

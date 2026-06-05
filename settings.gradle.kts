@@ -59,6 +59,12 @@ include(":source-wikisource")
 // module still serves persisted KVMR fictions via a one-cycle
 // SourceIds.KVMR alias declared in :source-radio's Hilt module.
 include(":source-radio")
+// Issue #1015 — LibriVox: free public-domain audiobooks read by
+// volunteers. storyvox's first pre-recorded (human-narrated) source —
+// sections stream archive.org MP3s through Media3 (audio-stream backend
+// #373), no TTS. Catalog from the public no-auth JSON feed at
+// librivox.org/api/feed/audiobooks/.
+include(":source-librivox")
 include(":source-notion")
 include(":source-hackernews")
 include(":source-arxiv")

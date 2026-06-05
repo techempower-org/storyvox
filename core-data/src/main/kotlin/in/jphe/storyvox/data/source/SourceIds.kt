@@ -95,6 +95,20 @@ object SourceIds {
      *  release cycle has elapsed; until then the alias is load-bearing
      *  for library-shelf / playback-position survival. */
     const val KVMR: String = "kvmr"
+    /** LibriVox (#1015) — free, public-domain audiobooks read by
+     *  volunteers (~20k+ works). storyvox's first *pre-recorded*
+     *  (human-narrated) source: rather than synthesizing text via TTS,
+     *  it plays the volunteer recording. Each LibriVox book is one
+     *  fiction; each section is one chapter whose
+     *  [ChapterContent.audioUrl][in.jphe.storyvox.data.source.model.ChapterContent]
+     *  points at the section's archive.org MP3 — routed through Media3 /
+     *  ExoPlayer via the audio-stream backend (issue #373), the same
+     *  pipeline [RADIO] uses, no TTS. Catalog comes from the public
+     *  no-auth JSON feed at https://librivox.org/api/feed/audiobooks/ .
+     *  Pairs naturally with [GUTENBERG] (LibriVox books are Gutenberg
+     *  texts read aloud); LibriVox↔Gutenberg text alignment is a future
+     *  enhancement, not part of v1. */
+    const val LIBRIVOX: String = "librivox"
     /** Notion (#233) — Notion databases as a fiction backend. Each
      *  database row is one fiction; each page's top-level `heading_1`
      *  boundary splits it into chapters. Requires a Notion Internal

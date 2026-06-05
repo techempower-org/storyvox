@@ -556,6 +556,13 @@ dependencies {
     // Issue #417 — JSON serialization for RadioConfigImpl's starred-
     // stations DataStore payload.
     implementation(libs.kotlinx.serialization.json)
+    // Issue #1015 — :source-librivox. Free public-domain audiobooks
+    // read by volunteers; storyvox's first pre-recorded (human-narrated)
+    // source. Same audio-stream backend as :source-radio — sections
+    // stream archive.org MP3s through Media3, no TTS. Must be on the app
+    // classpath so its KSP-generated SourcePluginDescriptor binding joins
+    // the Hilt multibinding set the registry consumes.
+    implementation(project(":source-librivox"))
     implementation(project(":source-notion"))
     implementation(project(":source-hackernews"))
     implementation(project(":source-arxiv"))
