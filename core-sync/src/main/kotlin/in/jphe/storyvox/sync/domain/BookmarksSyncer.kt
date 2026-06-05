@@ -26,6 +26,12 @@ import kotlinx.serialization.json.Json
  * format too so a sync round can clear a bookmark; absence means "no
  * change," null means "explicitly cleared." This avoids needing a
  * tombstone log.
+ *
+ * Local-only adds (#1029): a bookmark added on this device but not yet on
+ * the wire is *absent* from a winning remote map, not explicitly cleared,
+ * so it is preserved locally and unioned into the pushed payload rather
+ * than deleted. Only a remote entry mapped to null clears a local
+ * bookmark; mere absence never does.
  */
 @Singleton
 class BookmarksSyncer @Inject constructor(
@@ -59,21 +65,44 @@ class BookmarksSyncer @Inject constructor(
         }
         val remoteMap = remotePayload?.bookmarks.orEmpty()
 
-        val merged = when {
-            remotePayload == null -> localMap
-            remotePayload.updatedAt > (remoteSnap.updatedAt - 1L) && remoteMap == localMap -> localMap
-            // LWW: pick whichever side is newer. We don't have a local
-            // updatedAt stamp per the chapter row (bookmark write
-            // doesn't bump a timestamp), so the local "stamp" is the
-            // last push attempt for this domain — if remote is strictly
-            // newer than that, take remote.
-            remotePayload.updatedAt > readLastSyncStamp() -> remoteMap
-            else -> localMap
+        // Pick the LWW winner for the *shared* keys. We don't have a
+        // local updatedAt stamp per the chapter row (bookmark write
+        // doesn't bump a timestamp), so the local "stamp" is the last
+        // push attempt for this domain — if remote is strictly newer
+        // than that, take remote.
+        val remoteWins = when {
+            remotePayload == null -> false
+            remotePayload.updatedAt > (remoteSnap.updatedAt - 1L) && remoteMap == localMap -> false
+            else -> remotePayload.updatedAt > readLastSyncStamp()
         }
 
-        // Apply merged to local: write every chapterId in [merged] that
-        // diverges from local, and clear chapters present in remote
-        // with null offset.
+        // Build the merged set honoring the documented wire contract
+        // (#1029): absence means "no change," null means "explicitly
+        // cleared." A local-only bookmark — added on this device and not
+        // yet on the wire — is *absent* from a winning remote map, NOT
+        // explicitly cleared, so it must be preserved (and propagated),
+        // never deleted on mere absence.
+        //
+        // - Start from whichever side wins LWW for the keys both sides
+        //   know about.
+        // - Union in every local-only bookmark (present locally, the
+        //   remote has no entry for that id at all) so an unsynced local
+        //   add survives this round and rides out on the push payload.
+        // - A remote *explicit* null (id -> null in remoteMap) is the
+        //   only delete signal; such ids stay null in [merged] so the
+        //   apply loop clears them locally and the push doesn't resurrect
+        //   them.
+        val merged = LinkedHashMap<String, Int?>()
+        merged.putAll(if (remoteWins) remoteMap else localMap)
+        if (remoteWins) {
+            for ((id, offset) in localMap) {
+                if (!remoteMap.containsKey(id)) merged[id] = offset
+            }
+        }
+
+        // Apply [merged] to local: write every chapterId whose offset
+        // diverges from local (including explicit nulls, which clear the
+        // local bookmark).
         //
         // Guard (#885): `setBookmark` is an UPDATE … WHERE id = :id, a
         // silent no-op when the chapter row doesn't exist locally yet
@@ -86,19 +115,16 @@ class BookmarksSyncer @Inject constructor(
         var writes = 0
         var skipped = 0
         for ((id, offset) in merged) {
+            // localMap only holds non-null offsets (allBookmarks() is
+            // WHERE bookmarkCharOffset IS NOT NULL), so a local-absent id
+            // with a null merged offset compares equal (null == null) and
+            // is correctly skipped as already in the desired state.
             if (localMap[id] != offset) {
                 if (!chapterDao.exists(id)) {
                     skipped++
                     continue
                 }
                 chapterDao.setBookmark(id, offset)
-                writes++
-            }
-        }
-        // Clear local bookmarks that the remote explicitly removed.
-        for ((id, _) in localMap) {
-            if (!merged.containsKey(id)) {
-                chapterDao.setBookmark(id, null)
                 writes++
             }
         }

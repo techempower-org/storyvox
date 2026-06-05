@@ -259,7 +259,6 @@ class PlaybackPositionSyncerTest {
             audioUrl: String?,
         ) = error("not used")
         override suspend fun setRead(id: String, read: Boolean, now: Long) = error("not used")
-        override suspend fun markFollowedCaughtUp(now: Long): Int = error("not used")
         override suspend fun trimDownloadedBodies(fictionId: String, keepLast: Int) = error("not used")
         override suspend fun cacheUsage(): ChapterCacheUsageRow = error("not used")
         override suspend fun chapterIdsForFiction(fictionId: String): List<String> = emptyList()

@@ -16,6 +16,7 @@ import `in`.jphe.storyvox.sync.domain.BookmarksSyncer
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -36,6 +37,7 @@ import org.junit.Test
 class BookmarksSyncerTest {
 
     private val USER = SignedInUser(userId = "u-1", email = null, refreshToken = "rt-1")
+    private val json = Json { ignoreUnknownKeys = true }
 
     @Test fun `cold restart between sync passes does not clobber the local bookmark`() = runTest {
         val backend = FakeInstantBackend()
@@ -75,6 +77,84 @@ class BookmarksSyncerTest {
         // The persisted stamp moved forward.
         val stampAfterRound2 = prefs.getLong("instantdb.bookmarks_synced_at", 0L)
         assertTrue("stamp must advance on subsequent push", stampAfterRound2 >= stampAfterRound1)
+    }
+
+    /**
+     * Issue #1029 (data loss): a bookmark added on device A but not yet
+     * on the wire must NOT be deleted when device A pulls a remote blob
+     * that wins LWW. The remote merely *doesn't know about* the new
+     * bookmark (it's absent), which the documented wire contract defines
+     * as "no change" — only an explicit null clears a bookmark.
+     *
+     * Repro:
+     *  1. Device B pushes {ch1=100} → remote blob, updatedAt = T1.
+     *  2. Device A (fresh stamp = 0L, i.e. hasn't synced since B's push)
+     *     has local {ch1=100, ch2=200}.
+     *  3. A syncs. remote.updatedAt (T1) > A's stamp (0L) → remote wins.
+     *  4. Old code: ch2 ∈ local, ch2 ∉ winning map → setBookmark(ch2,
+     *     null). A's just-added bookmark is destroyed and was never on
+     *     the wire as an explicit null.
+     *
+     * With the fix, ch2 (a local-only add, absent from remote) survives
+     * locally AND is unioned into the pushed payload so it propagates.
+     */
+    @Test fun `local-only bookmark survives a winning remote that never had it`() = runTest {
+        val backend = FakeInstantBackend()
+
+        // Device B: pushes {ch1=100} to the shared remote.
+        val prefsB = FakePrefs()
+        val daoB = FakeChapterDao(bookmarks = mutableMapOf("ch1" to 100))
+        val syncerB = BookmarksSyncer(chapterDao = daoB, backend = backend, prefs = prefsB)
+        assertTrue(syncerB.push(USER) is SyncOutcome.Ok)
+
+        // Device A: fresh prefs (stamp 0L → hasn't synced since B's push),
+        // and a local-only bookmark ch2 that the remote has never seen.
+        val prefsA = FakePrefs()
+        val daoA = FakeChapterDao(bookmarks = mutableMapOf("ch1" to 100, "ch2" to 200))
+        val syncerA = BookmarksSyncer(chapterDao = daoA, backend = backend, prefs = prefsA)
+        val rA = syncerA.pull(USER)
+        assertTrue("device A sync succeeds: $rA", rA is SyncOutcome.Ok)
+
+        // ch2 survives locally — it was never explicitly cleared.
+        assertEquals("ch1 unchanged", 100, daoA.bookmarks["ch1"])
+        assertEquals("local-only ch2 must NOT be deleted on mere absence", 200, daoA.bookmarks["ch2"])
+
+        // ...and it rode out on the pushed payload, so it propagates.
+        val snap = backend.fetch(USER, "blobs", SyncIds.rowUuid("bookmarks", USER.userId)).getOrNull()
+        requireNotNull(snap) { "remote blob must exist after a push" }
+        val pushed = json
+            .decodeFromString(BookmarksSyncer.Payload.serializer(), snap.payload)
+            .bookmarks
+        assertEquals("ch1 retained on the wire", 100, pushed["ch1"])
+        assertEquals("local-only ch2 must be unioned into the push payload", 200, pushed["ch2"])
+    }
+
+    /**
+     * The flip side of #1029: an *explicit* remote null (id -> null) is
+     * the one legitimate delete signal and must still clear the local
+     * bookmark. This guards against an over-correction that would never
+     * delete anything.
+     */
+    @Test fun `explicit remote null still clears the local bookmark`() = runTest {
+        val backend = FakeInstantBackend()
+
+        // Seed the remote directly with an explicit-null clear for ch2,
+        // newer than device A's stamp (0L) so remote wins.
+        backend.upsert(
+            user = USER,
+            entity = "blobs",
+            id = SyncIds.rowUuid("bookmarks", USER.userId),
+            payload = """{"bookmarks":{"ch1":100,"ch2":null},"updatedAt":${System.currentTimeMillis()}}""",
+            updatedAt = System.currentTimeMillis(),
+        )
+
+        val prefsA = FakePrefs()
+        val daoA = FakeChapterDao(bookmarks = mutableMapOf("ch1" to 100, "ch2" to 200))
+        val syncerA = BookmarksSyncer(chapterDao = daoA, backend = backend, prefs = prefsA)
+        assertTrue(syncerA.pull(USER) is SyncOutcome.Ok)
+
+        assertEquals("ch1 unchanged", 100, daoA.bookmarks["ch1"])
+        assertTrue("ch2 must be cleared by the explicit remote null", daoA.bookmarks["ch2"] == null)
     }
 
     @Test fun `stamp is written even on a no-op sync round`() = runTest {
@@ -179,7 +259,6 @@ class BookmarksSyncerTest {
             audioUrl: String?,
         ) = error("not used")
         override suspend fun setRead(id: String, read: Boolean, now: Long) = error("not used")
-        override suspend fun markFollowedCaughtUp(now: Long): Int = error("not used")
         override suspend fun trimDownloadedBodies(fictionId: String, keepLast: Int) = error("not used")
         override suspend fun cacheUsage(): `in`.jphe.storyvox.data.db.dao.ChapterCacheUsageRow =
             error("not used")
