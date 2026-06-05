@@ -196,7 +196,7 @@ internal class ArxivApi @Inject constructor(
         /** arXiv requests an identifying User-Agent on automated traffic
          *  (see https://info.arxiv.org/help/robots.html). */
         const val USER_AGENT: String =
-            "storyvox-arxiv/1.0 (https://github.com/techempower-org/storyvox; jp@jphein.com)"
+            "storyvox-arxiv/1.0 (https://github.com/techempower-org/candela; jp@jphein.com)"
     }
 }
 

@@ -47,7 +47,7 @@ object DiscordDefaults {
      *  identify storyvox and the version so Discord's abuse team can
      *  reach out before banning a misbehaving bot. */
     const val USER_AGENT: String =
-        "Storyvox-Discord/1.0 (+https://github.com/techempower-org/storyvox)"
+        "Storyvox-Discord/1.0 (+https://github.com/techempower-org/candela)"
 
     /**
      * Issue #517 — Discord channel id for the TechEmpower peer-support

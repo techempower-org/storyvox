@@ -27,7 +27,7 @@ object SlackDefaults {
      *  identifying ourselves makes abuse-team contact easier if a
      *  bot misbehaves. Mirrors the Discord / Telegram UA pattern. */
     const val USER_AGENT: String =
-        "Storyvox-Slack/1.0 (+https://github.com/techempower-org/storyvox)"
+        "Storyvox-Slack/1.0 (+https://github.com/techempower-org/candela)"
 
     /** `conversations.list` page size. Slack caps this at 1000 but
      *  recommends staying ≤200 for performance + rate-limit

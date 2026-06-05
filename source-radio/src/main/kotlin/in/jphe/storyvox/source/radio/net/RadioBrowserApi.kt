@@ -216,7 +216,7 @@ internal class RadioBrowserApi @Inject constructor(
         const val BASE_URL: String = "https://de1.api.radio-browser.info"
 
         const val USER_AGENT: String =
-            "storyvox-radio/0.5.32 (+https://github.com/techempower-org/storyvox)"
+            "storyvox-radio/0.5.32 (+https://github.com/techempower-org/candela)"
     }
 }
 

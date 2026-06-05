@@ -119,7 +119,7 @@ internal open class Registry @Inject constructor(
         const val REGISTRY_URL: String =
             "https://raw.githubusercontent.com/techempower-org/storyvox-registry/main/registry.json"
         const val USER_AGENT: String =
-            "storyvox/0.5 (+https://github.com/techempower-org/storyvox)"
+            "storyvox/0.5 (+https://github.com/techempower-org/candela)"
     }
 }
 

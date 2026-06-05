@@ -189,7 +189,7 @@ internal open class HackerNewsApi @Inject constructor(
 
         /** Polite identifier — gives any future rate-limit hits a contact
          *  point. Matches the pattern used by `:source-gutenberg`. */
-        const val USER_AGENT = "storyvox-hackernews/1.0 (+https://github.com/techempower-org/storyvox)"
+        const val USER_AGENT = "storyvox-hackernews/1.0 (+https://github.com/techempower-org/candela)"
 
         /** Browse landing fetches the first 50 of ~500 top-story ids
          *  per #379's spec. Defined here so the source and tests share

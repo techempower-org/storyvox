@@ -58,5 +58,5 @@ object MatrixDefaults {
      *  homeservers are commonly self-hosted on small hardware; a
      *  clear UA keeps storyvox from looking like an anonymous scrape. */
     const val USER_AGENT: String =
-        "Storyvox-Matrix/1.0 (+https://github.com/techempower-org/storyvox)"
+        "Storyvox-Matrix/1.0 (+https://github.com/techempower-org/candela)"
 }

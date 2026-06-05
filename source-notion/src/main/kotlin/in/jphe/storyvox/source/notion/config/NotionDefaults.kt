@@ -94,7 +94,7 @@ object NotionDefaults {
      * tooling can route concerns somewhere useful.
      */
     const val USER_AGENT: String =
-        "storyvox-notion/1.0 (+https://github.com/techempower-org/storyvox)"
+        "storyvox-notion/1.0 (+https://github.com/techempower-org/candela)"
 
     /**
      * Issue #393 / v0.5.26 — four-fiction layout for TechEmpower in

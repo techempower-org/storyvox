@@ -79,6 +79,6 @@ class ReadabilityFetcher @Inject constructor(
         // Polite UA — identifies us as a personal audiobook reader so a
         // server admin who notices the traffic can see what it's for.
         // Same convention as the RSS / Wikipedia / Outline backends.
-        const val USER_AGENT = "storyvox-readability/1.0 (+https://github.com/techempower-org/storyvox)"
+        const val USER_AGENT = "storyvox-readability/1.0 (+https://github.com/techempower-org/candela)"
     }
 }

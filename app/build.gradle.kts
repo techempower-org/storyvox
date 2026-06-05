@@ -194,7 +194,7 @@ android {
         buildConfigField(
             "String",
             "SIGIL_REPO",
-            "\"https://github.com/techempower-org/storyvox\"",
+            "\"https://github.com/techempower-org/candela\"",
         )
     }
 

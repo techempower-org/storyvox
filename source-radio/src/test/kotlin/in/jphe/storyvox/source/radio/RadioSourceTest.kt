@@ -251,6 +251,6 @@ class RadioSourceTest {
 
     @Test fun `user-agent identifies storyvox-radio`() {
         assertTrue(RadioSource.USER_AGENT.contains("storyvox-radio"))
-        assertTrue(RadioSource.USER_AGENT.contains("github.com/techempower-org/storyvox"))
+        assertTrue(RadioSource.USER_AGENT.contains("github.com/techempower-org/candela"))
     }
 }

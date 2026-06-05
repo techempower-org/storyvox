@@ -229,7 +229,7 @@ class DiscordModelsTest {
                   {
                     "title": "Storyvox — narratable Discord",
                     "description": "16 backends, sideload-only audiobook reader",
-                    "url": "https://github.com/techempower-org/storyvox"
+                    "url": "https://github.com/techempower-org/candela"
                   }
                 ],
                 "tts": false,

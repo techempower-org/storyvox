@@ -413,7 +413,7 @@ internal class RadioSource @Inject constructor(
         const val LEGACY_KVMR_CHAPTER_ID: String = "kvmr:live:0"
 
         const val USER_AGENT: String =
-            "storyvox-radio/0.5.32 (+https://github.com/techempower-org/storyvox)"
+            "storyvox-radio/0.5.32 (+https://github.com/techempower-org/candela)"
 
         /**
          * Sentinel prefixes used by [applyFilters] to smuggle the

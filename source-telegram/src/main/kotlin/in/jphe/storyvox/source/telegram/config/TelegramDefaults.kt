@@ -24,7 +24,7 @@ object TelegramDefaults {
      *  but identifying ourselves makes abuse-team contact easier
      *  if a bot misbehaves. Mirrors the Discord UA pattern. */
     const val USER_AGENT: String =
-        "Storyvox-Telegram/1.0 (+https://github.com/techempower-org/storyvox)"
+        "Storyvox-Telegram/1.0 (+https://github.com/techempower-org/candela)"
 
     /** Max messages per `getUpdates` poll. The API caps at 100;
      *  we pull the full window so a single poll reflects every
