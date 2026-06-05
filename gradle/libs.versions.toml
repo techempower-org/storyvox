@@ -62,7 +62,7 @@ androidx-media = "1.8.0"
 # Wear
 wear-compose = "1.6.2"
 wear-tooling = "1.0.0"
-play-services-wearable = "18.2.0"
+play-services-wearable = "20.0.1"
 
 # Test
 junit = "4.13.2"
