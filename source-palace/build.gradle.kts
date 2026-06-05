@@ -67,6 +67,6 @@ dependencies {
     // 1.x Atom-flavoured XML parsing path in unit tests. Same dep is
     // used by `:source-rss`, `:core-data`, `:core-llm`.
     testImplementation(libs.robolectric)
-    testImplementation("androidx.test:core:1.6.1")
+    testImplementation("androidx.test:core:1.7.0")
     testImplementation("androidx.test.ext:junit:1.3.0")
 }
