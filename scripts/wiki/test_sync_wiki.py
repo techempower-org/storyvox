@@ -96,6 +96,26 @@ class ParseModules(unittest.TestCase):
             [":app", ":core-data", ":source-rss"],
         )
 
+    def test_commented_out_includes_ignored(self):
+        text = (
+            'include(":app")\n'
+            '// include(":source-disabled")\n'
+            '  //include(":also-disabled")\n'
+            '/* include(":block-disabled") */\n'
+            'include(":core-data")\n'
+        )
+        self.assertEqual(
+            sw.parse_modules(text),
+            [":app", ":core-data"],
+        )
+
+    def test_single_quoted_include_accepted(self):
+        text = "include(':source-rss')\ninclude(\":app\")\n"
+        self.assertEqual(
+            sw.parse_modules(text),
+            [":app", ":source-rss"],
+        )
+
 
 class RenderModulesPage(unittest.TestCase):
     def test_groups_and_count(self):

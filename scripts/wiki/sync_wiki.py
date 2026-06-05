@@ -145,7 +145,19 @@ def render_doc(source_label: str, raw: str) -> str:
 
 
 def parse_modules(settings_text: str) -> list[str]:
-    mods = re.findall(r'include\(\s*"(:[^"]+)"\s*\)', settings_text)
+    # Line-by-line so commented-out includes don't leak into the wiki, and
+    # accept either quote style. settings.gradle.kts uses double quotes, but a
+    # disabled module is often left as `// include(":foo")` during refactors —
+    # publishing that as a live module would be wrong.
+    mods: list[str] = []
+    include_re = re.compile(r"""include\(\s*['"](:[^'"]+)['"]\s*\)""")
+    for line in settings_text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith(("//", "/*", "*")):
+            continue
+        match = include_re.search(stripped)
+        if match:
+            mods.append(match.group(1))
     # Deterministic order for idempotency.
     return sorted(set(mods))
 
@@ -165,19 +177,16 @@ def render_modules_page(source_label: str, mods: list[str]) -> str:
             groups["Application"].append(m)
         elif name in ("feature", "wear"):
             groups["Feature"].append(m)
+        # Build tools must be matched before the generic core-/source- prefixes:
+        # core-plugin-ksp is core-prefixed but is build tooling, not a core lib.
+        elif name in ("baselineprofile", "core-plugin-ksp"):
+            groups["Build / tooling"].append(m)
         elif name.startswith("core-"):
             groups["Core"].append(m)
         elif name.startswith("source-"):
             groups["Fiction sources"].append(m)
-        elif name in ("baselineprofile", "core-plugin-ksp"):
-            groups["Build / tooling"].append(m)
         else:
             groups["Other"].append(m)
-    # core-plugin-ksp is core-prefixed but a build tool; move it explicitly.
-    if ":core-plugin-ksp" in groups["Core"]:
-        groups["Core"].remove(":core-plugin-ksp")
-        groups["Build / tooling"].append(":core-plugin-ksp")
-        groups["Build / tooling"].sort()
 
     lines = [
         marker(source_label),
@@ -226,6 +235,17 @@ def write_if_changed(dest: Path, content: str) -> bool:
 
 
 def main() -> int:
+    # Validate required env upfront so a missing var fails with a clear message
+    # instead of a mid-run KeyError traceback that's painful to diagnose in CI.
+    required = ["WIKI_DIR", "REPO", "OWNER", "NAME"]
+    missing = [v for v in required if not os.environ.get(v)]
+    if missing:
+        print(
+            f"::error::missing required env var(s): {', '.join(missing)}",
+            file=sys.stderr,
+        )
+        return 1
+
     wiki_dir = Path(os.environ["WIKI_DIR"])
     root = repo_root()
     force = os.environ.get("FORCE_TAKEOVER", "false").lower() == "true"
