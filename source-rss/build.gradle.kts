@@ -60,5 +60,5 @@ dependencies {
     // tests. Same dep is already used by :core-data and :core-llm.
     testImplementation(libs.robolectric)
     testImplementation("androidx.test:core:1.6.1")
-    testImplementation("androidx.test.ext:junit:1.2.1")
+    testImplementation("androidx.test.ext:junit:1.3.0")
 }

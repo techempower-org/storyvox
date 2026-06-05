@@ -96,5 +96,5 @@ dependencies {
     testImplementation(libs.androidx.room.testing)
     testImplementation(libs.robolectric)
     testImplementation("androidx.test:core:1.6.1")
-    testImplementation("androidx.test.ext:junit:1.2.1")
+    testImplementation("androidx.test.ext:junit:1.3.0")
 }
