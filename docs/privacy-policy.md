@@ -14,7 +14,7 @@ permalink: /privacy/
 > locally; signing out of sync deletes the cloud-side copy too.
 
 **Effective date:** _draft — to be set at v1.0 ship date_  
-**App:** Candela (`in.jphe.storyvox`)  
+**App:** Candela (`org.techempower.candela`)  
 **Publisher:** TechEmpower (501(c)(3) nonprofit, operating Candela)  
 **Maintainer:** JP Hein (`jp@jphein.com`)  
 **Contact for privacy questions:** _DRAFT — JP to confirm. Candidates:
