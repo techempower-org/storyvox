@@ -135,7 +135,7 @@ class BaselineProfileGenerator {
 
     private companion object {
         /** Target APK applicationId — must match :app's `applicationId`. */
-        const val TARGET_PACKAGE = "in.jphe.storyvox"
+        const val TARGET_PACKAGE = "org.techempower.candela"
     }
 }
 

@@ -1,12 +1,12 @@
 ---
 layout: default
 title: Architecture
-description: storyvox's thirty-four Gradle modules, plugin-seam fiction sources via @SourcePlugin + KSP, in-process TTS engine, optional cloud TTS backend, and cross-device InstantDB sync.
+description: Candela's thirty-four Gradle modules, plugin-seam fiction sources via @SourcePlugin + KSP, in-process TTS engine, optional cloud TTS backend, and cross-device InstantDB sync.
 ---
 
 # Architecture
 
-storyvox is **thirty-four Gradle modules** (up from 13 at v0.4.x; 29 at v0.5.38). The split keeps fiction sources, playback, UI, theming, sync, and the LLM provider matrix independently testable, and makes adding a new fiction source (or swapping the TTS backend) a localized change. Since v0.5.27 each fiction source is annotated with `@SourcePlugin`; the `:core-plugin-ksp` KSP processor emits a Hilt `@IntoSet` factory per annotated class, so `SourcePluginRegistry` discovers backends at startup. Adding a new backend is ~4 touchpoints today.
+Candela is **thirty-four Gradle modules** (up from 13 at v0.4.x; 29 at v0.5.38). The split keeps fiction sources, playback, UI, theming, sync, and the LLM provider matrix independently testable, and makes adding a new fiction source (or swapping the TTS backend) a localized change. Since v0.5.27 each fiction source is annotated with `@SourcePlugin`; the `:core-plugin-ksp` KSP processor emits a Hilt `@IntoSet` factory per annotated class, so `SourcePluginRegistry` discovers backends at startup. Adding a new backend is ~4 touchpoints today.
 
 ```
 ┌─────────────────────────────────────────────┐
@@ -172,15 +172,15 @@ In v0.4.78+ the producer can run **1–8 VoxSherpa engine instances side-by-side
 
 ## In-process TTS
 
-storyvox links the local TTS engine **in-process** via the [VoxSherpa-TTS](https://github.com/techempower-org/VoxSherpa-TTS) `:engine-lib` AAR (published to JitPack). That AAR re-projects [k2-fsa/sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) inference plus the Piper and Kokoro engine wrappers into a single dependency.
+Candela links the local TTS engine **in-process** via the [VoxSherpa-TTS](https://github.com/techempower-org/VoxSherpa-TTS) `:engine-lib` AAR (published to JitPack). That AAR re-projects [k2-fsa/sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) inference plus the Piper and Kokoro engine wrappers into a single dependency.
 
-We bypass Android's `TextToSpeech` framework entirely, manage our own `AudioTrack` with a fat buffer, and pipeline next-sentence generation against current playback. **No second APK, no install gate, no engine-binding handshake** — synthesis runs in storyvox's own process.
+We bypass Android's `TextToSpeech` framework entirely, manage our own `AudioTrack` with a fat buffer, and pipeline next-sentence generation against current playback. **No second APK, no install gate, no engine-binding handshake** — synthesis runs in Candela's own process.
 
 Voice model weights are downloaded on demand by `VoiceManager` from the `voices-v2` GitHub release. See [Voices](voices/) for catalog details.
 
 ## Optional cloud TTS — Azure HD
 
-For users who want studio-grade narration on slow devices, `:source-azure` wires Azure Cognitive Services HD voices into the same `VoiceEngine` interface the local engine uses. Add a key + region in **Settings → Voice & Playback → Azure** (BYOK; never billed by storyvox). The Azure engine uses SSML to drive the same per-voice speed/pitch/punctuation knobs you set for local voices, with retries on transient HTTP errors. If the key fails or the network drops mid-chapter, playback falls back to your selected local voice for the remainder of the chapter — it never just stops on you.
+For users who want studio-grade narration on slow devices, `:source-azure` wires Azure Cognitive Services HD voices into the same `VoiceEngine` interface the local engine uses. Add a key + region in **Settings → Voice & Playback → Azure** (BYOK; never billed by Candela). The Azure engine uses SSML to drive the same per-voice speed/pitch/punctuation knobs you set for local voices, with retries on transient HTTP errors. If the key fails or the network drops mid-chapter, playback falls back to your selected local voice for the remainder of the chapter — it never just stops on you.
 
 ## Storage
 

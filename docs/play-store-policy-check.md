@@ -1,12 +1,12 @@
 ---
 layout: default
-title: storyvox · Play Store Policy Compliance Check
-description: Walkthrough of every Play Store policy surface that storyvox might trip, with disclosures + rationale pre-drafted.
+title: Candela · Play Store Policy Compliance Check
+description: Walkthrough of every Play Store policy surface that Candela might trip, with disclosures + rationale pre-drafted.
 ---
 
 # Play Store Policy Compliance Check
 
-A pass through Google Play's developer policies against storyvox's surfaces,
+A pass through Google Play's developer policies against Candela's surfaces,
 with each potential trigger flagged, the in-app behavior summarized, the
 policy disclosure pre-drafted, and (where relevant) a remediation checklist.
 
@@ -19,26 +19,26 @@ policy disclosure pre-drafted, and (where relevant) a remediation checklist.
 
 ### Surface
 
-storyvox surfaces text from third-party services that the user has opted
+Candela surfaces text from third-party services that the user has opted
 into. Specifically:
 
 - **Magic-link Readability catch-all** (Add fiction → paste any URL). The
-  user pastes a URL; storyvox runs a Readability extraction on the fetched
+  user pastes a URL; Candela runs a Readability extraction on the fetched
   HTML and renders the result. PR #587 added a scheme allowlist that
   restricts the URL to `http://` and `https://` schemes only — no
   `file://`, `content://`, `javascript:`, etc.
 - **Royal Road / AO3 / Standard Ebooks / Wikipedia / Wikisource /
   Gutenberg / Hacker News / arXiv / PLOS** — read-only browses of public
-  websites; the user picks what to read, storyvox fetches it.
+  websites; the user picks what to read, Candela fetches it.
 - **Notion / Outline / Memory Palace** — user-owned data behind the user's
   own access token.
 - **Discord / Slack / Telegram / Matrix** — message feeds, read-only, with
   per-service auth that the user provides.
 
-Storyvox itself is **not a UGC platform**. Users don't post anything from
-inside storyvox; there's no in-app feed of user-submitted content; there's
-no way for storyvox users to share content with each other through
-storyvox. The "UGC" exposure is "the public web, the user's own data
+Candela itself is **not a UGC platform**. Users don't post anything from
+inside Candela; there's no in-app feed of user-submitted content; there's
+no way for Candela users to share content with each other through
+Candela. The "UGC" exposure is "the public web, the user's own data
 stores, and chat services where the user is already a member."
 
 ### Policy: UGC
@@ -50,7 +50,7 @@ requires:
 2. A mechanism for users to flag objectionable content.
 3. A mechanism for users to block other users.
 
-For storyvox, these obligations are subtle because storyvox isn't *hosting*
+For Candela, these obligations are subtle because Candela isn't *hosting*
 UGC — but Play's policy is read by reviewers as "if your app surfaces
 content the user might not have generated themselves, you need a reporting
 mechanism."
@@ -65,7 +65,7 @@ mechanism."
 | In-app block / mute | **N/A** | No social graph. |
 | Defaults that surface family-safe content | **Yes** | TechEmpower Home is the default landing surface in v0.5.51+, library defaults to TechEmpower's Notion-backed resource library — not the Royal Road browse tab. |
 
-**Verdict: pass.** storyvox is a reader, not a UGC host. The scheme
+**Verdict: pass.** Candela is a reader, not a UGC host. The scheme
 allowlist + the Play-required content advisory ("Users interact with
 user-generated content — content may vary") is sufficient. The Report-
 content mailto is a small UX addition that closes the "reviewer concerned
@@ -77,7 +77,7 @@ about UGC" gap with minimal code.
 
 ### Surface
 
-storyvox declares two foreground service types:
+Candela declares two foreground service types:
 
 1. `FOREGROUND_SERVICE_MEDIA_PLAYBACK` — the Media3 session powering the
    actual audiobook playback (lock-screen controls, notification with
@@ -108,12 +108,12 @@ requires:
 **Reviewer-facing justification** (copy into the Play Console "Foreground
 services" justification field if asked):
 
-> storyvox uses `mediaPlayback` for its audiobook player session — the
+> Candela uses `mediaPlayback` for its audiobook player session — the
 > user starts playback, the foreground service runs while audio plays,
 > and the user can pause / stop / clear at any time via the notification
 > or lock-screen controls.
 >
-> storyvox uses `dataSync` for two workloads: (1) pre-rendering the next
+> Candela uses `dataSync` for two workloads: (1) pre-rendering the next
 > chapter's audio into a local cache so playback is gapless across
 > chapter transitions, and (2) syncing the user's library state with
 > InstantDB when the user has opted into cross-device sync. Both workers
@@ -138,12 +138,12 @@ The TechEmpower Home screen's Emergency Help card surfaces three buttons:
 - **911** — emergency services (US / Canada)
 
 Tapping any of them fires `Intent.ACTION_DIAL` with the number pre-filled.
-**storyvox never calls `ACTION_CALL`** (which would dial automatically and
+**Candela never calls `ACTION_CALL`** (which would dial automatically and
 need `CALL_PHONE` permission). The user has to tap "Call" in the dialer
 themselves.
 
 `<uses-feature android:name="android.hardware.telephony"
-android:required="false" />` is declared (#546) so storyvox stays
+android:required="false" />` is declared (#546) so Candela stays
 installable on WiFi-only tablets, which can't make calls. On those
 devices, the in-app `dialOrSurfaceFallback` helper detects the absence of
 `PackageManager.FEATURE_TELEPHONY` at runtime and shows a "this device
@@ -159,7 +159,7 @@ can't make calls" dialog with copy-to-clipboard and a web fallback for 211
 - Apps cannot impersonate emergency services or charge for access to
   emergency-service contact info.
 
-storyvox doesn't charge, doesn't claim to be an emergency service, and
+Candela doesn't charge, doesn't claim to be an emergency service, and
 uses the public, well-known short codes (988 / 211 / 911 are first-party
 US numbers). The UX is "open the dialer with a number pre-filled" —
 identical to clicking a `tel:` link in a web browser.
@@ -207,15 +207,15 @@ submission time.
 | Device or other identifiers | **No** | — | — | — | No advertising ID, no device fingerprinting |
 | Financial info | **No** | — | — | — | No IAP, no payments |
 | Health / fitness | **No** | — | — | — | |
-| Messages | **No** (storyvox reads Discord/Slack/Matrix/Telegram channels via *user's own credentials* directly to those services; storyvox doesn't see or store the messages anywhere we control) | — | — | — | |
+| Messages | **No** (Candela reads Discord/Slack/Matrix/Telegram channels via *user's own credentials* directly to those services; Candela doesn't see or store the messages anywhere we control) | — | — | — | |
 
 ### "Data shared" answers
 
 | Sharing case | Disclosed as | Rationale |
 | --- | --- | --- |
-| Email + library state → InstantDB | **Sharing email + library state with InstantDB** when sync is on | InstantDB is storyvox's sync backend; this is data sharing under Play's definition. |
+| Email + library state → InstantDB | **Sharing email + library state with InstantDB** when sync is on | InstantDB is Candela's sync backend; this is data sharing under Play's definition. |
 | Sign-in to Discord / Notion / Royal Road / etc. | **Not shared** — user-initiated direct call from their device to that service | Per Play's guidance, when the user enters credentials into a third-party service from the app, that's "the user transmitting data to that service," not the app sharing it. |
-| BYOK Azure / Anthropic / OpenAI etc. | **Not shared** — same reasoning | The user provides their own key; storyvox is the conduit, not the data steward. |
+| BYOK Azure / Anthropic / OpenAI etc. | **Not shared** — same reasoning | The user provides their own key; Candela is the conduit, not the data steward. |
 
 ### "Security practices" answers
 

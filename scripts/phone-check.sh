@@ -9,7 +9,7 @@ EXPECTED_VCODE="${2:?usage: phone-check.sh <device-serial> <versionCode>}"
 echo "=== Phone check: $DEVICE ==="
 
 # 1. Version
-INFO=$(adb -s "$DEVICE" shell dumpsys package in.jphe.storyvox | grep -E "versionCode|versionName")
+INFO=$(adb -s "$DEVICE" shell dumpsys package org.techempower.candela | grep -E "versionCode|versionName")
 ACTUAL_VCODE=$(echo "$INFO" | grep -oP 'versionCode=\K\d+')
 ACTUAL_VNAME=$(echo "$INFO" | grep -oP 'versionName=\K\S+')
 echo "Version: $ACTUAL_VNAME (code $ACTUAL_VCODE)"
@@ -19,11 +19,11 @@ if [ "$ACTUAL_VCODE" != "$EXPECTED_VCODE" ]; then
 fi
 
 # 2. Launch
-adb -s "$DEVICE" shell am start -n in.jphe.storyvox/.MainActivity > /dev/null 2>&1
+adb -s "$DEVICE" shell am start -n org.techempower.candela/in.jphe.storyvox.MainActivity > /dev/null 2>&1
 sleep 3
 
 # 3. Crash check
-PID=$(adb -s "$DEVICE" shell pidof in.jphe.storyvox 2>/dev/null || true)
+PID=$(adb -s "$DEVICE" shell pidof org.techempower.candela 2>/dev/null || true)
 if [ -z "$PID" ]; then
     echo "FAIL: process not running after launch"
     exit 1

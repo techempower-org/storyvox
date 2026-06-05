@@ -1,6 +1,6 @@
 # Cloud sync (InstantDB)
 
-Storyvox v0.6 introduces cloud sync via [InstantDB](https://www.instantdb.com).
+Candela v0.6 introduces cloud sync via [InstantDB](https://www.instantdb.com).
 The goal: a reinstall (or accidental `adb uninstall`) doesn't wipe your
 library, follows, reading positions, bookmarks, pronunciation dictionary,
 or your AI keys. Sign in on a new device → everything comes back.
@@ -152,7 +152,7 @@ service or store the master key plaintext anywhere.
 
 The four-line user journey:
 
-1. Get a new phone, install storyvox.
+1. Get a new phone, install Candela.
 2. Open Settings → Account → Sync.
 3. Enter the same email, paste the magic code from your inbox.
 4. (Optional, for secrets): enter the sync passphrase.

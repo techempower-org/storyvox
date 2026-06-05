@@ -6,7 +6,7 @@ description: Full screenshot gallery — Browse, Reader, Library, Settings, Filt
 
 # Screenshots
 
-Captured on a Galaxy Tab A7 Lite (800×1340 px) running storyvox in both Library Nocturne themes — brass on warm-dark or brass on parchment cream. The shots below swap with your current preference; toggle the theme in the page header to see both.
+Captured on a Galaxy Tab A7 Lite (800×1340 px) running Candela in both Library Nocturne themes — brass on warm-dark or brass on parchment cream. The shots below swap with your current preference; toggle the theme in the page header to see both.
 
 ## Browse
 

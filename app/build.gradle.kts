@@ -175,11 +175,11 @@ android {
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "in.jphe.storyvox"
+        applicationId = "org.techempower.candela"
         minSdk = 26
         targetSdk = 35
-        versionCode = 226
-        versionName = "1.0.2"
+        versionCode = 227
+        versionName = "1.0.3"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true

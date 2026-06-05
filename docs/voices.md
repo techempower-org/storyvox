@@ -6,12 +6,12 @@ description: Three in-process voice families (Piper, Kokoro, KittenTTS) plus opt
 
 # Voice catalog
 
-storyvox ships **three local voice families**, with an **optional cloud backend** wired in for users who want studio-grade narration on slow devices:
+Candela ships **three local voice families**, with an **optional cloud backend** wired in for users who want studio-grade narration on slow devices:
 
 - **[Piper](https://github.com/rhasspy/piper)** *(local, in-process)* — single-speaker, compact, fast. Each voice is ~14–30 MB. Best for first-time installs and for fast turnaround on slow hardware.
 - **[Kokoro](https://github.com/hexgrad/kokoro)** *(local, in-process)* — multi-speaker, ~330 MB single download, ships dozens of voice profiles in one model. Higher quality, slower to synthesize.
 - **KittenTTS** *(local, in-process — shipped v0.5.36, [#119](https://github.com/techempower-org/storyvox/issues/119))* — the lightest tier, ~24 MB shared across 8 en_US speakers. Designed for slow devices where Piper-high struggles. The "first chapter in 10 seconds" voice family.
-- **[Azure Cognitive Services HD voices](https://learn.microsoft.com/azure/ai-services/speech-service/text-to-speech)** *(cloud, BYOK)* — opt-in, paid by you to Microsoft, never by storyvox. Studio-grade narration with offline fallback to a local voice if your key fails or the network drops. See [Cloud voices](#cloud-voices-azure-hd-byok) below.
+- **[Azure Cognitive Services HD voices](https://learn.microsoft.com/azure/ai-services/speech-service/text-to-speech)** *(cloud, BYOK)* — opt-in, paid by you to Microsoft, never by Candela. Studio-grade narration with offline fallback to a local voice if your key fails or the network drops. See [Cloud voices](#cloud-voices-azure-hd-byok) below.
 
 Local voices run **in-process** via the [VoxSherpa-TTS](https://github.com/techempower-org/VoxSherpa-TTS) `:engine-lib` AAR, which wraps [k2-fsa/sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) for inference. No second APK, no system-TTS handoff, no per-character billing.
 
@@ -83,7 +83,7 @@ The script:
 1. Lists `tts-models` assets on `k2-fsa/sherpa-onnx` matching `vits-piper-(en_US|en_GB)-*.tar.bz2` (no `-int8`, no `-fp16` suffix) and `kokoro-multi-lang-v1_1.tar.bz2`.
 2. Diffs against assets currently on `voices-v2`.
 3. Downloads any missing tarballs (parallel x8).
-4. Extracts and flattens — drops `MODEL_CARD`, `espeak-ng-data/`, and various Kokoro lexicon/dict files (storyvox bundles its own espeak data).
+4. Extracts and flattens — drops `MODEL_CARD`, `espeak-ng-data/`, and various Kokoro lexicon/dict files (Candela bundles its own espeak data).
 5. Uploads everything to `voices-v2` with `--clobber` so reruns are idempotent.
 
 When you add a new upstream voice, also add a `CatalogEntry` to
@@ -112,16 +112,16 @@ feature, not v0.4.x.
 
 ## Cloud voices — Azure HD (BYOK)
 
-For users who want studio-grade narration on slow devices, **Azure Cognitive Services HD voices** are wired in as an optional remote backend. Bring your own Azure key + region; storyvox never touches your billing.
+For users who want studio-grade narration on slow devices, **Azure Cognitive Services HD voices** are wired in as an optional remote backend. Bring your own Azure key + region; Candela never touches your billing.
 
 To set up Azure:
 
 1. Create an Azure Speech resource ([Azure portal](https://portal.azure.com)) and copy the key + region (e.g. `eastus`, `westeurope`).
-2. In storyvox, open **Settings → Voice & Playback → Azure**.
+2. In Candela, open **Settings → Voice & Playback → Azure**.
 3. Paste the key, pick the region, tap **Test connection**. The full HD voice roster lights up.
 4. Pick an Azure voice from the regular voice library — it shows up grouped under "Azure HD".
 
-Storyvox uses SSML to drive the same per-voice **speed**, **pitch**, and **punctuation cadence** knobs you set for local voices, with retries on transient HTTP errors. If your key fails or the network drops mid-chapter, playback falls back to your selected local voice for the remainder — it never just stops on you.
+Candela uses SSML to drive the same per-voice **speed**, **pitch**, and **punctuation cadence** knobs you set for local voices, with retries on transient HTTP errors. If your key fails or the network drops mid-chapter, playback falls back to your selected local voice for the remainder — it never just stops on you.
 
 Cache eviction priority weights Azure renders higher than local renders since they cost real money: the chapter PCM cache evicts local-engine outputs first when it needs space.
 

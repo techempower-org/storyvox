@@ -1,12 +1,12 @@
 ---
 layout: default
-title: Install storyvox
-description: Sideload storyvox on Android. System requirements, voice download sizes, and the optional Royal Road sign-in.
+title: Install Candela
+description: Sideload Candela on Android. System requirements, voice download sizes, and the optional Royal Road sign-in.
 ---
 
 # Install
 
-storyvox is currently distributed by sideloading. CI builds debug APKs on every push to `main`; tagged releases (`v0.x.x`) attach a signed APK to the corresponding GitHub release.
+Candela is currently distributed by sideloading. CI builds debug APKs on every push to `main`; tagged releases (`v0.x.x`) attach a signed APK to the corresponding GitHub release.
 
 ## Quick install
 
@@ -14,7 +14,7 @@ storyvox is currently distributed by sideloading. CI builds debug APKs on every 
 2. Download the latest `storyvox-vX.Y.Z.apk` from the assets.
 3. On the device, enable **Install unknown apps** for whichever browser or file manager you used.
 4. Open the APK to install.
-5. Launch storyvox. You'll be asked for **notification permission** (used for the lock-screen tile during playback).
+5. Launch Candela. You'll be asked for **notification permission** (used for the lock-screen tile during playback).
 6. The voice picker appears on first launch — pick a Piper voice for a quick first chapter (~14–30 MB), Kokoro for the multi-speaker model (~330 MB), or KittenTTS for the lightest tier (~24 MB, designed for slow devices).
 
 That's it. There's no account requirement. Anonymous browsing works for all public Royal Road fictions, every GitHub-sourced fiction, and the TechEmpower-default Notion library (Guides, Resources, About, Donate).
@@ -38,7 +38,7 @@ The dock layout settled in v0.5.50 after the v0.5.40 nav restructure (which lift
 | Network | Wi-Fi for first launch and voice download; chapters cache locally |
 | Cold launch | **~0.8 s on Tab A7 Lite** (release build, v0.5.46+ — R8 + Baseline Profile) |
 
-The TTS engine runs in storyvox's own process via the
+The TTS engine runs in Candela's own process via the
 [VoxSherpa-TTS](https://github.com/techempower-org/VoxSherpa-TTS) `:engine-lib` AAR, so there's no second
 APK to install and no engine-binding handshake. Voice models download on demand from the project's
 [`voices-v2`](https://github.com/techempower-org/VoxSherpa-TTS/releases/tag/voices-v2) GitHub release.
@@ -49,9 +49,9 @@ Nothing is bundled in the APK.
 Anonymous browsing works for every public chapter. **Sign in** unlocks:
 
 - **Premium chapters** — Patreon-tier early access on supported fictions.
-- **Your Follows tab** — your bookmarked Royal Road fictions sync down into storyvox.
+- **Your Follows tab** — your bookmarked Royal Road fictions sync down into Candela.
 
-storyvox uses an in-app WebView for the login flow. **Your password never touches our code; only the session cookies are captured, and they're stored encrypted on-device** via Android's `EncryptedSharedPreferences`.
+Candela uses an in-app WebView for the login flow. **Your password never touches our code; only the session cookies are captured, and they're stored encrypted on-device** via Android's `EncryptedSharedPreferences`.
 
 To sign in:
 
@@ -92,7 +92,7 @@ recommended for daily use. If you want to experiment, sideload the wear APK from
 
 ## Update path
 
-storyvox doesn't auto-update. When a new release ships:
+Candela doesn't auto-update. When a new release ships:
 
 1. Download the new APK from [Releases](https://github.com/techempower-org/storyvox/releases).
 2. Open it. Android will prompt to upgrade in place — your library, voices, and progress are preserved.

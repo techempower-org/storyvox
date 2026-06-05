@@ -7,6 +7,11 @@
   <meta name="description" content="{{ page.description | default: site.description }}" />
   {%- seo title=false -%}
   <link rel="icon" href="{{ '/assets/favicon.svg' | relative_url }}" type="image/svg+xml" />
+  <link rel="icon" href="{{ '/assets/favicon-32.png' | relative_url }}" sizes="32x32" type="image/png" />
+  <link rel="icon" href="{{ '/assets/favicon-16.png' | relative_url }}" sizes="16x16" type="image/png" />
+  <link rel="apple-touch-icon" href="{{ '/assets/apple-touch-icon.png' | relative_url }}" />
+  <link rel="manifest" href="{{ '/site.webmanifest' | relative_url }}" />
+  <meta name="theme-color" content="#14110d" />
   {%- comment -%} dark.realm.watch Tier 2 — system-aware theming via CDN.
        SRI-pinned: any change to dark.css/dark.js upstream will fail the
        integrity check rather than silently mutating the docs site. Bump
@@ -27,7 +32,7 @@
   <header class="site-header">
     <a class="brand" href="{{ '/' | relative_url }}">
       <span class="brand-mark" aria-hidden="true">⌑</span>
-      <span class="brand-name">storyvox</span>
+      <span class="brand-name">Candela</span>
     </a>
     <nav class="site-nav" aria-label="Primary">
       <a href="{{ '/install/' | relative_url }}">Install</a>

@@ -3,9 +3,9 @@ layout: default
 title: Accessibility
 ---
 
-# Accessibility in storyvox
+# Accessibility in Candela
 
-storyvox is built to be useful to people who read with their ears as much as
+Candela is built to be useful to people who read with their ears as much as
 their eyes — and that overlaps deeply with the audience for assistive
 technology. The accessibility work documented here is the result of a
 two-phase audit and refit that landed in v0.5.42 (Phase 1 scaffold) and
@@ -29,7 +29,7 @@ needs more work, and how to file an accessibility issue.
   system-wide font scale setting. All user-facing text rides this scale.
 - **Reduced motion** — when the user enables "Remove animations" in
   Android Settings (which sets `Settings.Global.ANIMATOR_DURATION_SCALE`
-  to 0), storyvox's `LocalReducedMotion` CompositionLocal flips on
+  to 0), Candela's `LocalReducedMotion` CompositionLocal flips on
   and most decorative animations skip. The Phase 2 reduce-motion sweep
   ([#480](https://github.com/techempower-org/storyvox/issues/480))
   wires this through `AnimatedVisibility` / `tween` / `LaunchedEffect`

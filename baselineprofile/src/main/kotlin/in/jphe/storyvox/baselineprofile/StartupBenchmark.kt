@@ -79,6 +79,6 @@ class StartupBenchmark {
     }
 
     private companion object {
-        const val TARGET_PACKAGE = "in.jphe.storyvox"
+        const val TARGET_PACKAGE = "org.techempower.candela"
     }
 }

@@ -1,6 +1,6 @@
 # Play Console Upload Runbook
 
-This runbook covers the **one-time** Play Console setup and the **per-release** upload workflow for storyvox. Once the one-time setup is done, future releases are a single `./gradlew publishReleaseBundle` away.
+This runbook covers the **one-time** Play Console setup and the **per-release** upload workflow for Candela. Once the one-time setup is done, future releases are a single `./gradlew publishReleaseBundle` away.
 
 ## What's automated (after setup)
 
@@ -12,7 +12,7 @@ After the one-time service-account setup below, this command does the full relea
 
 It uploads the signed AAB to Play Console's Internal Test track as a **draft** (you click "Release" in the Play Console once to publish — that's intentional, see safety notes below).
 
-The plugin is [Triple-T's gradle-play-publisher](https://github.com/Triple-T/gradle-play-publisher). Its config lives in `app/build.gradle.kts` in the `play { }` block, with defaults that match storyvox's release flow:
+The plugin is [Triple-T's gradle-play-publisher](https://github.com/Triple-T/gradle-play-publisher). Its config lives in `app/build.gradle.kts` in the `play { }` block, with defaults that match Candela's release flow:
 
 | Setting | Value | Why |
 |---|---|---|
@@ -29,7 +29,7 @@ These steps are **inherently manual** — they require browser interaction with 
 ### 1. Create the Play Console app entry (Play Console UI)
 
 1. Open https://play.google.com/console as TechEmpower-org admin.
-2. **Create app** → name "storyvox", default language English (US), app/game = App, free/paid = Free.
+2. **Create app** → name "Candela", default language English (US), app/game = App, free/paid = Free.
 3. Accept declarations (developer program policies, US export laws).
 4. Fill in the **Set up your app** dashboard items:
    - **App access** → all functionality available without restrictions (no login wall in v1.0).
@@ -37,7 +37,7 @@ These steps are **inherently manual** — they require browser interaction with 
    - **Target audience** → 13+ (matches content rating). NOT primarily child-directed.
    - **News apps** → No.
    - **COVID-19 contact tracing** → No.
-   - **Data safety** → declare what storyvox collects (audiobook listening progress synced via InstantDB; no advertising IDs; no personal data sold).
+   - **Data safety** → declare what Candela collects (audiobook listening progress synced via InstantDB; no advertising IDs; no personal data sold).
    - **Government apps** → No.
    - **Financial features** → No.
    - **Health** → No.
@@ -69,7 +69,7 @@ This is **first-time only**. Everything below is recurring.
 2. Click **Link** next to the Google Cloud project you created.
 3. Find the new service account, click **Grant access**.
 4. Permissions to grant:
-   - **App permissions** → storyvox only (don't grant cross-app).
+   - **App permissions** → Candela only (don't grant cross-app).
    - **Account permissions** → at minimum **Release manager**. (Release manager can publish to Internal/Closed/Open testing and Production, but cannot change app settings — exactly what we want for automated releases.)
 5. Click **Invite user**. Accept the invitation from the same Google account.
 

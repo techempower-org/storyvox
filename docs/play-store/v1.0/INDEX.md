@@ -1,7 +1,7 @@
 ---
 layout: default
-title: storyvox · Play Console graphics assets v1.0
-description: Index of graphics assets prepared for the storyvox v1.0 Play Store Internal Test upload.
+title: Candela · Play Console graphics assets v1.0
+description: Index of graphics assets prepared for the Candela v1.0 Play Store Internal Test upload.
 ---
 
 # Play Console graphics assets — v1.0 Internal Test
@@ -25,7 +25,7 @@ with Notion banner-fetch enabled.
 | Field | File | Dimensions | Notes |
 |---|---|---|---|
 | **App icon (high-res)** | `icon-512.png` | 512×512 PNG | Library Nocturne adaptive launcher icon rendered to flat 512×512. Brass book on warm-dark with sun-disk halo, sound-wave arcs, and candle flame. No alpha. |
-| **Feature graphic** | `feature-1024x500.png` | 1024×500 PNG | Storefront banner. Library Nocturne palette, brass `storyvox` wordmark at left-center, tagline "Stories, read out loud." Hero sun-disk glow on right. Adaptive-icon book tile on the left. Right ~30 % kept clear for Play Console's overlaid install button. Under 200 KB. |
+| **Feature graphic** | `feature-1024x500.png` | 1024×500 PNG | Storefront banner. Library Nocturne palette, brass `Candela` wordmark at left-center, tagline "Stories, read out loud." Hero sun-disk glow on right. Adaptive-icon book tile on the left. Right ~30 % kept clear for Play Console's overlaid install button. Under 200 KB. |
 | **Phone screenshots × 4** | `phone-01-library-hero.png` `phone-02-techempower-home.png` `phone-03-browse-resources.png` `phone-04-fiction-detail.png` | 1080×2640 (9:22) | Captured on Galaxy Z Flip 3 portrait. Min 4 satisfied. |
 | **7-inch tablet × 6** | `tablet-01-…` … `tablet-06-…` | 1340×800 (≈16:9.5) | Captured on Tab A7 Lite landscape. Play Console accepts a single tablet set for both 7" and 10" buckets — submit the same six in the 10-inch bucket. |
 | **10-inch tablet × 6** | same six tablet files | 1340×800 | Submit the same six tablet PNGs. |

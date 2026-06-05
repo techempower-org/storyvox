@@ -1,4 +1,4 @@
-# storyvox roadmap
+# Candela roadmap
 
 A short-form list of shipped + in-flight + planned work. Detailed designs live under
 `docs/superpowers/specs/`. Touching Compose? See

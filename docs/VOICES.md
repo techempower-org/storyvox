@@ -2,7 +2,7 @@
 
 ## Where voices come from
 
-Storyvox embeds the [VoxSherpa-TTS](https://github.com/techempower-org/VoxSherpa-TTS) engine via JitPack, which itself wraps [k2-fsa/sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) for the actual ONNX inference. The neural model weights — Piper voices, the multi-speaker Kokoro model, and the **KittenTTS** lightest-tier model (shipped v0.5.36) — are not bundled in the APK (they'd add 1+ GB) but downloaded on demand by `VoiceManager` from the `voices-v2` GitHub release on `techempower-org/VoxSherpa-TTS`.
+Candela embeds the [VoxSherpa-TTS](https://github.com/techempower-org/VoxSherpa-TTS) engine via JitPack, which itself wraps [k2-fsa/sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) for the actual ONNX inference. The neural model weights — Piper voices, the multi-speaker Kokoro model, and the **KittenTTS** lightest-tier model (shipped v0.5.36) — are not bundled in the APK (they'd add 1+ GB) but downloaded on demand by `VoiceManager` from the `voices-v2` GitHub release on `techempower-org/VoxSherpa-TTS`.
 
 Three voice families ship today: **Piper** (compact, ~14–30 MB per voice), **Kokoro** (multi-speaker, ~330 MB shared), and **KittenTTS** (~24 MB shared across 8 en_US speakers — the "first chapter in 10 seconds" tier for slow devices).
 
@@ -31,7 +31,7 @@ The script:
 1. Lists `tts-models` assets on `k2-fsa/sherpa-onnx` matching `vits-piper-(en_US|en_GB)-*.tar.bz2` (no `-int8`, no `-fp16` suffix) and `kokoro-multi-lang-v1_1.tar.bz2`.
 2. Diffs against assets currently on `voices-v2`.
 3. Downloads any missing tarballs (parallel x8).
-4. Extracts and flattens — drops `MODEL_CARD`, `espeak-ng-data/`, and the various Kokoro lexicon/dict files (storyvox bundles its own espeak data).
+4. Extracts and flattens — drops `MODEL_CARD`, `espeak-ng-data/`, and the various Kokoro lexicon/dict files (Candela bundles its own espeak data).
 5. Uploads everything to `voices-v2` with `--clobber` so reruns are idempotent.
 
 When you add a new upstream voice, also add a `CatalogEntry` to `core-playback/src/main/kotlin/in/jphe/storyvox/playback/voice/VoiceCatalog.kt`. The script does **not** edit the catalog automatically — that part is a deliberate human review.

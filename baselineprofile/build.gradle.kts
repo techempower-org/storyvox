@@ -128,7 +128,7 @@ androidComponents {
         val artifactsLoader = variant.artifacts.getBuiltArtifactsLoader()
         variant.instrumentationRunnerArguments.put(
             "targetAppId",
-            "in.jphe.storyvox",
+            "org.techempower.candela",
         )
     }
 }

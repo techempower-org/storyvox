@@ -5,10 +5,10 @@
   none today (no count-bearing widget copy).
 -->
 <resources>
-    <string name="widget_now_playing_label">storyvox — Now playing</string>
+    <string name="widget_now_playing_label">Candela — Now playing</string>
     <string name="widget_now_playing_description">Now-playing chapter with transport controls. Resize to reveal cover, title, chapter, and sleep-timer toggle.</string>
     <string name="widget_idle_title">Nothing playing</string>
-    <string name="widget_idle_body">Open storyvox to start an audiobook</string>
+    <string name="widget_idle_body">Open Candela to start an audiobook</string>
     <string name="widget_action_play">Play</string>
     <string name="widget_action_pause">Pause</string>
     <string name="widget_action_next">Next chapter</string>

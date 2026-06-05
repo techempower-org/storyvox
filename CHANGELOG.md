@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to storyvox land here. Format roughly follows
+All notable changes to Candela (the storyvox engine) land here. Format roughly follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions track
 the `versionName` in `app/build.gradle.kts` and the `v*` git tag.
 
@@ -8,6 +8,15 @@ Entries before v0.5.12 are reconstructed from the git log — see
 `git log --oneline` for the exhaustive record.
 
 ## [Unreleased]
+
+## [1.0.3] -- 2026-05-29
+
+**Rebrand to Candela.** The app is now **Candela** — Latin for *candle*, and the SI unit of luminous intensity. It's a clean public identity for the Google Play debut, away from the crowded "storyvox" name (already live on Play as a different app, and owned by two commercial text-to-audiobook products in our exact category). *Storyvox* lives on as the engine underneath — the package namespace, deep-link scheme, and on-device data layout are all unchanged, so this is purely an identity change with no data migration.
+
+### Changed
+- **Brand** — the launcher label, onboarding, Settings hub/about, the now-playing widget, and reader/RSS copy now read **Candela**. Internal identifiers (namespace `in.jphe.storyvox`, `storyvox://` deep links, `storyvox.secrets` / `storyvox_settings` stores, HTTP user-agents) are deliberately preserved to keep existing data and external contracts intact.
+- **Launcher icon** — the apex glyph is now a lit candle flame (warm amber → white-hot core with a soft glow) in place of the ambiguous pale orb, keeping the open book and ascending sound-wave arcs. The flame is the only fire-warm element on the canvas, carrying the *Candela / candlelight* read at any density.
+- **`applicationId`** → `org.techempower.candela`. This is a new Play package; it installs **alongside** any prior `in.jphe.storyvox` build rather than upgrading it in place.
 
 ## [1.0.2] -- 2026-05-29
 

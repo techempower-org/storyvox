@@ -1,6 +1,6 @@
-# storyvox release announcement — Slack template
+# Candela release announcement — Slack template
 
-storyvox is [TechEmpower](https://techempower.org)'s accessible resource
+Candela is [TechEmpower](https://techempower.org)'s accessible resource
 app, built on a Library Nocturne brass-on-warm-dark engine. Every
 release announcement to `#storyvox` leads with TechEmpower's mission
 framing first ("Technology for All. Access Made Easy.") and the
@@ -25,7 +25,7 @@ Mustache-style `{{VARS}}` get filled in per release. The output goes via
 the wording before broadcasting.
 
 ```
-:candle: *storyvox {{VERSION}}* — {{TAGLINE}}
+:candle: *Candela {{VERSION}}* — {{TAGLINE}}
 ✦  _{{SIGIL_NAME}}_  ✦
 
 > {{POETIC_LINE}}
@@ -117,7 +117,7 @@ on 2026-05-13. Reproduce by passing the rendered text below to
 `slack_send_message_draft` with `channel_id="C0B2SGPERE0"`.
 
 ```
-:candle: *storyvox v0.5.12* — cloud sync foundation, shelves, history & resume
+:candle: *Candela v0.5.12* — cloud sync foundation, shelves, history & resume
 ✦  _Infernal Dominion_  ✦
 
 > Cloud-bound at last, with the right places to put a book and the right way to find it again.

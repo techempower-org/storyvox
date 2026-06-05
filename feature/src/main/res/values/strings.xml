@@ -170,7 +170,7 @@
     <!-- Reader / ResumePrompt -->
     <string name="reader_from_the_start">From the start</string>
     <string name="reader_start_listening">▶  Start listening</string>
-    <string name="reader_empty_library_body">Pick up an audiobook to listen and storyvox remembers your place.</string>
+    <string name="reader_empty_library_body">Pick up an audiobook to listen and Candela remembers your place.</string>
     <string name="reader_browse_realms_arrow">Browse the realms →</string>
 
     <!-- Reader / RecapModal -->
@@ -405,7 +405,7 @@
 
     <!-- RSS manage sheet -->
     <string name="rss_manage_title">Manage RSS feeds</string>
-    <string name="rss_manage_description">Subscribe to any feed that publishes RSS or Atom. Storyvox treats each feed as one fiction; each item is a chapter.</string>
+    <string name="rss_manage_description">Subscribe to any feed that publishes RSS or Atom. Candela treats each feed as one fiction; each item is a chapter.</string>
     <string name="rss_feed_url_label">Feed URL</string>
     <string name="rss_feed_url_placeholder">https://example.com/feed.xml</string>
     <string name="rss_add">Add</string>
@@ -419,7 +419,7 @@
     <string name="rss_suggested_collapsed_header">▸  Suggested feeds</string>
     <string name="rss_suggested_collapsed_hint">Tap to browse curated feeds (Buddhist &amp; dharma, more coming).</string>
     <string name="rss_kind_text">Text articles — narrate well</string>
-    <string name="rss_kind_audio_podcast">Audio podcast — storyvox narrates show notes only</string>
+    <string name="rss_kind_audio_podcast">Audio podcast — Candela narrates show notes only</string>
     <string name="rss_already_added">Added</string>
 
     <!-- Craigslist template card -->
@@ -440,9 +440,9 @@
 
     <!-- Onboarding · WelcomeScreen -->
     <string name="onboarding_welcome_headline">Stories, read aloud.</string>
-    <string name="onboarding_welcome_body">storyvox reads books, guides, and articles to you with calming voices. Free, forever, no ads.</string>
+    <string name="onboarding_welcome_body">Candela reads books, guides, and articles to you with calming voices. Free, forever, no ads.</string>
     <string name="onboarding_get_started">Get started</string>
-    <string name="onboarding_skip_welcome">I\'ve used storyvox before</string>
+    <string name="onboarding_skip_welcome">I\'ve used Candela before</string>
 
     <!-- Onboarding · FirstFictionPicker -->
     <string name="onboarding_first_fiction_headline">What would you like to hear?</string>
@@ -492,7 +492,7 @@
 
     <!-- Settings · hub (SettingsHubScreen) -->
     <string name="settings_hub_title">Settings</string>
-    <string name="settings_hub_heading">Storyvox</string>
+    <string name="settings_hub_heading">Candela</string>
     <string name="settings_hub_descriptor">Pick a section to configure.</string>
     <string name="settings_hub_search_label">Search settings</string>
     <string name="settings_hub_clear_search">Clear search</string>
@@ -549,7 +549,7 @@
 
     <!-- Settings · About subscreen -->
     <string name="settings_about_title">About</string>
-    <string name="settings_about_version">storyvox v%1$s</string>
+    <string name="settings_about_version">Candela v%1$s</string>
     <string name="settings_about_dirty"> · dirty</string>
     <string name="settings_about_built"> · built %1$s</string>
 
@@ -650,7 +650,7 @@
     <string name="settings_accessibility_direction_ltr">Force LTR</string>
     <string name="settings_accessibility_direction_rtl">Force RTL</string>
     <string name="settings_accessibility_about_title">About these settings</string>
-    <string name="settings_accessibility_about_subtitle">These settings improve storyvox for users who rely on TalkBack, Switch Access, or other accessibility tools. Most adapt automatically when assistive services are detected.</string>
+    <string name="settings_accessibility_about_subtitle">These settings improve Candela for users who rely on TalkBack, Switch Access, or other accessibility tools. Most adapt automatically when assistive services are detected.</string>
     <string name="settings_accessibility_learn_more_title">Learn more</string>
     <string name="settings_accessibility_learn_more_subtitle">Open the accessibility documentation in your browser.</string>
     <string name="settings_accessibility_talkback_active">TalkBack is active. The screen-reader-related settings on this page are taking effect right now.</string>
@@ -727,7 +727,7 @@
 
     <!-- Settings · legacy long-scroll (SettingsScreen) section headings -->
     <string name="settings_section_voice_label">Voice &amp; Playback</string>
-    <string name="settings_section_voice_descriptor">How storyvox sounds — voice, speed, cadence.</string>
+    <string name="settings_section_voice_descriptor">How Candela sounds — voice, speed, cadence.</string>
     <string name="settings_section_reading_label">Reading</string>
     <string name="settings_section_reading_descriptor">How chapter text and the reader behave.</string>
     <string name="settings_section_performance_label">Performance &amp; buffering</string>
@@ -827,7 +827,7 @@
     <string name="settings_github_private_on">Sign-in requests `repo` (full repo, read/write, includes private).</string>
     <string name="settings_github_private_off">Sign-in requests `public_repo` only (least privilege).</string>
     <string name="settings_github_revoke_title">Revoke at github.com</string>
-    <string name="settings_github_revoke_subtitle">Sign-out clears the local token; use this to revoke storyvox\'s authorization on GitHub\'s side too.</string>
+    <string name="settings_github_revoke_subtitle">Sign-out clears the local token; use this to revoke Candela\'s authorization on GitHub\'s side too.</string>
     <string name="settings_github_expired_subtitle">Session expired — sign in again to recover.</string>
 
 </resources>

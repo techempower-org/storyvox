@@ -1,23 +1,23 @@
-# storyvox
+# Candela
 
 [![Build](https://github.com/techempower-org/storyvox/actions/workflows/android.yml/badge.svg)](https://github.com/techempower-org/storyvox/actions/workflows/android.yml)
 [![Release](https://img.shields.io/github/v/release/techempower-org/storyvox?color=b88746&label=release)](https://github.com/techempower-org/storyvox/releases)
 [![License: GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-b88746.svg)](LICENSE)
 [![Built by dream-team](https://img.shields.io/badge/built%20by-dream--team-7d5fff.svg)](#how-it-was-built)
 
-**storyvox is [TechEmpower](https://techempower.org)'s accessible resource app.**
+**Candela is [TechEmpower](https://techempower.org)'s accessible resource app.**
 Browse free tech guides, connect with our peer-support Discord, dial 211 for local help — and listen to any of it through a neural-voice audiobook engine that reads everything aloud.
 
 **Under the hood: a neural-voice audiobook player for any text you have.**
 Stream chapters from **twenty-one fiction backends** — [Royal Road](https://royalroad.com), [GitHub](https://github.com/), an [Outline](https://www.getoutline.com) wiki, RSS / Atom feeds, a [Memory Palace](https://github.com/techempower-org/mempalace) you host yourself, local EPUB files, [Project Gutenberg](https://www.gutenberg.org/), [Archive of Our Own](https://archiveofourown.org/), [Standard Ebooks](https://standardebooks.org/), [Wikipedia](https://en.wikipedia.org/), [Wikisource](https://en.wikisource.org/), Radio (with [Radio Browser](https://www.radio-browser.info/) search across 30k+ stations), [Notion](https://notion.so/) pages or databases (defaults to TechEmpower's resource library — Guides, Resources, About, Donate, ~80 free-tech resource entries), [Hacker News](https://news.ycombinator.com/), [arXiv](https://arxiv.org/), [PLOS](https://plos.org/), [Discord](https://discord.com/) channels, [Telegram](https://telegram.org/) channels, [Palace Project](https://thepalaceproject.org/) free-library titles, [Slack](https://slack.com/) channels, and [Matrix](https://matrix.org/) rooms. Read aloud by an in-process neural TTS engine. A hybrid reader/audiobook view highlights the spoken sentence in brass as you listen. Built for Android phones, tablets, and Wear OS.
 
-> **TechEmpower** is a 501(c)(3) nonprofit closing the digital divide for low-income individuals and families with free tools, training, and software. storyvox is built on that mission — the engine identity is consistent (Library Nocturne brass-on-warm-dark theme, same as it's always been), but every user-facing surface leads with TechEmpower's framing now. [techempower.org](https://techempower.org) · [Donate](https://techempower.org/donate) · Peer-support [Discord](https://discord.gg/j3SVttxw7k).
+> **TechEmpower** is a 501(c)(3) nonprofit closing the digital divide for low-income individuals and families with free tools, training, and software. Candela is built on that mission — the engine identity is consistent (Library Nocturne brass-on-warm-dark theme, same as it's always been), but every user-facing surface leads with TechEmpower's framing now. [techempower.org](https://techempower.org) · [Donate](https://techempower.org/donate) · Peer-support [Discord](https://discord.gg/j3SVttxw7k).
 
 <div align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/03-reader.png">
     <source media="(prefers-color-scheme: light)" srcset="docs/screenshots/03-reader-light.png">
-    <img src="docs/screenshots/03-reader.png" width="320" alt="storyvox reader playing The Archmage Coefficient" />
+    <img src="docs/screenshots/03-reader.png" width="320" alt="Candela reader playing The Archmage Coefficient" />
   </picture>
 </div>
 
@@ -29,7 +29,7 @@ Stream chapters from **twenty-one fiction backends** — [Royal Road](https://ro
 
 - **Seventeen fiction backends, side by side.** Browse [Royal Road](https://royalroad.com) with the full filter set (tags include/exclude, status, type, length, rating, content warnings, sort); browse fiction repos on GitHub via the curated [storyvox-registry](https://github.com/techempower-org/storyvox-registry) plus live `/search/repositories` results; subscribe to any **RSS / Atom feed** with a managed suggested-feeds list from [storyvox-feeds](https://github.com/techempower-org/storyvox-feeds); pull articles from a self-hosted **[Outline](https://www.getoutline.com)** wiki; mount a **[Memory Palace](https://github.com/techempower-org/mempalace)** you host yourself; open **local EPUB files** from any folder via the system file picker; browse **Project Gutenberg's** 70,000+ public-domain books; pull fanfic from **Archive of Our Own** (per-tag feeds + official EPUBs); read **Standard Ebooks'** hand-curated typographically-polished classics; narrate any **Wikipedia** or **Wikisource** article (heading-split chapters; Wikisource walks multi-part works as `/Subpage` chapters); listen to **Radio** with 5 curated stations (KVMR 89.3, Capital Public Radio, KQED 88.5, KCSB 91.9, SomaFM Groove Salad) plus **Radio Browser API** search across 30,000+ stations worldwide; read a **Notion** database (defaults to the techempower.org content DB — paste an integration token and you're in); narrate **Hacker News** top stories + Ask HN / Show HN threads with comments; listen to **arXiv** abstracts in cs.AI and other categories; read **PLOS** open-access peer-reviewed science papers; or pull serialized fiction from **Discord** channels (channels = fictions, messages = chapters, bot-token auth). Each backend has its own on/off toggle in **Settings → Plugins** (the plugin manager iterates the registry, so adding a new backend is automatic).
 - **Plays chapters as audiobooks** through an in-process neural TTS engine. **Three voice families ship**: [Piper](https://github.com/rhasspy/piper) (compact, ~14–30 MB per voice), [Kokoro](https://github.com/hexgrad/kokoro) (multi-speaker, ~330 MB total), and **KittenTTS** (lightest tier, ~24 MB shared across 8 en_US speakers — designed for slow devices where Piper struggles). Voice models download on demand from `voices-v2`; nothing is bundled in the APK. No cloud, no API keys, no per-character billing.
-- **Optional cloud voices** — bring-your-own-key [Azure Cognitive Services HD voices](https://learn.microsoft.com/azure/ai-services/speech-service/text-to-speech) for studio-grade narration on slow devices. Offline fallback to the local engine if your key fails or the network drops. Azure is opt-in, never required, never billed by storyvox.
+- **Optional cloud voices** — bring-your-own-key [Azure Cognitive Services HD voices](https://learn.microsoft.com/azure/ai-services/speech-service/text-to-speech) for studio-grade narration on slow devices. Offline fallback to the local engine if your key fails or the network drops. Azure is opt-in, never required, never billed by Candela.
 - **Tier 3 multi-engine parallel synthesis.** Run 1–8 VoxSherpa engine instances side-by-side, each with its own thread pool, so a single sentence's chunks render in parallel and the next sentence is already queued before the current one finishes. Twin sliders in **Settings → Performance** (Engines, Threads/engine) let you tune for your CPU. The producer pins to a dedicated `URGENT_AUDIO` thread to keep audio scheduling honest under load.
 - **Highlights the current sentence** in brass as the engine speaks. Swipe between audiobook view (cover, scrubber, transport) and reader view (chapter text). The highlight glides between sentences to match the read-aloud rhythm.
 - **Auto-advances** between chapters. Eager-downloads ahead so the next chapter is ready when the current ends. PCM cache buffering keeps playback smooth when synthesis falls behind — the player pauses, refills, resumes without a glitch.
@@ -71,20 +71,20 @@ Stream chapters from **twenty-one fiction backends** — [Royal Road](https://ro
 
 ## TTS engine
 
-storyvox links a local TTS engine in-process via the [VoxSherpa-TTS](https://github.com/techempower-org/VoxSherpa-TTS) `:engine-lib` AAR (published to JitPack). That AAR re-projects [k2-fsa/sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) inference plus the Piper and Kokoro wrappers into a single dependency. We bypass Android's `TextToSpeech` framework entirely, manage our own `AudioTrack` with a fat buffer, and pipeline next-sentence generation against current playback. No second APK, no install gate, no engine-binding handshake — synthesis runs in storyvox's own process.
+Candela links a local TTS engine in-process via the [VoxSherpa-TTS](https://github.com/techempower-org/VoxSherpa-TTS) `:engine-lib` AAR (published to JitPack). That AAR re-projects [k2-fsa/sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) inference plus the Piper and Kokoro wrappers into a single dependency. We bypass Android's `TextToSpeech` framework entirely, manage our own `AudioTrack` with a fat buffer, and pipeline next-sentence generation against current playback. No second APK, no install gate, no engine-binding handshake — synthesis runs in Candela's own process.
 
-For users who want studio-grade narration on slow devices, **Azure Cognitive Services HD voices** are wired in as an optional remote backend (BYOK). Add your key and region in **Settings → Voice & Playback → Azure** and pick from the full Azure HD voice roster. If your key fails or the network drops, storyvox falls back to your selected local voice for the rest of the chapter — playback never just stops on you.
+For users who want studio-grade narration on slow devices, **Azure Cognitive Services HD voices** are wired in as an optional remote backend (BYOK). Add your key and region in **Settings → Voice & Playback → Azure** and pick from the full Azure HD voice roster. If your key fails or the network drops, Candela falls back to your selected local voice for the rest of the chapter — playback never just stops on you.
 
 Voice model weights for the local engine are downloaded on demand by `VoiceManager` from the `voices-v2` GitHub release; the in-app picker shows what's installed and what's available. See [`docs/VOICES.md`](docs/VOICES.md) for the catalog and refresh workflow.
 
 ## Install (sideload)
 
-storyvox is currently distributed by sideloading. CI builds debug APKs on every `main` push; tagged releases (`v0.x.x`) attach a signed APK to the GitHub release.
+Candela is currently distributed by sideloading. CI builds debug APKs on every `main` push; tagged releases (`v0.x.x`) attach a signed APK to the GitHub release.
 
 1. Download the latest `storyvox.apk` from the [Releases page](https://github.com/techempower-org/storyvox/releases).
 2. On your Android device, enable **Install unknown apps** for whatever browser/file manager you used.
 3. Open the APK to install.
-4. Launch storyvox. You'll be asked for notification permission (used for the lock-screen tile during playback). The voice picker appears on first launch — pick a Piper voice for a quick first chapter (~14–30 MB) or Kokoro for the multi-speaker model (~330 MB).
+4. Launch Candela. You'll be asked for notification permission (used for the lock-screen tile during playback). The voice picker appears on first launch — pick a Piper voice for a quick first chapter (~14–30 MB) or Kokoro for the multi-speaker model (~330 MB).
 
 System requirements:
 
@@ -99,7 +99,7 @@ Anonymous browsing works for all public chapters. **Sign in** unlocks:
 - Premium chapters (Patreon-tier early access)
 - Your Follows tab — your bookmarked fictions sync down
 
-storyvox uses an in-app WebView for the login flow. Your password never touches our code; only the session cookies are captured (and stored encrypted on-device).
+Candela uses an in-app WebView for the login flow. Your password never touches our code; only the session cookies are captured (and stored encrypted on-device).
 
 ## Build from source
 
@@ -235,7 +235,7 @@ Per-dreamer detail specs live in `scratch/dreamers/`.
 The v0.4 line shipped 80+ point releases — the engine, six fiction sources, AI chat, OAuth, the Settings redesign, Azure HD as a remote TTS option, and the Tier 3 perf lane are all in. The next wave is the v0.5 line: better recall, more shaping of the read-aloud, and the long-promised knowledge graph.
 
 **Shipped in v0.4 (since v0.4.55):**
-- **Azure HD voices (BYOK).** Optional cloud TTS via Azure Cognitive Services. Settings UI ([#182](https://github.com/techempower-org/storyvox/issues/182)), engine wiring ([#183](https://github.com/techempower-org/storyvox/issues/183)), error handling and retries ([#184](https://github.com/techempower-org/storyvox/issues/184)), offline fallback ([#185](https://github.com/techempower-org/storyvox/issues/185)), full voice roster + cache eviction priority ([#186](https://github.com/techempower-org/storyvox/issues/186)). Bring your own key — never billed by storyvox.
+- **Azure HD voices (BYOK).** Optional cloud TTS via Azure Cognitive Services. Settings UI ([#182](https://github.com/techempower-org/storyvox/issues/182)), engine wiring ([#183](https://github.com/techempower-org/storyvox/issues/183)), error handling and retries ([#184](https://github.com/techempower-org/storyvox/issues/184)), offline fallback ([#185](https://github.com/techempower-org/storyvox/issues/185)), full voice roster + cache eviction priority ([#186](https://github.com/techempower-org/storyvox/issues/186)). Bring your own key — never billed by Candela.
 - **Tier 3 multi-engine parallel synthesis.** Twin sliders for Engines × Threads/engine in Settings → Performance, producer pinned to a dedicated `URGENT_AUDIO` thread, VoxSherpa multi-core synced with upstream main.
 - **EPUB import** ([#235](https://github.com/techempower-org/storyvox/issues/235)). Folder picker via Storage Access Framework + an OPF parser; any folder of EPUB files becomes a Browse tab.
 - **RSS / Atom feeds** ([#236](https://github.com/techempower-org/storyvox/issues/236)). Subscribe to any feed; suggested feeds curated in [storyvox-feeds](https://github.com/techempower-org/storyvox-feeds) ([#246](https://github.com/techempower-org/storyvox/issues/246)).
@@ -256,7 +256,7 @@ See [`docs/ROADMAP.md`](docs/ROADMAP.md) for the long-form roadmap and backlog.
 
 ## How it was built
 
-storyvox was built starting May 5, 2026 by JP Hein orchestrating teams of dream-named [Claude Opus](https://www.anthropic.com/claude) agents working in parallel via [Claude Code](https://www.anthropic.com/claude-code). The original five-act structure shipped the v0.3 line:
+Candela was built starting May 5, 2026 by JP Hein orchestrating teams of dream-named [Claude Opus](https://www.anthropic.com/claude) agents working in parallel via [Claude Code](https://www.anthropic.com/claude-code). The original five-act structure shipped the v0.3 line:
 
 1. **storyvox-dreamers** — Morpheus, Selene, Oneiros, Hypnos, Aurora drafted the architecture, data layer, Royal Road integration, playback engine, and design system.
 2. **storyvox-tonight** — Phantasos, Morrigan, Caelus wired live audio playback, library round-trip, and loading skeletons.
@@ -272,7 +272,7 @@ Through the v0.4.56 → v0.4.83 stretch the dream-team kept landing: Solara's Az
 
 ## License
 
-storyvox is licensed under the [GNU General Public License v3.0](LICENSE).
+Candela is licensed under the [GNU General Public License v3.0](LICENSE).
 
 We statically link [VoxSherpa-TTS](https://github.com/techempower-org/VoxSherpa-TTS) (GPL-3.0) into the APK as our TTS engine. The combined work is therefore GPL-3.0 — this license is not a posture choice, it's a downstream obligation. Relicensing more permissively would require replacing the engine, not just changing this file.
 

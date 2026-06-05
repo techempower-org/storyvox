@@ -1,13 +1,13 @@
 ---
 layout: default
-title: storyvox — TechEmpower's accessible resource app, with audiobook everything
+title: Candela — TechEmpower's accessible resource app, with audiobook everything
 description: TechEmpower's accessible resource app — free tech guides, peer-support Discord, dial 211 for local help. Under the hood, a neural-voice audiobook player for twenty-one fiction backends with three in-process voice families plus optional Azure HD cloud voices. Free, GPL-3.0, no telemetry.
 image: /screenshots/03-reader.png
 ---
 
 <section class="hero">
   <div class="hero-text">
-    <h1>storyvox</h1>
+    <h1>Candela</h1>
     <p class="tagline"><strong><a href="https://techempower.org">TechEmpower</a>'s accessible resource app.</strong> Browse free tech guides, connect with peer-support Discord, dial 211 for local help — and listen to any of it through a neural-voice audiobook engine that reads everything aloud.</p>
     <p>
       Under the hood: twenty-one fiction backends side by side — <a href="https://royalroad.com">Royal Road</a>,
@@ -41,14 +41,14 @@ image: /screenshots/03-reader.png
     <dark-image
       src-dark="screenshots/03-reader.png"
       src-light="screenshots/03-reader-light.png"
-      alt="storyvox reader playing The Archmage Coefficient with the spoken sentence highlighted in brass.">
-      <img src="screenshots/03-reader.png" alt="storyvox reader playing The Archmage Coefficient with the spoken sentence highlighted in brass." />
+      alt="Candela reader playing The Archmage Coefficient with the spoken sentence highlighted in brass.">
+      <img src="screenshots/03-reader.png" alt="Candela reader playing The Archmage Coefficient with the spoken sentence highlighted in brass." />
     </dark-image>
   </div>
 </section>
 
 <section class="why">
-  <h2>Why storyvox</h2>
+  <h2>Why Candela</h2>
   <div class="why-grid">
     <div class="card">
       <h3>TechEmpower Home</h3>
@@ -116,7 +116,7 @@ image: /screenshots/03-reader.png
         Bring your own Azure key for studio-grade
         <a href="https://learn.microsoft.com/azure/ai-services/speech-service/text-to-speech">Azure HD voices</a>.
         Offline fallback to your local voice if the network drops or your key expires. Opt-in,
-        never required, never billed by storyvox.
+        never required, never billed by Candela.
       </p>
     </div>
     <div class="card">
@@ -379,7 +379,7 @@ image: /screenshots/03-reader.png
       <h3>No in-app purchases</h3>
       <p>
         No subscriptions, no premium tier, no upsell. Azure HD is BYOK — you pay Microsoft
-        directly if you want it. storyvox doesn't take a cut.
+        directly if you want it. Candela doesn't take a cut.
       </p>
     </div>
     <div class="open-card">
@@ -428,7 +428,7 @@ image: /screenshots/03-reader.png
 
 <footer class="site-footer">
   <p>
-    storyvox is licensed under the
+    Candela is licensed under the
     <a href="https://github.com/techempower-org/storyvox/blob/main/LICENSE">GNU General Public License v3.0</a>.
     Built by <a href="https://github.com/jphein">JP Hein</a>
     with teams of <a href="https://www.anthropic.com/claude-code">Claude Code</a> agents.
