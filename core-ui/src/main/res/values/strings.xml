@@ -12,4 +12,17 @@
     <string name="friendly_error_auth_failed">We couldn\'t sign in. Re-paste your credentials in Settings.</string>
     <string name="friendly_error_not_configured">This source isn\'t set up yet. Open Settings to configure it.</string>
     <string name="friendly_error_unexpected_response">The realm returned an unexpected response. Try again later.</string>
+
+    <!-- Issue #1025 — TalkBack / Switch Access custom action for the
+         HybridReaderShell pane switch. The shell only flips between the
+         Audiobook and Reader panes via a horizontal drag-with-velocity
+         gesture, which is unreachable for screen-reader and motor-impaired
+         users. These label the accessibility action by its *target* pane
+         (from Audiobook we offer "switch to reading view", and vice versa)
+         and double as the shell's stateDescription so the focused surface
+         announces which pane is currently showing. -->
+    <string name="reader_pane_switch_to_reader">Switch to reading view</string>
+    <string name="reader_pane_switch_to_audiobook">Switch to audiobook view</string>
+    <string name="reader_pane_state_audiobook">Audiobook view</string>
+    <string name="reader_pane_state_reader">Reading view</string>
 </resources>

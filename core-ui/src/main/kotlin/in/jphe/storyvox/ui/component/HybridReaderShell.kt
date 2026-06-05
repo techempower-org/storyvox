@@ -18,12 +18,43 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.IntOffset
+import `in`.jphe.storyvox.ui.R
 import `in`.jphe.storyvox.ui.theme.LocalMotion
 import `in`.jphe.storyvox.ui.theme.LocalReducedMotion
 import kotlin.math.roundToInt
 
 enum class ReaderView { Audiobook, Reader }
+
+/** The pane a switch from the receiver lands on. The shell is two-state,
+ *  so the accessibility action always offers the *other* pane. */
+internal fun ReaderView.opposite(): ReaderView = when (this) {
+    ReaderView.Audiobook -> ReaderView.Reader
+    ReaderView.Reader -> ReaderView.Audiobook
+}
+
+/**
+ * Structural canary for issue #1025 — the [HybridReaderShell] pane switch
+ * MUST stay reachable without the horizontal drag gesture. The shell wires
+ * a [CustomAccessibilityAction] (announced by its *target* pane) plus a
+ * [stateDescription] onto its root so TalkBack and Switch Access users can
+ * flip panes via the screen-reader actions menu instead of a precise
+ * drag-with-velocity — an input those users can't produce.
+ *
+ * We can't run a Compose UI test from the unit-test source set (no
+ * Robolectric / ComposeTestRule), so this boolean pins the contract the
+ * same way [bottomTabBarUsesRoleButtonPlusSelected] does for the dock.
+ * Flip to false only after proving an equivalent accessible path on a real
+ * device with TalkBack.
+ *
+ * Pinned by `HybridReaderShellSemanticsTest`.
+ */
+internal const val hybridReaderShellExposesPaneSwitchAction: Boolean = true
 
 /**
  * Two-pane horizontal swipe shell.
@@ -80,9 +111,33 @@ fun HybridReaderShell(
         }
     }
 
+    // #1025 — the drag gesture is invisible to TalkBack / Switch Access,
+    // so we mirror the same `onViewChange` flip behind a custom action
+    // labelled by the *target* pane (from Audiobook → "Switch to reading
+    // view"). The stateDescription tells a focusing screen reader which
+    // pane is currently showing.
+    val switchTarget = current.opposite()
+    val switchActionLabel = when (switchTarget) {
+        ReaderView.Reader -> stringResource(R.string.reader_pane_switch_to_reader)
+        ReaderView.Audiobook -> stringResource(R.string.reader_pane_switch_to_audiobook)
+    }
+    val paneStateDescription = when (current) {
+        ReaderView.Audiobook -> stringResource(R.string.reader_pane_state_audiobook)
+        ReaderView.Reader -> stringResource(R.string.reader_pane_state_reader)
+    }
+
     Box(
         modifier = modifier
             .fillMaxSize()
+            .semantics {
+                stateDescription = paneStateDescription
+                customActions = listOf(
+                    CustomAccessibilityAction(switchActionLabel) {
+                        onViewChange(switchTarget)
+                        true
+                    },
+                )
+            }
             .onSizeChanged { size ->
                 width = size.width.toFloat()
                 if (!isDragging) dragOffset = target
