@@ -45,7 +45,7 @@ commonmark = "0.28.0"
 # pure JVM, JSoup-backed.
 readability4j = "1.0.8"
 androidx-webkit = "1.16.0"
-androidx-browser = "1.8.0"
+androidx-browser = "1.10.0"
 
 # Concurrency
 coroutines = "1.11.0"
