@@ -44,6 +44,8 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import `in`.jphe.storyvox.data.source.SystemTtsVoiceProvider
 import `in`.jphe.storyvox.feature.R
+import `in`.jphe.storyvox.feature.components.overlayBackground
+import `in`.jphe.storyvox.feature.components.overlayForeground
 import `in`.jphe.storyvox.playback.voice.UiVoiceInfo
 import `in`.jphe.storyvox.playback.voice.VoiceCatalog
 import `in`.jphe.storyvox.playback.voice.VoiceManager
@@ -82,9 +84,17 @@ fun VoicePickerGate(
     // dismisses the gate AND calls navController.navigate in the same frame —
     // if content weren't already in the composition, the destination route
     // wouldn't exist on the NavController yet and navigate() would crash.
+    val gateShowing = !bypassed && activeVoice == null
     Box(modifier = Modifier.fillMaxSize()) {
-        content()
-        if (!bypassed && activeVoice == null) {
+        // #1026 — hide the live NavHost beneath from TalkBack while the gate
+        // is up, so a screen-reader user can't swipe past the picker into the
+        // (visually hidden) Library list / bottom nav. content() stays
+        // composed (navigate() races the gate's dismiss); we isolate it
+        // semantically rather than tearing it down.
+        Box(modifier = Modifier.fillMaxSize().overlayBackground(gateShowing)) {
+            content()
+        }
+        if (gateShowing) {
             // Swallow taps in the gate's empty regions so they don't fall
             // through to the LibraryScreen rendered underneath. We use a
             // ripple-less clickable rather than pointerInput because the
@@ -94,13 +104,24 @@ fun VoicePickerGate(
             // a11y (#481, #482): this clickable is a *tap-swallow* — a
             // transparent shield that prevents underlying content from
             // receiving taps while the voice picker overlays it. It
-            // doesn't need (and shouldn't have) a Role; TalkBack should
-            // walk through it to the VoicePickerScreen below. Marked
-            // explicitly so a future Role-sweep doesn't add one.
+            // doesn't need (and shouldn't have) a Role. Marked explicitly
+            // so a future Role-sweep doesn't add one.
+            //
+            // #1026 follow-up: the shield only blocks POINTER input — it
+            // never bounded TalkBack traversal. The background NavHost is
+            // now marked invisibleToUser via overlayBackground() above, and
+            // this overlay is a traversal group (overlayForeground below),
+            // so screen-reader focus is isolated to the picker explicitly
+            // rather than relying on the opaque background occluding the
+            // subtree (which only happens to work on some TalkBack versions).
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(MaterialTheme.colorScheme.background)
+                    // #1026 — scope the gate as a self-contained traversal
+                    // group ahead of the background so TalkBack swipe-
+                    // navigation stays within the picker's controls.
+                    .overlayForeground()
                     .clickable(
                         interactionSource = swallow,
                         indication = null,

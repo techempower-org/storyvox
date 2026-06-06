@@ -34,6 +34,8 @@ import kotlinx.coroutines.withTimeoutOrNull
 import `in`.jphe.storyvox.feature.api.FictionRepositoryUi
 import `in`.jphe.storyvox.feature.api.PlaybackControllerUi
 import `in`.jphe.storyvox.feature.api.SettingsRepositoryUi
+import `in`.jphe.storyvox.feature.components.overlayBackground
+import `in`.jphe.storyvox.feature.components.overlayForeground
 
 /**
  * Issue #599 (v1.0 blocker) — the three-screen first-launch welcome
@@ -84,7 +86,15 @@ fun OnboardingHost(
 ) {
     val show by viewModel.shouldShow.collectAsStateWithLifecycle()
     Box(modifier = Modifier.fillMaxSize()) {
-        content()
+        // #1026 — hide the live NavHost beneath from TalkBack while the
+        // welcome overlay is up, so a screen-reader user can't swipe past
+        // the overlay into the (visually hidden) Library list / bottom nav.
+        // The content() must stay composed (route resolution races the
+        // overlay's dismiss), so we isolate it semantically rather than
+        // tearing it down.
+        Box(modifier = Modifier.fillMaxSize().overlayBackground(show)) {
+            content()
+        }
         if (show) {
             // Forward-only three-step state machine. rememberSaveable
             // so a configuration change (rotation) doesn't snap the
@@ -95,6 +105,10 @@ fun OnboardingHost(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(MaterialTheme.colorScheme.background)
+                    // #1026 — scope the overlay as a self-contained
+                    // traversal group ahead of the background so TalkBack
+                    // swipe-navigation stays within the welcome controls.
+                    .overlayForeground()
                     // Tap-swallow shield (same pattern as
                     // VoicePickerGate) — prevents underlying Library
                     // taps from leaking through the welcome overlay.
