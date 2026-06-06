@@ -96,10 +96,10 @@ class DiscordCoalesceTest {
         val groups = coalesceMessages(messages, coalesceMinutes = 30)
 
         assertEquals(4, groups.size)
-        assertEquals("alice", groups[0].messages.first().author.id)
-        assertEquals("bob", groups[1].messages.first().author.id)
-        assertEquals("alice", groups[2].messages.first().author.id)
-        assertEquals("bob", groups[3].messages.first().author.id)
+        assertEquals("alice", groups[0].messages.first().author!!.id)
+        assertEquals("bob", groups[1].messages.first().author!!.id)
+        assertEquals("alice", groups[2].messages.first().author!!.id)
+        assertEquals("bob", groups[3].messages.first().author!!.id)
     }
 
     @Test

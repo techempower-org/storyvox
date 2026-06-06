@@ -246,7 +246,7 @@ internal class DiscordSource @Inject constructor(
                     id = discordFictionId(head.id),
                     sourceId = SourceIds.DISCORD,
                     title = head.contentPreview(),
-                    author = head.author.displayName(),
+                    author = head.author?.displayName() ?: "Unknown",
                     description = head.content.ifBlank { null },
                     status = FictionStatus.ONGOING,
                 )
@@ -555,7 +555,7 @@ internal fun coalesceMessages(
         groups.add(
             DiscordMessageGroup(
                 headId = head.id,
-                authorName = head.author.displayName(),
+                authorName = head.author?.displayName() ?: "Unknown",
                 messages = currentMessages.toList(),
                 headTimestampMillis = parseDiscordTimestamp(head.timestamp),
             ),
@@ -567,7 +567,13 @@ internal fun coalesceMessages(
 
     for (m in chronological) {
         val ts = parseDiscordTimestamp(m.timestamp)
-        val sameAuthor = currentAuthor == m.author.id
+        // A null author id never merges — same instinct as an unparseable
+        // timestamp (#1064): treat "unknown" as a group boundary rather
+        // than collapsing distinct author-less messages together. These
+        // are system/webhook noise the `type == 0` filter drops upstream
+        // anyway, but defending here keeps coalescing correct if one slips.
+        val messageAuthorId = m.author?.id
+        val sameAuthor = messageAuthorId != null && currentAuthor == messageAuthorId
         val withinWindow = windowMs > 0 && ts != null && currentLastTs != null &&
             (ts - currentLastTs!!) <= windowMs
         if (sameAuthor && withinWindow) {
@@ -576,7 +582,7 @@ internal fun coalesceMessages(
         } else {
             flush()
             currentMessages.add(m)
-            currentAuthor = m.author.id
+            currentAuthor = messageAuthorId
             currentLastTs = ts
         }
     }

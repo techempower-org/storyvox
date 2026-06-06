@@ -81,8 +81,19 @@ internal data class DiscordMessage(
     /** Plain-text message content. May be empty for attachment-only
      *  or embed-only messages. */
     val content: String = "",
-    /** Message author. Coalesce check compares author ids. */
-    val author: DiscordUser,
+    /** Message author. Coalesce check compares author ids.
+     *
+     *  Nullable + defaulted (#1064): webhook / system / integration
+     *  message shapes can arrive with `author` explicitly null or the
+     *  key omitted entirely. Discord's `coerceInputValues` does NOT
+     *  rescue a non-nullable field, so a single author-less element in
+     *  a page would throw and fail the WHOLE `List<DiscordMessage>`
+     *  decode — bricking the entire channel rather than one message.
+     *  Author-less messages are system/webhook noise the `type == 0`
+     *  filter drops downstream; consumers fall back via
+     *  `author?.displayName() ?: "Unknown"`. Matches Slack's
+     *  `user: SlackUser? = null` defense. */
+    val author: DiscordUser? = null,
     /** Attachments uploaded with the message. Filenames + URLs are
      *  surfaced in the chapter body so TTS can mention them. */
     val attachments: List<DiscordAttachment> = emptyList(),

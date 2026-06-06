@@ -22,6 +22,12 @@ class DiscordModelsTest {
 
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
 
+    // Mirror DiscordApi.kt:55 exactly — the production decoder also sets
+    // coerceInputValues. The #1064 regression hinges on the fact that
+    // coerceInputValues does NOT rescue a null/missing NON-nullable field,
+    // so the null-author tests below must run under the real config.
+    private val apiJson = Json { ignoreUnknownKeys = true; isLenient = true; coerceInputValues = true }
+
     @Test
     fun `parses users me guilds response`() {
         // Real response shape from Discord's docs for
@@ -190,11 +196,11 @@ class DiscordModelsTest {
         val firstHead = response.messages[0][0]
         assertEquals("1200000000000000001", firstHead.id)
         assertEquals("Has anyone seen the dragon chapter?", firstHead.content)
-        assertEquals("alice", firstHead.author.username)
-        assertEquals("Alice", firstHead.author.globalName)
+        assertEquals("alice", firstHead.author!!.username)
+        assertEquals("Alice", firstHead.author!!.globalName)
         // Bob in the second message has no global_name; parsing must
         // accept null without falling over.
-        assertNull(response.messages[0][1].author.globalName)
+        assertNull(response.messages[0][1].author!!.globalName)
         // Second match has an attachment — verify the nested shape.
         val secondHead = response.messages[1][0]
         assertEquals(1, secondHead.attachments.size)
@@ -247,7 +253,7 @@ class DiscordModelsTest {
         assertEquals(1, messages.size)
         val m = messages[0]
         assertEquals("Check out this link", m.content)
-        assertEquals("Charlie", m.author.globalName)
+        assertEquals("Charlie", m.author!!.globalName)
         assertEquals(1, m.embeds.size)
         assertEquals("Storyvox — narratable Discord", m.embeds[0].title)
         assertTrue(
@@ -256,7 +262,88 @@ class DiscordModelsTest {
         )
         // The author's display-name helper falls back through the
         // global_name → username chain.
-        assertEquals("Charlie", m.author.displayName())
+        assertEquals("Charlie", m.author!!.displayName())
         assertNotNull(parseDiscordTimestamp(m.timestamp))
+    }
+
+    // ─── #1064 — author-less messages must not brick the page ─────────
+
+    @Test
+    fun `a message with author null does not fail the whole page decode`() {
+        // A webhook / system / integration message can arrive with
+        // author explicitly null. Before #1064, author was a required
+        // non-null field, so kotlinx.serialization threw on this element
+        // and the ENTIRE List<DiscordMessage> decode failed — the whole
+        // channel surfaced as NetworkError. The real-shaped author-less
+        // message sits BETWEEN two normal ones to prove the page survives
+        // and the good neighbours still decode.
+        val body = """
+            [
+              {
+                "id": "1500000000000000001",
+                "timestamp": "2026-05-13T20:00:00.000000+00:00",
+                "content": "normal message before",
+                "author": { "id": "111", "username": "alice", "global_name": "Alice" },
+                "attachments": [],
+                "embeds": [],
+                "type": 0
+              },
+              {
+                "id": "1500000000000000002",
+                "timestamp": "2026-05-13T20:01:00.000000+00:00",
+                "content": "webhook post with no author",
+                "author": null,
+                "attachments": [],
+                "embeds": [],
+                "type": 0
+              },
+              {
+                "id": "1500000000000000003",
+                "timestamp": "2026-05-13T20:02:00.000000+00:00",
+                "content": "normal message after",
+                "author": { "id": "222", "username": "bob", "global_name": "Bob" },
+                "attachments": [],
+                "embeds": [],
+                "type": 0
+              }
+            ]
+        """.trimIndent()
+
+        val messages = apiJson.decodeFromString<List<DiscordMessage>>(body)
+
+        assertEquals(3, messages.size)
+        assertEquals("Alice", messages[0].author?.displayName())
+        // The anomalous element decodes with a null author rather than
+        // throwing — this is the core #1064 regression guard.
+        assertNull(messages[1].author)
+        assertEquals("normal message after", messages[2].content)
+        assertEquals("Bob", messages[2].author?.displayName())
+    }
+
+    @Test
+    fun `a message with author field entirely absent decodes with null author`() {
+        // Some system-message shapes omit `author` outright rather than
+        // sending null. A missing required field threw MissingFieldException
+        // before #1064; with author defaulted to null it now decodes.
+        val body = """
+            [
+              {
+                "id": "1600000000000000001",
+                "timestamp": "2026-05-13T21:00:00.000000+00:00",
+                "content": "system event with no author key",
+                "attachments": [],
+                "embeds": [],
+                "type": 6
+              }
+            ]
+        """.trimIndent()
+
+        val messages = apiJson.decodeFromString<List<DiscordMessage>>(body)
+
+        assertEquals(1, messages.size)
+        assertNull(messages[0].author)
+        // The display-name fallback yields the synthetic label for a
+        // null author, matching the DiscordUser.displayName() terminal.
+        assertEquals("Unknown", messages[0].author?.displayName() ?: "Unknown")
     }
 }
