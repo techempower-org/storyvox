@@ -36,14 +36,14 @@ import `in`.jphe.storyvox.feature.api.SpeakChapterMode
 import `in`.jphe.storyvox.ui.theme.LocalSpacing
 
 /**
- * Settings → Accessibility subscreen (Phase 1 scaffold).
+ * Settings → Accessibility subscreen.
  *
- * Phase 1 surfaces the user's explicit intent for the assistive-
- * service-shaped tunables. No behavior is wired today — every toggle
- * here writes to DataStore and the live state-bridge in
- * [AccessibilityStateBridge] reports what Android is doing right now,
- * but neither feeds back into the rest of the app yet. Phase 2 agents
- * consume these prefs + the bridge to:
+ * Surfaces the user's explicit intent for the assistive-service-shaped
+ * tunables — and each is now WIRED: every toggle writes to DataStore,
+ * and the values are consumed across the app (via MainActivity's
+ * CompositionLocal providers, the A11y DI modules, and the themes). The
+ * live state-bridge in [AccessibilityStateBridge] reports what Android
+ * is doing right now (e.g. whether TalkBack is active). The wired effects:
  *
  *  - swap Library Nocturne for a higher-contrast variant
  *    ([UiSettings.a11yHighContrast]),
@@ -60,13 +60,7 @@ import `in`.jphe.storyvox.ui.theme.LocalSpacing
  *  - override system reading direction
  *    ([UiSettings.a11yReadingDirection]).
  *
- * Each Phase 2 agent will detect a Phase 1 placeholder by the
- * "TODO — Phase 2" inline kdoc on the relevant callback wiring and
- * replace it with the real handler. The Phase 2 placeholders are
- * deliberately load-bearing here — they document the contract for the
- * agent that lands the behavior.
- *
- * Row order matches the spec in the spawning conversation:
+ * Row order:
  *  1. High contrast theme
  *  2. Reduced motion
  *  3. Larger touch targets
