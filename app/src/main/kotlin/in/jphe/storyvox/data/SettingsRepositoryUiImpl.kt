@@ -797,6 +797,15 @@ private object Keys {
      */
     val READER_AUTO_SCROLL_ENABLED = booleanPreferencesKey("pref_reader_auto_scroll_enabled_v1")
 
+    /**
+     * Issue #997 — Focused Reading mode toggle. Defaults `false` (new
+     * opt-in mode, unlike auto-scroll which is on by default). The focus
+     * IconButton in the reader controls overlay flips this. Versioned
+     * `_v1` per the same convention; device-local — deliberately absent
+     * from [SYNC_ALLOWLIST] so it never rides the InstantDB sync.
+     */
+    val READER_FOCUS_MODE_ENABLED = booleanPreferencesKey("pref_reader_focus_mode_enabled_v1")
+
     // ── Accessibility scaffold (Phase 1, v0.5.42) ──────────────────
     // Persists the user's explicit intent for the assistive-service
     // tunables surfaced by the new Settings → Accessibility subscreen.
@@ -2743,6 +2752,14 @@ class SettingsRepositoryUiImpl(
 
     override suspend fun setReaderAutoScrollEnabled(enabled: Boolean) {
         store.edit { it[Keys.READER_AUTO_SCROLL_ENABLED] = enabled }
+    }
+
+    // ── Reader Focused Reading mode toggle (#997) ──────────────────
+    override val readerFocusModeEnabled: Flow<Boolean> =
+        store.data.map { it[Keys.READER_FOCUS_MODE_ENABLED] ?: false }
+
+    override suspend fun setReaderFocusModeEnabled(enabled: Boolean) {
+        store.edit { it[Keys.READER_FOCUS_MODE_ENABLED] = enabled }
     }
 
     // ── InstantDB settings sync (this PR) ──────────────────────────

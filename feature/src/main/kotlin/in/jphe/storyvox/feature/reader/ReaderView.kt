@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -24,6 +25,7 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.VerticalAlignCenter
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.AutoStories
+import androidx.compose.material.icons.outlined.CenterFocusStrong
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
@@ -70,7 +72,50 @@ import kotlinx.coroutines.launch
 private const val MANUAL_SCROLL_GRACE_MS = 5_000L
 
 /** Where on the viewport the highlighted sentence should land — 40% from the top. */
-private const val HIGHLIGHT_VIEWPORT_FRACTION = 0.40f
+internal const val HIGHLIGHT_VIEWPORT_FRACTION = 0.40f
+
+/**
+ * Issue #997 — Focused Reading mode lands the active line at the vertical
+ * centre instead of the 40%-from-top reading perch, so the eye rests in
+ * the middle of the page with equal context above and below.
+ */
+internal const val FOCUS_VIEWPORT_FRACTION = 0.5f
+
+/**
+ * Issue #997 — comfortable single-column reading measure for Focused
+ * Reading. ~560dp keeps line length in the classic 45–75 character band
+ * on phones and tablets; wider screens get centred whitespace rather
+ * than over-long lines that tire the eye.
+ */
+private val FOCUS_MEASURE_MAX = 560.dp
+
+/**
+ * Pure target-Y for scrolling so the highlighted line settles
+ * [viewportFraction] of the way down the viewport. Shared by the
+ * auto-scroll effect and the recenter FAB (#919), and parameterised by
+ * the fraction so Focused Reading (#997) can pass [FOCUS_VIEWPORT_FRACTION]
+ * to centre the line while normal reading passes [HIGHLIGHT_VIEWPORT_FRACTION].
+ *
+ * Extracted to a pure fn (no Compose state) so the arithmetic and its two
+ * clamp edges are unit-testable without a Compose/Android runtime.
+ *
+ * @param bodyTopPx Y offset of the chapter body inside the scrolling column.
+ * @param lineTopWithinText Top of the highlighted line within the text layout.
+ * @param viewportHeightPx Measured viewport height.
+ * @param viewportFraction How far down the viewport the line should land (0..1).
+ * @param maxScroll [androidx.compose.foundation.ScrollState.maxValue]; a
+ *   transient negative value (content shorter than viewport) is treated as 0.
+ */
+internal fun focusScrollTargetY(
+    bodyTopPx: Float,
+    lineTopWithinText: Float,
+    viewportHeightPx: Float,
+    viewportFraction: Float,
+    maxScroll: Int,
+): Int =
+    (bodyTopPx + lineTopWithinText - viewportHeightPx * viewportFraction)
+        .roundToInt()
+        .coerceIn(0, maxScroll.coerceAtLeast(0))
 
 @Composable
 fun ReaderTextView(
@@ -98,6 +143,18 @@ fun ReaderTextView(
      *  which persists via [SettingsRepositoryUi]. No-op default for
      *  preview/test callsites. */
     onToggleAutoScroll: (Boolean) -> Unit = {},
+    /**
+     * Issue #997 — Focused Reading mode. When true the reader dims the
+     * off-focus lines, narrows the text column, centres the active line
+     * (vertical 50% instead of the 40% perch) and collapses the bottom
+     * chrome + hides the FAB cluster — a distraction-reduced read.
+     * Defaulted false so preview/test callsites keep the normal reader.
+     */
+    focusModeEnabled: Boolean = false,
+    /** Issue #997 — flip the Focused Reading toggle. Wired by
+     *  [HybridReaderScreen] to [ReaderViewModel.setFocusModeEnabled].
+     *  No-op default for preview/test callsites. */
+    onToggleFocusMode: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val spacing = LocalSpacing.current
@@ -136,7 +193,7 @@ fun ReaderTextView(
     // and never schedules another animateScrollTo. Flipping back on re-keys and resumes
     // following the next sentence boundary (no jump — only the next emit triggers a
     // scroll, so the user's manual position is preserved until then).
-    LaunchedEffect(autoScrollEnabled, state.sentenceStart, state.sentenceEnd, textLayout, viewportHeightPx, bodyTopPx, chapterText) {
+    LaunchedEffect(autoScrollEnabled, focusModeEnabled, state.sentenceStart, state.sentenceEnd, textLayout, viewportHeightPx, bodyTopPx, chapterText) {
         if (!autoScrollEnabled) return@LaunchedEffect
         val layout = textLayout ?: return@LaunchedEffect
         if (chapterText.isEmpty()) return@LaunchedEffect
@@ -150,9 +207,15 @@ fun ReaderTextView(
         val safeStart = start.coerceIn(0, (chapterText.length - 1).coerceAtLeast(0))
         val line = layout.getLineForOffset(safeStart)
         val lineTopWithinText = layout.getLineTop(line)
-        val targetY = (bodyTopPx + lineTopWithinText - viewportHeightPx * HIGHLIGHT_VIEWPORT_FRACTION)
-            .roundToInt()
-            .coerceIn(0, scroll.maxValue.coerceAtLeast(0))
+        // Focus mode centres the active line (#997); normal reading keeps
+        // the 40% perch (#946).
+        val targetY = focusScrollTargetY(
+            bodyTopPx = bodyTopPx,
+            lineTopWithinText = lineTopWithinText,
+            viewportHeightPx = viewportHeightPx,
+            viewportFraction = if (focusModeEnabled) FOCUS_VIEWPORT_FRACTION else HIGHLIGHT_VIEWPORT_FRACTION,
+            maxScroll = scroll.maxValue,
+        )
 
         scroll.animateScrollTo(targetY)
     }
@@ -189,6 +252,17 @@ fun ReaderTextView(
     }
     val showScrollFab = sentenceOutOfView && state.isPlaying
 
+    // Issue #997 — Focused Reading: the chapter title sits outside the
+    // active-sentence band, so it fades back in focus mode to keep the
+    // body the visual anchor. Animated so the toggle reads as a calm
+    // settle, not a hard cut. Reduced-motion users still get the end
+    // state; the tween is short enough to be unobtrusive regardless.
+    val titleAlpha by animateFloatAsState(
+        targetValue = if (focusModeEnabled) 0.35f else 1f,
+        animationSpec = tween(durationMillis = 240),
+        label = "focus-title-alpha",
+    )
+
     Box(modifier = modifier.fillMaxSize().onSizeChanged { viewportHeightPx = it.height.toFloat() }) {
         Column(
             modifier = Modifier
@@ -196,21 +270,34 @@ fun ReaderTextView(
                 .verticalScroll(scroll)
                 .padding(horizontal = spacing.lg)
                 .padding(top = spacing.lg, bottom = 96.dp),
+            // Focus mode narrows + centres the measure for a comfortable
+            // single-column read; normal reading uses the full width.
+            horizontalAlignment = if (focusModeEnabled) Alignment.CenterHorizontally else Alignment.Start,
         ) {
+            // Focus mode narrows the column to a comfortable reading
+            // measure (#997). Applied to title + body alike so they share
+            // one centred column.
+            val contentWidthModifier =
+                if (focusModeEnabled) Modifier.widthIn(max = FOCUS_MEASURE_MAX) else Modifier
             Text(
                 state.chapterTitle,
                 style = MaterialTheme.typography.headlineSmall,
-                modifier = Modifier.padding(bottom = spacing.md),
+                modifier = contentWidthModifier
+                    .fillMaxWidth()
+                    .padding(bottom = spacing.md)
+                    .alpha(titleAlpha),
             )
             if (chapterText.isEmpty()) {
                 EmptyChapterPlaceholder()
             } else {
-                Box(modifier = Modifier.onGloballyPositioned { coords ->
-                    // Position relative to the scrolling Column root: walk up to the parent that holds
-                    // the same content as `scroll`. Compose's positionInParent() is enough since the
-                    // Column itself is what scrolls — its children move with it.
-                    bodyTopPx = coords.positionInParent().y
-                }) {
+                Box(
+                    modifier = contentWidthModifier.onGloballyPositioned { coords ->
+                        // Position relative to the scrolling Column root: walk up to the parent that holds
+                        // the same content as `scroll`. Compose's positionInParent() is enough since the
+                        // Column itself is what scrolls — its children move with it.
+                        bodyTopPx = coords.positionInParent().y
+                    },
+                ) {
                     SentenceHighlight(
                         text = chapterText,
                         highlightStart = state.sentenceStart,
@@ -223,12 +310,49 @@ fun ReaderTextView(
             }
         }
 
+        // Issue #997 — Focused Reading toggle. Top of the brass cluster
+        // (above the auto-scroll toggle) and ALWAYS visible — even in
+        // focus mode — so it's the one persistent control the user can
+        // use to leave the distraction-reduced view. Filled-brass when
+        // on, dimmed-surface when off, mirroring the auto-scroll toggle's
+        // state-tint language.
+        SmallFloatingActionButton(
+            onClick = { onToggleFocusMode(!focusModeEnabled) },
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(end = spacing.md, bottom = 232.dp)
+                .semantics {
+                    contentDescription = if (focusModeEnabled) {
+                        "Focused Reading on. Tap to turn off."
+                    } else {
+                        "Focused Reading off. Tap to turn on."
+                    }
+                },
+            containerColor = if (focusModeEnabled) {
+                MaterialTheme.colorScheme.primary
+            } else {
+                MaterialTheme.colorScheme.surfaceContainerHigh
+            },
+            contentColor = if (focusModeEnabled) {
+                MaterialTheme.colorScheme.onPrimary
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            },
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.CenterFocusStrong,
+                contentDescription = null,
+            )
+        }
+
         // Issue #946 — magical auto-scroll on/off toggle. Sits above the
         // recenter FAB (#919) so the two end-aligned controls form a
         // vertical brass cluster: top = mode (auto-follow vs manual),
         // bottom = one-shot recenter. Always visible so the user can
         // discover the toggle without first scrolling away; the icon's
         // brass-vs-onSurfaceVariant tint communicates state at a glance.
+        // Hidden in Focused Reading (#997) — the collapsed chrome trades
+        // the control cluster for an undistracted page.
         //
         // The contained icon is `Outlined.AutoStories` (the same
         // open-book glyph the Library tab uses) tinted brass when
@@ -242,47 +366,49 @@ fun ReaderTextView(
             animationSpec = tween(durationMillis = 280),
             label = "autoscroll-sparkle-alpha",
         )
-        SmallFloatingActionButton(
-            onClick = { onToggleAutoScroll(!autoScrollEnabled) },
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(end = spacing.md, bottom = 168.dp)
-                .semantics {
-                    contentDescription = if (autoScrollEnabled) {
-                        "Auto-scroll on. Tap to turn off."
-                    } else {
-                        "Auto-scroll off. Tap to turn on."
-                    }
+        if (!focusModeEnabled) {
+            SmallFloatingActionButton(
+                onClick = { onToggleAutoScroll(!autoScrollEnabled) },
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(end = spacing.md, bottom = 168.dp)
+                    .semantics {
+                        contentDescription = if (autoScrollEnabled) {
+                            "Auto-scroll on. Tap to turn off."
+                        } else {
+                            "Auto-scroll off. Tap to turn on."
+                        }
+                    },
+                containerColor = if (autoScrollEnabled) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.surfaceContainerHigh
                 },
-            containerColor = if (autoScrollEnabled) {
-                MaterialTheme.colorScheme.primary
-            } else {
-                MaterialTheme.colorScheme.surfaceContainerHigh
-            },
-            contentColor = if (autoScrollEnabled) {
-                MaterialTheme.colorScheme.onPrimary
-            } else {
-                MaterialTheme.colorScheme.onSurfaceVariant
-            },
-        ) {
-            Box(contentAlignment = Alignment.Center) {
-                Icon(
-                    imageVector = Icons.Outlined.AutoStories,
-                    contentDescription = null,
-                )
-                // Sparkle overlay — only visible when auto-scroll is
-                // armed. Sits in the upper-right of the FAB so it
-                // reads as "this book is following you, magically."
-                if (sparkleAlpha > 0.01f) {
+                contentColor = if (autoScrollEnabled) {
+                    MaterialTheme.colorScheme.onPrimary
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
+            ) {
+                Box(contentAlignment = Alignment.Center) {
                     Icon(
-                        imageVector = Icons.Outlined.AutoAwesome,
+                        imageVector = Icons.Outlined.AutoStories,
                         contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onPrimary,
-                        modifier = Modifier
-                            .size(12.dp)
-                            .align(Alignment.TopEnd)
-                            .alpha(sparkleAlpha),
                     )
+                    // Sparkle overlay — only visible when auto-scroll is
+                    // armed. Sits in the upper-right of the FAB so it
+                    // reads as "this book is following you, magically."
+                    if (sparkleAlpha > 0.01f) {
+                        Icon(
+                            imageVector = Icons.Outlined.AutoAwesome,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onPrimary,
+                            modifier = Modifier
+                                .size(12.dp)
+                                .align(Alignment.TopEnd)
+                                .alpha(sparkleAlpha),
+                        )
+                    }
                 }
             }
         }
@@ -292,8 +418,10 @@ fun ReaderTextView(
         // SmallFloatingActionButton with the app's primary/onPrimary
         // colors. Enter = fade + slide up; exit = fade + slide down —
         // deliberate and warm, matching the Library Nocturne motion.
+        // Suppressed in Focused Reading (#997) — center-lock keeps the
+        // active line in view, so the one-shot recenter is redundant.
         AnimatedVisibility(
-            visible = showScrollFab,
+            visible = showScrollFab && !focusModeEnabled,
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .padding(end = spacing.md, bottom = 104.dp),
@@ -314,9 +442,13 @@ fun ReaderTextView(
                     val safeStart = start.coerceIn(0, (chapterText.length - 1).coerceAtLeast(0))
                     val line = layout.getLineForOffset(safeStart)
                     val lineTopWithinText = layout.getLineTop(line)
-                    val targetY = (bodyTopPx + lineTopWithinText - viewportHeightPx * HIGHLIGHT_VIEWPORT_FRACTION)
-                        .roundToInt()
-                        .coerceIn(0, scroll.maxValue.coerceAtLeast(0))
+                    val targetY = focusScrollTargetY(
+                        bodyTopPx = bodyTopPx,
+                        lineTopWithinText = lineTopWithinText,
+                        viewportHeightPx = viewportHeightPx,
+                        viewportFraction = HIGHLIGHT_VIEWPORT_FRACTION,
+                        maxScroll = scroll.maxValue,
+                    )
                     scope.launch { scroll.animateScrollTo(targetY) }
                 },
                 containerColor = MaterialTheme.colorScheme.primary,
@@ -329,27 +461,44 @@ fun ReaderTextView(
             }
         }
 
+        // Issue #997 — Focused Reading collapses the bottom transport
+        // bar: the title/subtitle text (a distraction) and the bar's
+        // surface + shadow drop away, leaving just the play/pause control
+        // floating end-aligned. The button stays so the mode keeps its
+        // single TalkBack-reachable transport affordance (accessibility
+        // is a first-class goal of #997). Normal reading keeps the full
+        // bar with the chapter/fiction labels.
         Surface(
             modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth(),
-            color = MaterialTheme.colorScheme.surfaceContainerHigh,
-            shadowElevation = 4.dp,
+            color = if (focusModeEnabled) {
+                androidx.compose.ui.graphics.Color.Transparent
+            } else {
+                MaterialTheme.colorScheme.surfaceContainerHigh
+            },
+            shadowElevation = if (focusModeEnabled) 0.dp else 4.dp,
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth().padding(spacing.sm),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Column(modifier = Modifier.weight(1f).padding(start = spacing.xs)) {
-                    Text(
-                        state.chapterTitle.ifEmpty { "—" },
-                        style = MaterialTheme.typography.titleSmall,
-                        maxLines = 1,
-                    )
-                    Text(
-                        state.fictionTitle,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                    )
+                if (!focusModeEnabled) {
+                    Column(modifier = Modifier.weight(1f).padding(start = spacing.xs)) {
+                        Text(
+                            state.chapterTitle.ifEmpty { "—" },
+                            style = MaterialTheme.typography.titleSmall,
+                            maxLines = 1,
+                        )
+                        Text(
+                            state.fictionTitle,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                        )
+                    }
+                } else {
+                    // Push the play/pause button to the end so it mirrors
+                    // its normal-mode resting place once the labels vanish.
+                    Spacer(modifier = Modifier.weight(1f))
                 }
                 FilledIconButton(
                     onClick = onPlayPause,

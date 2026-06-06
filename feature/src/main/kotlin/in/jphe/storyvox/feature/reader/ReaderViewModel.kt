@@ -456,6 +456,17 @@ class ReaderViewModel @Inject constructor(
     val autoScrollEnabled: StateFlow<Boolean> = settings.readerAutoScrollEnabled
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), true)
 
+    /**
+     * Issue #997 — Focused Reading mode toggle. Default false (new
+     * opt-in mode, unlike auto-scroll). Backed by
+     * [SettingsRepositoryUi.readerFocusModeEnabled]; device-local (not
+     * in the sync allowlist). [ReaderTextView] observes this to dim
+     * off-focus lines, narrow the column, centre the active line and
+     * collapse the bottom chrome.
+     */
+    val focusModeEnabled: StateFlow<Boolean> = settings.readerFocusModeEnabled
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
     /** Issue #278 — user-initiated retry from the timed-out error block.
      *  Re-invokes the playback `play()` path; the underlying controller
      *  will re-fetch the chapter / re-prime the voice. We also reset the
@@ -591,6 +602,13 @@ class ReaderViewModel @Inject constructor(
      */
     fun setAutoScrollEnabled(enabled: Boolean) {
         viewModelScope.launch { settings.setReaderAutoScrollEnabled(enabled) }
+    }
+
+    /** Issue #997 — persist the Focused Reading toggle. Same
+     *  fire-and-forget shape as [setAutoScrollEnabled]; the StateFlow
+     *  re-emits and [ReaderTextView] re-renders in focus mode. */
+    fun setFocusModeEnabled(enabled: Boolean) {
+        viewModelScope.launch { settings.setReaderFocusModeEnabled(enabled) }
     }
 
     // Issue #121 — in-chapter bookmark fan-out. ReaderViewModel stays

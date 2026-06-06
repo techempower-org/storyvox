@@ -2235,6 +2235,27 @@ interface SettingsRepositoryUi {
      *  brass IconButton in the reader controls overlay. Default no-op
      *  for fakes; the DataStore impl persists. */
     suspend fun setReaderAutoScrollEnabled(enabled: Boolean) {}
+
+    /**
+     * Issue #997 — Focused Reading mode. When true, the reader dims the
+     * off-focus lines, narrows the text column, centres the active line
+     * (vertical 50% instead of the 40% reading perch) and collapses the
+     * bottom chrome — a distraction-reduced, center-locked read for
+     * accessibility and deep focus.
+     *
+     * Defaults `false` here (and in the DataStore impl): unlike
+     * auto-scroll (#946, on by default to preserve the legacy
+     * read-along UX), Focused Reading is a new opt-in mode that stays
+     * off until the user enables it. Device-local — deliberately NOT in
+     * the InstantDB sync allowlist, matching auto-scroll.
+     */
+    val readerFocusModeEnabled: Flow<Boolean>
+        get() = kotlinx.coroutines.flow.flowOf(false)
+
+    /** Persist the Focused Reading toggle (#997). Wired to the focus
+     *  IconButton in the reader controls overlay. Default no-op for
+     *  fakes; the DataStore impl persists. */
+    suspend fun setReaderFocusModeEnabled(enabled: Boolean) {}
 }
 
 /**

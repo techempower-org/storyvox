@@ -91,6 +91,7 @@ fun HybridReaderScreen(
     val resumeEntry by viewModel.resumeEntry.collectAsStateWithLifecycle()
     val chapters by viewModel.chapters.collectAsStateWithLifecycle()
     val autoScrollEnabled by viewModel.autoScrollEnabled.collectAsStateWithLifecycle()
+    val focusModeEnabled by viewModel.focusModeEnabled.collectAsStateWithLifecycle()
     val playback = state.playback
 
     // Calliope (v0.5.00) — first-natural-chapter-completion confetti.
@@ -351,6 +352,12 @@ fun HybridReaderScreen(
                 // shape to the other reader prefs (#418 / #193).
                 autoScrollEnabled = autoScrollEnabled,
                 onToggleAutoScroll = viewModel::setAutoScrollEnabled,
+                // Issue #997 — Focused Reading mode. Same persisted-
+                // StateFlow shape; ReaderTextView dims off-focus lines,
+                // narrows the column, centres the active line and
+                // collapses the bottom chrome when on.
+                focusModeEnabled = focusModeEnabled,
+                onToggleFocusMode = viewModel::setFocusModeEnabled,
             )
         },
     )
