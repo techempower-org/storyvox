@@ -2,6 +2,7 @@ package `in`.jphe.storyvox.source.notion.net
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.Transient
 import kotlinx.serialization.json.JsonElement
 
 /**
@@ -116,6 +117,13 @@ internal data class NotionBlock(
     val divider: JsonElement? = null,
     val toggle: JsonElement? = null,
     @SerialName("to_do") val toDo: JsonElement? = null,
+    /** Issue #1036 — nesting level in the flattened document order.
+     *  Top-level blocks are depth 0; children spliced in by
+     *  [flattenNested] carry their parent's depth + 1. Not part of the
+     *  wire shape (Notion's API is a tree, not a flat depth-tagged list),
+     *  so it's [Transient] — set during fetch-time flattening and read by
+     *  the renderer to indent nested list items. */
+    @Transient val depth: Int = 0,
 )
 
 /**

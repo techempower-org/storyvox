@@ -96,25 +96,66 @@ internal class NotionApi @Inject constructor(
     }
 
     /**
-     * Fetch a page's block children, transparently following
-     * `has_more / next_cursor` pagination so the caller gets the full
-     * block list as one flat array. Notion caps `page_size` at 100;
-     * pages with thousands of blocks (long-form articles) compose into
-     * 10-20 round-trips. Acceptable for chapter rendering — the alternative
-     * (streaming chapter assembly) adds complexity Browse doesn't need.
+     * Fetch a page's blocks as one flat array in document order, fully
+     * resolving nested blocks (issue #1036). Notion's API is a *tree*:
+     * each block with `has_children: true` (toggles, columns, synced
+     * blocks, nested lists) hides its body behind a separate
+     * `GET /v1/blocks/{block_id}/children` call. We fetch the top level,
+     * then [flattenNested] descends depth-first, splicing each block's
+     * children immediately after it and stamping their [NotionBlock.depth]
+     * so the renderer can indent nested lists.
+     *
+     * Within a level, `has_more / next_cursor` pagination is followed
+     * transparently (Notion caps `page_size` at 100). Two guards keep the
+     * request budget sane on pathological pages: a depth cap
+     * ([MAX_NEST_DEPTH]) and a total child-fetch ceiling
+     * ([MAX_CHILD_REQUESTS]) — deeply/widely nested pages otherwise
+     * multiply round-trips (one extra call per `has_children` block).
+     *
+     * A child fetch that fails is treated as "no children" rather than
+     * failing the whole page: a transient error on one toggle shouldn't
+     * blank an otherwise-readable article. Only a failure fetching the
+     * top level aborts.
      */
     suspend fun pageBlocks(pageId: String): FictionResult<List<NotionBlock>> {
         val state = config.current()
         requireConfigured<List<NotionBlock>>(state)?.let { return it }
+        val top = when (val r = fetchChildren(pageId, state)) {
+            is FictionResult.Success -> r.value
+            is FictionResult.Failure -> return r
+        }
+        val flat = flattenNested(
+            roots = top,
+            maxDepth = MAX_NEST_DEPTH,
+            maxRequests = MAX_CHILD_REQUESTS,
+            fetchChildren = { childId ->
+                when (val r = fetchChildren(childId, state)) {
+                    is FictionResult.Success -> r.value
+                    // Swallow a single child-level failure: descend no
+                    // further under this block, keep the rest of the page.
+                    is FictionResult.Failure -> emptyList()
+                }
+            },
+        )
+        return FictionResult.Success(flat)
+    }
+
+    /**
+     * Fetch one block's direct children, following sibling pagination
+     * (`has_more / next_cursor`) so the returned list is the complete set
+     * of immediate children. The `repeat(50)` cap guards against a
+     * paginated cycle (50 × 100 = 5,000 siblings — past anything sane).
+     */
+    private suspend fun fetchChildren(
+        blockId: String,
+        state: NotionConfigState,
+    ): FictionResult<List<NotionBlock>> {
         val accumulated = mutableListOf<NotionBlock>()
         var cursor: String? = null
-        // Safety cap — if Notion ever returns a paginated cycle we don't
-        // want an infinite loop. 50 pages × 100 blocks = 5,000 blocks per
-        // chapter; well past anything a sane Notion page contains.
         repeat(50) {
             val url = buildString {
                 append(state.baseUrl)
-                append("/v1/blocks/").append(pageId).append("/children")
+                append("/v1/blocks/").append(blockId).append("/children")
                 append("?page_size=100")
                 if (cursor != null) append("&start_cursor=").append(cursor)
             }
@@ -250,6 +291,66 @@ internal class NotionApi @Inject constructor(
         }
         return null
     }
+
+    private companion object {
+        /** Issue #1036 — how deep to follow `has_children`. 5 covers
+         *  real Notion content (toggle → column → list → sub-list); past
+         *  that we stop descending to bound the request fan-out. */
+        const val MAX_NEST_DEPTH = 5
+
+        /** Total `blocks/{id}/children` calls for nested blocks, on top
+         *  of the top-level fetch. Each `has_children` block costs one
+         *  call; this ceiling caps the rate-limit exposure on a
+         *  pathologically nested page. 200 covers heavily-structured
+         *  pages without risking a request storm. */
+        const val MAX_CHILD_REQUESTS = 200
+    }
+}
+
+/**
+ * Issue #1036 — flatten a Notion block *tree* into the flat,
+ * document-order list the rest of the pipeline (`splitOnHeading1`,
+ * chapter assembly, `toHtml`/`toPlainText`) consumes.
+ *
+ * Notion only returns one level per `GET /v1/blocks/{id}/children`;
+ * a block with `has_children: true` hides its body behind another
+ * call. This walks [roots] depth-first: each block is emitted, then —
+ * if it declares children and we're under [maxDepth] / [maxRequests] —
+ * its children (via [fetchChildren]) are spliced in immediately after,
+ * stamped with `depth + 1`, and recursed into. The result preserves
+ * reading order (parent, then its subtree, then the next sibling).
+ *
+ * Pulled out as a top-level function (not a method) so the recursion
+ * logic is unit-testable with an in-memory [fetchChildren] and no HTTP.
+ *
+ * @param maxDepth deepest level to descend (roots are depth 0).
+ * @param maxRequests ceiling on child-fetch calls; once hit, remaining
+ *  `has_children` blocks are emitted without their children rather than
+ *  exceeding the budget.
+ */
+internal suspend fun flattenNested(
+    roots: List<NotionBlock>,
+    maxDepth: Int = 5,
+    maxRequests: Int = 200,
+    fetchChildren: suspend (blockId: String) -> List<NotionBlock>,
+): List<NotionBlock> {
+    val out = mutableListOf<NotionBlock>()
+    var requests = 0
+
+    suspend fun walk(blocks: List<NotionBlock>, depth: Int) {
+        for (block in blocks) {
+            out.add(block.copy(depth = depth))
+            if (!block.hasChildren) continue
+            if (depth >= maxDepth) continue
+            if (requests >= maxRequests) continue
+            requests++
+            val children = fetchChildren(block.id)
+            if (children.isNotEmpty()) walk(children, depth + 1)
+        }
+    }
+
+    walk(roots, 0)
+    return out.toList()
 }
 
 /**

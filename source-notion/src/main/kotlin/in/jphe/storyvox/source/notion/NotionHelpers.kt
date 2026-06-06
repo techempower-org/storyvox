@@ -278,11 +278,11 @@ internal fun NotionBlock.toHtml(): String = when (type) {
     }
     "bulleted_list_item" -> {
         val text = htmlEscape(extractRichText(bulletedListItem) ?: "")
-        if (text.isBlank()) "" else "<li>$text</li>"
+        if (text.isBlank()) "" else nestListItem(text)
     }
     "numbered_list_item" -> {
         val text = htmlEscape(extractRichText(numberedListItem) ?: "")
-        if (text.isBlank()) "" else "<li>$text</li>"
+        if (text.isBlank()) "" else nestListItem(text)
     }
     "quote" -> {
         val text = htmlEscape(extractRichText(quote) ?: "")
@@ -305,7 +305,25 @@ internal fun NotionBlock.toHtml(): String = when (type) {
         val text = htmlEscape(extractRichText(toDo) ?: "")
         if (text.isBlank()) "" else "<p>$text</p>"
     }
+    // Issue #1036 — layout containers carry no text of their own; their
+    // children were spliced into the flat list by flattenNested and
+    // render on their own. Emitting nothing for the container keeps the
+    // reader free of empty wrappers.
+    "column_list", "column", "synced_block" -> ""
     else -> ""
+}
+
+/**
+ * Issue #1036 — wrap a nested list item so the reader shows its nesting.
+ * Top-level items (depth 0) render as a bare `<li>` exactly as before;
+ * each level of nesting wraps in one more `<ul>` so a sub-bullet reads
+ * as indented under its parent. The TTS path ignores tags, so this is
+ * purely visual — narration completeness comes from the block being in
+ * the flat list at all, which it now is.
+ */
+private fun NotionBlock.nestListItem(escapedText: String): String {
+    val li = "<li>$escapedText</li>"
+    return if (depth <= 0) li else "<ul>".repeat(depth) + li + "</ul>".repeat(depth)
 }
 
 /** Plain-text projection of a block for TTS. Strips all markup; only
@@ -322,6 +340,9 @@ internal fun NotionBlock.toPlainText(): String = when (type) {
     "divider" -> ""
     "toggle" -> extractRichText(toggle) ?: ""
     "to_do" -> extractRichText(toDo) ?: ""
+    // Issue #1036 — transparent containers narrate nothing; their child
+    // blocks carry the text and narrate on their own.
+    "column_list", "column", "synced_block" -> ""
     else -> ""
 }
 
