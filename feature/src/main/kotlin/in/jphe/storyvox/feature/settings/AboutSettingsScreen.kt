@@ -51,11 +51,16 @@ fun AboutSettingsScreen(
                         text = stringResource(R.string.settings_about_version, s.sigil.versionName),
                         style = MaterialTheme.typography.bodyLarge,
                     )
-                    Text(
-                        text = s.sigil.name,
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.primary,
-                    )
+                    // Hidden candle egg (Candela v1.1) — 7 taps on the
+                    // brass sigil name lights the flame + whispers the
+                    // meaning of "Candela".
+                    `in`.jphe.storyvox.ui.component.CandleTapEgg {
+                        Text(
+                            text = s.sigil.name,
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                    }
                     val dirtySuffix = if (s.sigil.dirty) stringResource(R.string.settings_about_dirty) else ""
                     val builtSuffix = stringResource(R.string.settings_about_built, s.sigil.built.take(10))
                     Text(

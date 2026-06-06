@@ -822,11 +822,15 @@ private fun EmptyLibrary() {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        MagicSkeletonTile(
-            modifier = Modifier.size(width = 160.dp, height = 220.dp),
-            shape = MaterialTheme.shapes.medium,
-            glyphSize = 80.dp,
-        )
+        // Hidden candle egg (Candela v1.1) — 7 taps on the sigil tile
+        // lights the flame + whispers the meaning of "Candela".
+        `in`.jphe.storyvox.ui.component.CandleTapEgg {
+            MagicSkeletonTile(
+                modifier = Modifier.size(width = 160.dp, height = 220.dp),
+                shape = MaterialTheme.shapes.medium,
+                glyphSize = 80.dp,
+            )
+        }
         Spacer(Modifier.height(spacing.lg))
         Text(
             "Your library is empty",

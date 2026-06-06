@@ -395,6 +395,15 @@ private fun MilestoneDialogHost(
             onDismiss = viewModel::dismiss,
         )
     }
+    // v1.1.0 "read it your way" ignite milestone (Luna). Independent
+    // gate from the v0.5.00 card; the two never co-fire (disjoint
+    // version windows) but each has its own seen-flag.
+    val showV110 by viewModel.showV110Dialog.collectAsStateWithLifecycle()
+    if (showV110) {
+        `in`.jphe.storyvox.ui.component.V110MilestoneDialog(
+            onDismiss = viewModel::dismissV110,
+        )
+    }
 }
 
 @Composable

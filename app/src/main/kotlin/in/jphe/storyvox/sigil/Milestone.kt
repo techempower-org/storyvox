@@ -60,6 +60,48 @@ object Milestone {
             compareTriple(triple, V0500_WINDOW_END) <= 0
     }
 
+    // ── v1.1.0 "read it your way" milestone (Luna) ─────────────────
+    /**
+     * Second milestone gate — the "read it your way / bring your own"
+     * release. v1.1.0 landed a wave of reader work (paragraph nav,
+     * per-word highlight, dyslexia typography, reading themes, focused
+     * reading, in-text search) plus a fleet of new import sources.
+     *
+     * Per the [V0500] kdoc above, this is a *separate* helper with its
+     * own DataStore keys (`pref_v110_milestone_seen` /
+     * `pref_v110_confetti_shown`) and hand-tuned copy — we never reuse
+     * the v0.5.00 gate across versions.
+     *
+     * Window is **[1.1.0, 1.2.0)** — closed-open. 1.2.0 itself is OUT:
+     * a fresh install on 1.2.x never lived through the 1.1 crossing,
+     * so the "Candela 1.1 — read it your way" dialog would read as a
+     * dead placeholder (the same reasoning #439 applied to the v0.5.00
+     * window). Same fail-closed parse: any unparseable input → false.
+     */
+    private val V110 = Triple(1, 1, 0)
+
+    /** First version that no longer qualifies (exclusive upper bound). */
+    private val V110_WINDOW_END_EXCLUSIVE = Triple(1, 2, 0)
+
+    /** True when the current build's [BuildConfig.VERSION_NAME] falls
+     *  inside the v1.1.0 celebration window. Process-lifetime constant. */
+    val isV110OrLater: Boolean by lazy {
+        qualifiesV110(BuildConfig.VERSION_NAME)
+    }
+
+    /** Visible for testing — parse + compare without touching
+     *  BuildConfig. Returns false on any parse failure OR outside the
+     *  half-open [1.1.0, 1.2.0) window. */
+    internal fun qualifiesV110(versionName: String): Boolean {
+        val parts = versionName.split('.', '-', '+')
+        val major = parts.getOrNull(0)?.toIntOrNull() ?: return false
+        val minor = parts.getOrNull(1)?.toIntOrNull() ?: 0
+        val patch = parts.getOrNull(2)?.toIntOrNull() ?: 0
+        val triple = Triple(major, minor, patch)
+        return compareTriple(triple, V110) >= 0 &&
+            compareTriple(triple, V110_WINDOW_END_EXCLUSIVE) < 0
+    }
+
     private fun compareTriple(a: Triple<Int, Int, Int>, b: Triple<Int, Int, Int>): Int {
         if (a.first != b.first) return a.first.compareTo(b.first)
         if (a.second != b.second) return a.second.compareTo(b.second)

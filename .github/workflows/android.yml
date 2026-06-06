@@ -92,7 +92,7 @@ jobs:
         # Only runs on tag builds — for PR / main pushes we just
         # verify the build compiles and stop. The local-build path
         # in `app/build.gradle.kts` (applicationVariants.all) already
-        # renames `app-release.apk` -> `storyvox-v<versionName>.apk`
+        # renames `app-release.apk` -> `candela-v<versionName>.apk`
         # at AGP-output time. We still re-cp here using the tag name
         # so the published asset uses the GIT TAG (which may diverge
         # from versionName in pathological cases — historical sanity
@@ -104,11 +104,11 @@ jobs:
           OUT_DIR=app/build/outputs/apk/release
           # Prefer the AGP-renamed file; fall back to app-release.apk
           # if the variant rename ever stops firing.
-          SRC=$(ls "$OUT_DIR"/storyvox-v*.apk 2>/dev/null | head -1)
+          SRC=$(ls "$OUT_DIR"/candela-v*.apk 2>/dev/null | head -1)
           if [ -z "$SRC" ]; then
             SRC="$OUT_DIR/app-release.apk"
           fi
-          DST="$OUT_DIR/storyvox-${TAG}.apk"
+          DST="$OUT_DIR/candela-${TAG}.apk"
           # `cp file file` errors with exit 1 — happens when AGP's
           # applicationVariants rename already produced the
           # tag-named file. Skip the copy in that case.
@@ -136,4 +136,4 @@ jobs:
             Release APK build for `${{ github.ref_name }}`.
 
             > Signed with the project's checked-in keystore (stable since v0.4.15). Sideload-only distribution today.
-          files: app/build/outputs/apk/release/storyvox-${{ github.ref_name }}.apk
+          files: app/build/outputs/apk/release/candela-${{ github.ref_name }}.apk

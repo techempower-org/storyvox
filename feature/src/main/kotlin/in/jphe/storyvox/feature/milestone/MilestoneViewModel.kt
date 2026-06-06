@@ -47,4 +47,22 @@ class MilestoneViewModel @Inject constructor(
     fun dismiss() {
         viewModelScope.launch { settings.markMilestoneDialogSeen() }
     }
+
+    // ── v1.1.0 "read it your way" milestone (Luna) ─────────────────
+    /** True iff the v1.1 "ignite" dialog should be on screen: the
+     *  build is inside the v1.1 window and the user hasn't dismissed it
+     *  on this install. Independent gate from [showDialog] — the two
+     *  milestones never co-fire (disjoint version windows) but carry
+     *  separate seen-flags so a user who dismissed the 0.5.00 card
+     *  still meets the 1.1 one. */
+    val showV110Dialog: StateFlow<Boolean> = settings.milestoneState
+        .map { it.v110Qualifies && !it.v110DialogSeen }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    /** Dismiss the v1.1 ignite dialog (Continue or outside-tap).
+     *  Persists the seen-flag; [showV110Dialog] flips false next
+     *  emission and the dialog leaves the composition. */
+    fun dismissV110() {
+        viewModelScope.launch { settings.markV110MilestoneDialogSeen() }
+    }
 }

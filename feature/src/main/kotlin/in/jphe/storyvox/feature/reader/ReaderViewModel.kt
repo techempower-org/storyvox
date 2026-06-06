@@ -283,6 +283,19 @@ class ReaderViewModel @Inject constructor(
     private val _confettiTrigger = Channel<Unit>(capacity = Channel.CONFLATED)
     val confettiTrigger: Flow<Unit> = _confettiTrigger.receiveAsFlow()
 
+    /**
+     * Candela (v1.1.0) — book-completion streak celebration. Carries
+     * the streak tier (1/5/10/25) just crossed when the user finishes a
+     * book; [HybridReaderScreen] renders a [LightMotes] burst + an "N
+     * books lit" badge for each tier pulled off the channel. Conflated
+     * so a missed observer sees the latest signal but never a backlog.
+     * The counter increment + tier decision are serialized in the repo
+     * seam ([recordBookCompletedAndMilestone]) so this fires at most
+     * once per finished book.
+     */
+    private val _bookStreakTrigger = Channel<Int>(capacity = Channel.CONFLATED)
+    val bookStreakTrigger: Flow<Int> = _bookStreakTrigger.receiveAsFlow()
+
     /** Issue #805 — user-dismissed error message. When the user dismisses
      *  the playback error banner, we record the error message here. The
      *  combine below suppresses the banner when the current error message
@@ -324,8 +337,17 @@ class ReaderViewModel @Inject constructor(
             playback.events.collect { ev ->
                 when (ev) {
                     is PlaybackUiEvent.ChapterDone -> {
+                        // Fire the chapter-complete celebration when EITHER
+                        // milestone window is live and its one-time flag is
+                        // still unshown. v1.1 upgraded the visual from the
+                        // old falling confetti to the rising LightMotes; the
+                        // same conflated trigger drives both (the host picks
+                        // the overlay), so the serialization + one-time gate
+                        // are unchanged.
                         val ms = settings.milestoneState.first()
-                        if (ms.qualifies && !ms.confettiShown) {
+                        val v0500 = ms.qualifies && !ms.confettiShown
+                        val v110 = ms.v110Qualifies && !ms.v110ConfettiShown
+                        if (v0500 || v110) {
                             _confettiTrigger.trySend(Unit)
                         }
                     }
@@ -334,6 +356,14 @@ class ReaderViewModel @Inject constructor(
                     // so HybridReaderScreen renders the BookFinishedOverlay.
                     is PlaybackUiEvent.BookFinished -> {
                         _bookFinished.value = true
+                        // Candela (v1.1.0) — a finished book ticks the
+                        // device-local streak counter. The repo seam
+                        // serializes increment + tier decision; if this
+                        // increment crossed a tier (1/5/10/25) emit it for
+                        // the LightMotes + "N books lit" badge.
+                        settings.recordBookCompletedAndMilestone()?.let { tier ->
+                            _bookStreakTrigger.trySend(tier)
+                        }
                     }
                     else -> Unit
                 }
@@ -341,13 +371,18 @@ class ReaderViewModel @Inject constructor(
         }
     }
 
-    /** Calliope — called by [HybridReaderScreen] when the confetti
-     *  overlay fades out, so the one-time flag flips and the
-     *  celebration never replays. The collector branch above also
-     *  reads the flag on every ChapterDone, so this method
-     *  effectively closes the gate. */
+    /** Called by [HybridReaderScreen] when the chapter-complete
+     *  celebration overlay fades out, so the one-time flag flips and it
+     *  never replays. Flips BOTH milestone flags (Calliope v0.5.00 +
+     *  Candela v1.1) — only the live window's flag is read back by the
+     *  ChapterDone gate above, and flipping an already-true flag is a
+     *  harmless idempotent write, so we don't need to know which
+     *  milestone actually fired the burst. */
     fun markConfettiShown() {
-        viewModelScope.launch { settings.markMilestoneConfettiShown() }
+        viewModelScope.launch {
+            settings.markMilestoneConfettiShown()
+            settings.markV110ConfettiShown()
+        }
     }
 
     /** Issue #677 — user dismissed the end-of-book overlay (Back to

@@ -756,6 +756,25 @@ private object Keys {
      *  dialog. */
     val V0500_CONFETTI_SHOWN = booleanPreferencesKey("pref_v0500_confetti_shown")
 
+    // ── v1.1.0 "read it your way" milestone (Luna) ─────────────────
+    /** One-time gate for the v1.1 "ignite" milestone dialog. Same
+     *  posture as [V0500_MILESTONE_SEEN] but its own key — per
+     *  Milestone.kt's kdoc, each milestone gets independent keys so a
+     *  user who dismissed the 0.5.00 card still sees the 1.1 one. */
+    val V110_MILESTONE_SEEN = booleanPreferencesKey("pref_v110_milestone_seen")
+    /** One-time gate for the v1.1 chapter-complete LightMotes burst.
+     *  Independent from [V110_MILESTONE_SEEN] for the same reason the
+     *  v0.5.00 pair is split. */
+    val V110_CONFETTI_SHOWN = booleanPreferencesKey("pref_v110_confetti_shown")
+
+    /** Lifetime count of books the user has finished, device-local.
+     *  Drives the streak-tier celebrations (1/5/10/25 "books lit").
+     *  Not synced — a "books *you* have finished on this device" feel
+     *  is intentionally per-device, and syncing would double-fire the
+     *  celebration across devices. Monotonic; only ever incremented on
+     *  a natural end-of-book. */
+    val BOOKS_COMPLETED_COUNT = intPreferencesKey("pref_books_completed_count")
+
     /** Issue #517 — gate for the TechEmpower Home onboarding state.
      *  Flips to true the first time the user opens the dedicated
      *  TechEmpower Home screen (via the brass-edged Library hero
@@ -2848,6 +2867,11 @@ class SettingsRepositoryUiImpl(
                 qualifies = `in`.jphe.storyvox.sigil.Milestone.isV0500OrLater,
                 dialogSeen = prefs[Keys.V0500_MILESTONE_SEEN] ?: false,
                 confettiShown = prefs[Keys.V0500_CONFETTI_SHOWN] ?: false,
+                // v1.1.0 "read it your way" milestone (Luna).
+                v110Qualifies = `in`.jphe.storyvox.sigil.Milestone.isV110OrLater,
+                v110DialogSeen = prefs[Keys.V110_MILESTONE_SEEN] ?: false,
+                v110ConfettiShown = prefs[Keys.V110_CONFETTI_SHOWN] ?: false,
+                booksCompleted = prefs[Keys.BOOKS_COMPLETED_COUNT] ?: 0,
             )
         }
 
@@ -2857,6 +2881,35 @@ class SettingsRepositoryUiImpl(
 
     override suspend fun markMilestoneConfettiShown() {
         store.edit { it[Keys.V0500_CONFETTI_SHOWN] = true }
+    }
+
+    // ── v1.1.0 "read it your way" milestone (Luna) ─────────────────
+    override suspend fun markV110MilestoneDialogSeen() {
+        store.edit { it[Keys.V110_MILESTONE_SEEN] = true }
+    }
+
+    override suspend fun markV110ConfettiShown() {
+        store.edit { it[Keys.V110_CONFETTI_SHOWN] = true }
+    }
+
+    /**
+     * Single serialized read-modify-write: increment the completed-book
+     * counter and, in the same `edit` transaction, decide whether the
+     * increment crossed a streak tier. DataStore's `edit` runs its
+     * block under the store's own mutex, so two concurrent
+     * end-of-book signals are serialized — neither double-counts nor
+     * sees a stale `previous`. We capture the crossed tier in a holder
+     * because `edit` returns the new Preferences, not our derived value.
+     */
+    override suspend fun recordBookCompletedAndMilestone(): Int? {
+        var crossed: Int? = null
+        store.edit { prefs ->
+            val previous = prefs[Keys.BOOKS_COMPLETED_COUNT] ?: 0
+            val next = previous + 1
+            prefs[Keys.BOOKS_COMPLETED_COUNT] = next
+            crossed = `in`.jphe.storyvox.ui.component.bookStreakMilestoneCrossed(previous, next)
+        }
+        return crossed
     }
 
     // ── Issue #383 — Inbox per-source mute toggles ─────────────────

@@ -31,7 +31,6 @@ import `in`.jphe.storyvox.ui.component.BrassButton
 import `in`.jphe.storyvox.ui.component.BrassButtonVariant
 import `in`.jphe.storyvox.ui.component.HybridReaderShell
 import `in`.jphe.storyvox.ui.component.MagicCircularProgress
-import `in`.jphe.storyvox.ui.component.MilestoneConfetti
 import `in`.jphe.storyvox.ui.theme.LocalSpacing
 
 @Composable
@@ -98,15 +97,27 @@ fun HybridReaderScreen(
     val wordHighlightArgb by viewModel.wordHighlightArgb.collectAsStateWithLifecycle()
     val playback = state.playback
 
-    // Calliope (v0.5.00) — first-natural-chapter-completion confetti.
-    // The VM's confettiTrigger fires Unit once per qualifying event;
-    // we flip a local visible flag that drives the [MilestoneConfetti]
-    // overlay, then close the gate persistently via markConfettiShown
-    // when the overlay tells us it's done.
+    // Chapter-completion celebration. The VM's confettiTrigger fires
+    // Unit once per qualifying event (v0.5.00 OR v1.1 window); we flip a
+    // local visible flag that drives the [LightMotes] overlay (v1.1
+    // upgraded the visual from falling confetti to rising motes), then
+    // close the gate persistently via markConfettiShown when the
+    // overlay tells us it's done.
     var celebrationVisible by remember { mutableStateOf(false) }
     LaunchedEffect(viewModel) {
         viewModel.confettiTrigger.collect {
             celebrationVisible = true
+        }
+    }
+
+    // Candela (v1.1.0) — book-completion streak. Each tier (1/5/10/25)
+    // pulled off the channel shows a LightMotes burst + an "N books
+    // lit" badge. The tier value also picks the badge copy. Conflated
+    // upstream, so we hold the latest tier in local state.
+    var streakTier by remember { mutableStateOf<Int?>(null) }
+    LaunchedEffect(viewModel) {
+        viewModel.bookStreakTrigger.collect { tier ->
+            streakTier = tier
         }
     }
 
@@ -397,18 +408,31 @@ fun HybridReaderScreen(
         DebugOverlay(viewModel = debugVm)
     }
 
-    // Calliope (v0.5.00) — confetti easter-egg, drifts across the
-    // player for ~3.5s then fades. Sits ABOVE the debug overlay so
+    // Chapter-completion celebration — rising LightMotes wash across
+    // the player (~2.8s) then fades. Sits ABOVE the debug overlay so
     // power users still see the celebration; the overlay can wait.
     // markConfettiShown persists the one-time flag so this never
     // reappears for this install. Non-blocking — no pointer
     // interception, just a Canvas drawing on top.
     if (celebrationVisible) {
-        MilestoneConfetti(
+        `in`.jphe.storyvox.ui.component.LightMotes(
             onFinished = {
                 celebrationVisible = false
                 viewModel.markConfettiShown()
             },
+        )
+    }
+
+    // Candela (v1.1.0) — book-streak celebration. A LightMotes burst
+    // plus an "N books lit" glow-badge, shown when the user crosses a
+    // streak tier on finishing a book. The badge lingers with the burst
+    // and clears together when the motes finish. Layered above the
+    // chapter-complete celebration; the two rarely coincide (one fires
+    // on ChapterDone, the other on BookFinished).
+    streakTier?.let { tier ->
+        `in`.jphe.storyvox.ui.component.BooksLitBadgeOverlay(
+            booksLit = tier,
+            onFinished = { streakTier = null },
         )
     }
 

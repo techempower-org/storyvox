@@ -2250,6 +2250,23 @@ interface SettingsRepositoryUi {
      *  the DataStore impl persists. */
     suspend fun markMilestoneConfettiShown() {}
 
+    // ── v1.1.0 "read it your way" milestone (Luna) ─────────────────
+    /** Flip the v1.1 ignite-dialog seen flag. Default no-op for fakes. */
+    suspend fun markV110MilestoneDialogSeen() {}
+
+    /** Flip the v1.1 chapter-complete LightMotes flag. Default no-op. */
+    suspend fun markV110ConfettiShown() {}
+
+    /**
+     * Record that the user finished a book and return the streak tier
+     * (1/5/10/25) just crossed by the increment, or null if none. The
+     * counter increment + tier decision are a single serialized
+     * read-modify-write through this seam so two near-simultaneous
+     * end-of-book signals can't double-count or double-celebrate.
+     * Default returns null (fakes neither persist nor celebrate).
+     */
+    suspend fun recordBookCompletedAndMilestone(): Int? = null
+
     // ── Issue #383 — Inbox per-source mute toggles ─────────────────
     /**
      * Per-source Inbox notification toggles. When OFF, the backend's
@@ -2419,6 +2436,16 @@ data class MilestoneState(
     val qualifies: Boolean = false,
     val dialogSeen: Boolean = false,
     val confettiShown: Boolean = false,
+    // ── v1.1.0 "read it your way" milestone (Luna) ─────────────────
+    /** True when the build is inside the v1.1 celebration window
+     *  ([`in`.jphe.storyvox.sigil.Milestone.isV110OrLater]). */
+    val v110Qualifies: Boolean = false,
+    /** The v1.1 ignite dialog has been seen + dismissed on this install. */
+    val v110DialogSeen: Boolean = false,
+    /** The v1.1 chapter-complete LightMotes burst has fired once. */
+    val v110ConfettiShown: Boolean = false,
+    /** Lifetime device-local count of finished books, for streak tiers. */
+    val booksCompleted: Int = 0,
 )
 
 /** Tier 3 (#88) slider bounds. Min 1 (serial), max 8 (the Snapdragon
