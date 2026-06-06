@@ -16,6 +16,7 @@ import `in`.jphe.storyvox.data.db.migration.MIGRATION_9_10
 import `in`.jphe.storyvox.data.db.migration.MIGRATION_10_11
 import `in`.jphe.storyvox.data.db.migration.MIGRATION_11_12
 import `in`.jphe.storyvox.data.db.migration.MIGRATION_12_13
+import `in`.jphe.storyvox.data.db.migration.MIGRATION_13_14
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
@@ -150,13 +151,16 @@ class StoryvoxDatabaseMigrationTest {
         // #989 — v13 adds fiction.sourceUrl. Chain through so the
         // latest-version Room.databaseBuilder opens cleanly.
         helper.runMigrationsAndValidate(dbName, 13, true, MIGRATION_12_13).close()
+        // #999 — v14 adds the annotation table. Chain through so the
+        // latest-version Room.databaseBuilder opens cleanly.
+        helper.runMigrationsAndValidate(dbName, 14, true, MIGRATION_13_14).close()
 
         val ctx = org.robolectric.RuntimeEnvironment.getApplication() as android.content.Context
         val db = Room.databaseBuilder(ctx, StoryvoxDatabase::class.java, dbName)
             .addMigrations(
                 MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8,
                 MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12,
-                MIGRATION_12_13,
+                MIGRATION_12_13, MIGRATION_13_14,
             )
             .build()
 
@@ -319,13 +323,15 @@ class StoryvoxDatabaseMigrationTest {
         helper.runMigrationsAndValidate(dbName, 12, true, MIGRATION_11_12).close()
         // #989 — chain through v13 (fiction.sourceUrl).
         helper.runMigrationsAndValidate(dbName, 13, true, MIGRATION_12_13).close()
+        // #999 — chain through v14 (annotation table).
+        helper.runMigrationsAndValidate(dbName, 14, true, MIGRATION_13_14).close()
 
         val ctx = org.robolectric.RuntimeEnvironment.getApplication() as android.content.Context
         val db = Room.databaseBuilder(ctx, StoryvoxDatabase::class.java, dbName)
             .addMigrations(
                 MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8,
                 MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12,
-                MIGRATION_12_13,
+                MIGRATION_12_13, MIGRATION_13_14,
             )
             .build()
 
@@ -1027,5 +1033,178 @@ class StoryvoxDatabaseMigrationTest {
         }
 
         db.close()
+    }
+
+    /**
+     * Issue #999 — v14 creates the `annotation` table for text-range
+     * highlights with optional notes (beyond the single per-chapter
+     * bookmark, #121). Purely additive: existing tables are untouched. Two
+     * indexes (`fictionId` for the per-fiction list, `chapterId` for the
+     * reader overlay + FK-cascade planner) must exist post-migration.
+     *
+     * `runMigrationsAndValidate(..., 14, true, MIGRATION_13_14)` also
+     * triggers Room's identity-hash check against `14.json`, so a malformed
+     * CREATE TABLE, a wrong column type, a missing FK action, or a dropped
+     * index fails here too.
+     */
+    @Test fun `migrate v13 to v14 creates annotation table`() {
+        val dbName = "annotation-migration-test.db"
+
+        helper.createDatabase(dbName, 4).close()
+        helper.runMigrationsAndValidate(dbName, 5, true, MIGRATION_4_5).close()
+        helper.runMigrationsAndValidate(dbName, 6, true, MIGRATION_5_6).close()
+        helper.runMigrationsAndValidate(dbName, 7, true, MIGRATION_6_7).close()
+        helper.runMigrationsAndValidate(dbName, 8, true, MIGRATION_7_8).close()
+        helper.runMigrationsAndValidate(dbName, 9, true, MIGRATION_8_9).close()
+        helper.runMigrationsAndValidate(dbName, 10, true, MIGRATION_9_10).close()
+        helper.runMigrationsAndValidate(dbName, 11, true, MIGRATION_10_11).close()
+        helper.runMigrationsAndValidate(dbName, 12, true, MIGRATION_11_12).close()
+        helper.runMigrationsAndValidate(dbName, 13, true, MIGRATION_12_13).close()
+
+        val db = helper.runMigrationsAndValidate(
+            dbName,
+            14,
+            /* validateDroppedTables = */ true,
+            MIGRATION_13_14,
+        )
+
+        db.query(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='annotation'",
+        ).use { c ->
+            assertTrue("annotation table must exist post-migration", c.moveToFirst())
+        }
+
+        db.query(
+            "SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='annotation'",
+        ).use { c ->
+            val indexes = mutableListOf<String>()
+            while (c.moveToNext()) indexes += c.getString(0)
+            assertTrue(
+                "index_annotation_fictionId must exist (per-fiction list)",
+                indexes.any { it == "index_annotation_fictionId" },
+            )
+            assertTrue(
+                "index_annotation_chapterId must exist (reader overlay + FK planner)",
+                indexes.any { it == "index_annotation_chapterId" },
+            )
+        }
+
+        // note must be the only nullable column; offsets/timestamps NOT NULL.
+        db.query("PRAGMA table_info('annotation')").use { c ->
+            val nullableByName = mutableMapOf<String, Boolean>()
+            while (c.moveToNext()) {
+                val name = c.getString(c.getColumnIndexOrThrow("name"))
+                val notnull = c.getInt(c.getColumnIndexOrThrow("notnull"))
+                nullableByName[name] = (notnull == 0)
+            }
+            assertEquals("note must be nullable", true, nullableByName["note"])
+            assertEquals("startOffset must be NOT NULL", false, nullableByName["startOffset"])
+            assertEquals("quotedText must be NOT NULL", false, nullableByName["quotedText"])
+        }
+
+        db.close()
+    }
+
+    /**
+     * Issue #999 — smoke test that the migrated v14 db can write + read an
+     * annotation row through the raw SQL surface. Catches a schema/entity
+     * mismatch the identity-hash check alone wouldn't (e.g. a column rename
+     * that happens to keep the hash stable). Seeds the parent fiction +
+     * chapter first (FK: annotation → fiction + chapter).
+     */
+    @Test fun `migrated v14 db round-trips an annotation row`() {
+        val dbName = "annotation-roundtrip-test.db"
+        helper.createDatabase(dbName, 4).close()
+        helper.runMigrationsAndValidate(dbName, 5, true, MIGRATION_4_5).close()
+        helper.runMigrationsAndValidate(dbName, 6, true, MIGRATION_5_6).close()
+        helper.runMigrationsAndValidate(dbName, 7, true, MIGRATION_6_7).close()
+        helper.runMigrationsAndValidate(dbName, 8, true, MIGRATION_7_8).close()
+        helper.runMigrationsAndValidate(dbName, 9, true, MIGRATION_8_9).close()
+        helper.runMigrationsAndValidate(dbName, 10, true, MIGRATION_9_10).close()
+        helper.runMigrationsAndValidate(dbName, 11, true, MIGRATION_10_11).close()
+        helper.runMigrationsAndValidate(dbName, 12, true, MIGRATION_11_12).close()
+        helper.runMigrationsAndValidate(dbName, 13, true, MIGRATION_12_13).close()
+        helper.runMigrationsAndValidate(dbName, 14, true, MIGRATION_13_14).close()
+
+        val ctx = org.robolectric.RuntimeEnvironment.getApplication() as android.content.Context
+        val db = Room.databaseBuilder(ctx, StoryvoxDatabase::class.java, dbName)
+            .addMigrations(
+                MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8,
+                MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12,
+                MIGRATION_12_13, MIGRATION_13_14,
+            )
+            .build()
+
+        try {
+            db.openHelper.writableDatabase.execSQL(
+                """
+                INSERT INTO fiction(
+                    id, sourceId, title, author, genres, tags, status,
+                    chapterCount, firstSeenAt, metadataFetchedAt,
+                    inLibrary, followedRemotely, notesEverSeen
+                ) VALUES (
+                    'rr:42', 'royalroad', 'Mother of Learning', 'nobody103',
+                    '[]', '[]', 'ONGOING', 1, 0, 0, 1, 0, 0
+                )
+                """.trimIndent(),
+            )
+            db.openHelper.writableDatabase.execSQL(
+                """
+                INSERT INTO chapter(
+                    id, fictionId, sourceChapterId, `index`, title,
+                    downloadState, userMarkedRead
+                ) VALUES (
+                    'rr:42:0', 'rr:42', '0', 0, 'Good Morning Brother',
+                    'NOT_DOWNLOADED', 0
+                )
+                """.trimIndent(),
+            )
+            // One highlight WITH a note, one WITHOUT (null note column).
+            db.openHelper.writableDatabase.execSQL(
+                "INSERT INTO annotation(id, fictionId, chapterId, startOffset, endOffset, " +
+                    "color, note, quotedText, createdAt, updatedAt) VALUES " +
+                    "('ann-1', 'rr:42', 'rr:42:0', 10, 25, 'YELLOW', 'remember this', " +
+                    "'a good morning', 1000, 1000)",
+            )
+            db.openHelper.writableDatabase.execSQL(
+                "INSERT INTO annotation(id, fictionId, chapterId, startOffset, endOffset, " +
+                    "color, note, quotedText, createdAt, updatedAt) VALUES " +
+                    "('ann-2', 'rr:42', 'rr:42:0', 40, 50, 'GREEN', NULL, " +
+                    "'plain highlight', 2000, 2000)",
+            )
+
+            db.openHelper.readableDatabase.query(
+                "SELECT id, startOffset, endOffset, color, note, quotedText, updatedAt " +
+                    "FROM annotation ORDER BY startOffset",
+            ).use { c ->
+                assertTrue(c.moveToFirst())
+                assertEquals("ann-1", c.getString(0))
+                assertEquals(10, c.getInt(1))
+                assertEquals(25, c.getInt(2))
+                assertEquals("YELLOW", c.getString(3))
+                assertEquals("remember this", c.getString(4))
+                assertEquals("a good morning", c.getString(5))
+                assertEquals(1000L, c.getLong(6))
+
+                assertTrue(c.moveToNext())
+                assertEquals("ann-2", c.getString(0))
+                assertEquals("GREEN", c.getString(3))
+                assertTrue("ann-2 note must be NULL", c.isNull(4))
+
+                assertTrue("exactly two annotation rows", !c.moveToNext())
+            }
+
+            // CASCADE: deleting the fiction drops its annotations.
+            db.openHelper.writableDatabase.execSQL("PRAGMA foreign_keys = ON")
+            db.openHelper.writableDatabase.execSQL("DELETE FROM fiction WHERE id = 'rr:42'")
+            db.openHelper.readableDatabase.query("SELECT COUNT(*) FROM annotation").use { c ->
+                assertTrue(c.moveToFirst())
+                assertEquals("annotations cascade-deleted with the fiction", 0, c.getInt(0))
+            }
+        } finally {
+            db.close()
+        }
+
+        assertNotNull("smoke sentinel — fail-fast if the try block was no-op'd", helper)
     }
 }

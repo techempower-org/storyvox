@@ -17,8 +17,12 @@ import `in`.jphe.storyvox.sync.client.InstantClient
 import `in`.jphe.storyvox.sync.client.InstantHttpTransport
 import `in`.jphe.storyvox.sync.client.InstantSession
 import `in`.jphe.storyvox.sync.client.OkHttpInstantTransport
+import `in`.jphe.storyvox.data.db.dao.AnnotationDao
+import `in`.jphe.storyvox.data.db.dao.ChapterDao
+import `in`.jphe.storyvox.data.db.dao.FictionDao
 import `in`.jphe.storyvox.sync.coordinator.Syncer
 import `in`.jphe.storyvox.sync.coordinator.TombstoneStore
+import `in`.jphe.storyvox.sync.domain.AnnotationsSyncer
 import `in`.jphe.storyvox.sync.domain.BookmarksSyncer
 import `in`.jphe.storyvox.sync.domain.FollowsSyncer
 import `in`.jphe.storyvox.sync.domain.LibrarySyncer
@@ -114,6 +118,27 @@ object SyncModule {
 
     @Provides @IntoSet
     fun provideBookmarksSyncer(impl: BookmarksSyncer): Syncer = impl
+
+    /** Issue #999 — text highlights + notes. One blob/user, LWW, the same
+     *  #1029 absence-is-not-deletion + local-only-union contract as
+     *  BookmarksSyncer. The FK-parent existence probes are supplied as
+     *  lambdas (fiction via [FictionDao.get], chapter via [ChapterDao.exists])
+     *  so the syncer can FK-guard an incoming annotation whose chapter/fiction
+     *  row hasn't synced locally yet, without depending on the whole DAOs. */
+    @Provides @IntoSet
+    fun provideAnnotationsSyncer(
+        annotationDao: AnnotationDao,
+        backend: InstantBackend,
+        prefs: SharedPreferences,
+        chapterDao: ChapterDao,
+        fictionDao: FictionDao,
+    ): Syncer = AnnotationsSyncer(
+        annotationDao = annotationDao,
+        backend = backend,
+        prefs = prefs,
+        chapterExists = { id -> chapterDao.exists(id) },
+        fictionExists = { id -> fictionDao.get(id) != null },
+    )
 
     /** Issue #360 finding 1 (argus) — SecretsSyncer is now in the
      *  multibound set so its push/pull actually fires from the

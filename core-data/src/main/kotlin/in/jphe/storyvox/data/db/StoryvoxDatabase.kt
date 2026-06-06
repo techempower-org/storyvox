@@ -4,6 +4,7 @@ import androidx.room.Database
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import `in`.jphe.storyvox.data.db.converter.Converters
+import `in`.jphe.storyvox.data.db.dao.AnnotationDao
 import `in`.jphe.storyvox.data.db.dao.AuthDao
 import `in`.jphe.storyvox.data.db.dao.ChapterDao
 import `in`.jphe.storyvox.data.db.dao.ChapterHistoryDao
@@ -14,6 +15,7 @@ import `in`.jphe.storyvox.data.db.dao.InboxEventDao
 import `in`.jphe.storyvox.data.db.dao.LlmMessageDao
 import `in`.jphe.storyvox.data.db.dao.LlmSessionDao
 import `in`.jphe.storyvox.data.db.dao.PlaybackDao
+import `in`.jphe.storyvox.data.db.entity.Annotation
 import `in`.jphe.storyvox.data.db.entity.AuthCookie
 import `in`.jphe.storyvox.data.db.entity.Chapter
 import `in`.jphe.storyvox.data.db.entity.ChapterHistory
@@ -49,6 +51,11 @@ import `in`.jphe.storyvox.data.db.entity.PlaybackPosition
         // cross-fiction lookup still surfaces "you read this name in
         // a book you no longer have."
         FictionMemoryEntry::class,
+        // v14 (#999 highlights + notes) — text-range annotations beyond the
+        // single per-chapter bookmark. FK CASCADE to fiction + chapter so a
+        // removed book drops its highlights. Char-offset range into the
+        // chapter body (same coordinate as the bookmark + sentence-highlight).
+        Annotation::class,
     ],
     // v11 (#965 per-chapter playback position) — PlaybackPosition PK changes
     // from `fictionId` to composite `(fictionId, chapterId)` so each chapter
@@ -63,7 +70,11 @@ import `in`.jphe.storyvox.data.db.entity.PlaybackPosition
     // original source URL for hash-id sources (Readability/RSS/EPUB
     // direct-download) so a synced placeholder can be rebuilt on a
     // second device. Purely additive nullable column.
-    version = 13,
+    //
+    // v14 (#999 highlights + notes) — new `annotation` table for text-range
+    // highlights with optional notes. Purely additive table; no existing
+    // table or row is touched.
+    version = 14,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -78,6 +89,7 @@ abstract class StoryvoxDatabase : RoomDatabase() {
     abstract fun fictionShelfDao(): FictionShelfDao
     abstract fun inboxEventDao(): InboxEventDao
     abstract fun fictionMemoryDao(): FictionMemoryDao
+    abstract fun annotationDao(): AnnotationDao
 
     companion object {
         const val NAME: String = "storyvox.db"

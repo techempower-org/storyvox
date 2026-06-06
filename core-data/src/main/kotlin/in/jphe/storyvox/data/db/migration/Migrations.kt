@@ -406,6 +406,55 @@ val MIGRATION_12_13: Migration = object : Migration(12, 13) {
     }
 }
 
+/**
+ * Issue #999 — v14 creates the `annotation` table for text-range highlights
+ * with optional notes (beyond the single per-chapter bookmark, #121).
+ *
+ * Purely additive: no existing table or row is touched. The table carries two
+ * `ON DELETE CASCADE` foreign keys (fiction + chapter), so removing a book
+ * drops its highlights rather than orphaning them. Two indexes:
+ * `index_annotation_fictionId` (per-fiction list) and
+ * `index_annotation_chapterId` (reader per-chapter overlay + the chapter
+ * FK-cascade planner).
+ *
+ * The CREATE TABLE / CREATE INDEX SQL is hand-written to match what Room
+ * generates from the [Annotation] `@Entity`; `runMigrationsAndValidate`
+ * against `14.json` fails with an identity-hash mismatch if they ever drift.
+ */
+val MIGRATION_13_14: Migration = object : Migration(13, 14) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS `annotation` (
+                `id` TEXT NOT NULL,
+                `fictionId` TEXT NOT NULL,
+                `chapterId` TEXT NOT NULL,
+                `startOffset` INTEGER NOT NULL,
+                `endOffset` INTEGER NOT NULL,
+                `color` TEXT NOT NULL,
+                `note` TEXT,
+                `quotedText` TEXT NOT NULL,
+                `createdAt` INTEGER NOT NULL,
+                `updatedAt` INTEGER NOT NULL,
+                PRIMARY KEY(`id`),
+                FOREIGN KEY(`fictionId`) REFERENCES `fiction`(`id`)
+                  ON UPDATE NO ACTION ON DELETE CASCADE,
+                FOREIGN KEY(`chapterId`) REFERENCES `chapter`(`id`)
+                  ON UPDATE NO ACTION ON DELETE CASCADE
+            )
+            """.trimIndent(),
+        )
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS `index_annotation_fictionId` " +
+                "ON `annotation` (`fictionId`)",
+        )
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS `index_annotation_chapterId` " +
+                "ON `annotation` (`chapterId`)",
+        )
+    }
+}
+
 val ALL_MIGRATIONS: Array<Migration> = arrayOf(
     MIGRATION_1_2,
     MIGRATION_2_3,
@@ -419,4 +468,5 @@ val ALL_MIGRATIONS: Array<Migration> = arrayOf(
     MIGRATION_10_11,
     MIGRATION_11_12,
     MIGRATION_12_13,
+    MIGRATION_13_14,
 )
