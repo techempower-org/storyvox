@@ -172,67 +172,40 @@ fun HybridReaderScreen(
     //      fall back on (otherwise AudiobookView's friendlier
     //      Retry/Pick-voice error block handles the dead-end case).
     //
-    // We compute the cases below in two steps so Kotlin's smart-cast
-    // on `playback != null` stays usable for the rest of the screen.
-    val showPromptForNullPlayback = playback == null
-    val showPromptForBlankIds = playback != null &&
-        playback.fictionId == null &&
-        playback.chapterId == null
-    val showPromptForTimedOutWithEntry =
-        playback != null && timedOut && resumeEntry != null
-    // Issue #638 (v1.0 blocker) — when the Reader was navigated to
-    // with explicit /reader/{fictionId}/{chapterId} args (drill-down
-    // from FictionDetail's Play button), the playback flow has not
-    // yet emitted by the time the composable first runs. Pre-fix the
-    // screen would fall through to ResumeEmptyPrompt and render the
-    // "Your library awaits / Browse the realms →" CTA — making it
-    // look exactly like the Library tab's empty state and convincing
-    // JP (and any user) that the Play tap had bounced them back to
-    // Library. Suppress the prompt branch entirely while the
-    // controller is still warming up on an explicit-args entry —
-    // the regular spinner inside AudiobookView (LoadingPhase.Loading)
-    // owns the loading affordance from here, just as it does for
-    // every other chapter-load path. The Playing tab (/playing, no
-    // args) still falls through to the prompt as before, which is
-    // the desired empty-state behaviour for that surface.
-    // Issue #638 — the explicit-args loading window covers BOTH the
-    // pre-emission case (showPromptForNullPlayback) AND the
-    // post-emission-but-blank-ids case (showPromptForBlankIds, where
-    // PlaybackController has emitted its default state with fictionId
-    // = null / chapterId = null but the controller's play() call
-    // hasn't reached the engine yet). The full sequence on a cold
-    // Play tap from FictionDetail:
-    //   t=0   :  user taps Play → listen(c) → startListening()
-    //   t=0+  :  screen navigates to /reader; ReaderVM constructs;
-    //            playback flow has not emitted → playback = null;
-    //            showPromptForNullPlayback = true
-    //   t=43ms:  playback flow emits default UiPlaybackState
-    //            (fictionId = null, chapterId = null); the null case
-    //            flips false BUT showPromptForBlankIds flips true,
-    //            and pre-fix that re-routed straight back to
-    //            ResumeEmptyPrompt — a 43ms flash of "Your library
-    //            awaits" was the bug. Including blank-ids here keeps
-    //            the explicit-args loading surface up through the
-    //            whole controller cold-start window, until the
-    //            controller fills in ids on the first chapter-load
-    //            tick. The TimedOut sub-branch within
-    //            [ExplicitArgsLoadingPrompt] surfaces a Retry/Back
-    //            block on a 30s wall — same affordance shape as the
-    //            in-AudiobookView TimedOut path, but rendered here
-    //            because we never reach AudiobookView with no ids.
-    val isExplicitArgsLoading = viewModel.hasExplicitChapterArgs &&
-        (showPromptForNullPlayback || showPromptForBlankIds)
-    if (isExplicitArgsLoading) {
-        // Brass loading-card surface while the controller warms up.
-        // Pre-fix this branch fell through to ResumeEmptyPrompt and
-        // rendered the "Your library awaits / Browse the realms →"
-        // CTA — visually indistinguishable from the Library empty
-        // state, and exactly what the bug report mistook for "the
-        // bottom-dock intercepted my Play tap." The real fix is here:
-        // show a typed loading state for the explicit-args path so
-        // the user sees "your chapter is loading," not "you have no
-        // library." Once the playback flow flips non-null the screen
-        // re-composes through the normal AudiobookView branch below.
+    // Issue #638 (v1.0 blocker) + TechEmpower wrong-book regression
+    // (v1.1.1) — the reader renders the GLOBAL PlaybackController state,
+    // not its own nav args. [readerContentMode] is the single gate that
+    // decides which top-level surface to show; see its kdoc for the full
+    // case table. The load-bearing cases:
+    //
+    //  - Explicit drill-down (/reader/{f}/{c}) while the controller is
+    //    still warming up (null/blank ids) OR — the v1.1.1 fix — while it
+    //    still holds a DIFFERENT (surviving prior) fiction than the one
+    //    requested → ExplicitLoading (brass loading card for the requested
+    //    fiction). Pre-fix the #638 gate only covered the blank-ids
+    //    warm-up window, so a process that survived from a prior session
+    //    painted the prior book through the explicit route until the cold
+    //    Resources body finally loaded (or permanently, on a 30s timeout).
+    //  - Playing tab (no args) with no loaded chapter → the magical Resume
+    //    prompt, or the "Browse the realms" empty prompt with no entry.
+    //  - Otherwise → render the player (AudiobookView) below.
+    val contentMode = readerContentMode(
+        hasExplicitChapterArgs = viewModel.hasExplicitChapterArgs,
+        argFictionId = viewModel.argFictionId,
+        hasPlayback = playback != null,
+        playbackFictionId = playback?.fictionId,
+        playbackChapterId = playback?.chapterId,
+        hasResumeEntry = resumeEntry != null,
+        timedOut = timedOut,
+    )
+    if (contentMode == ReaderContentMode.ExplicitLoading) {
+        // Brass loading-card surface while the controller warms up or
+        // catches up to the requested fiction. Pre-#638 this branch fell
+        // through to ResumeEmptyPrompt ("Your library awaits"); pre-v1.1.1
+        // a surviving prior fiction fell through to AudiobookView painting
+        // the WRONG book. Both are now held here until the controller
+        // reports the requested fiction, at which point the screen
+        // re-composes through the AudiobookView branch below.
         Box(modifier = Modifier.fillMaxSize()) {
             ExplicitArgsLoadingPrompt(
                 loadingPhase = state.loadingPhase,
@@ -245,12 +218,12 @@ fun HybridReaderScreen(
         }
         return
     }
-    if (showPromptForNullPlayback || showPromptForBlankIds ||
-        showPromptForTimedOutWithEntry
+    if (contentMode == ReaderContentMode.ResumePrompt ||
+        contentMode == ReaderContentMode.ResumeEmpty
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
             val entry = resumeEntry
-            if (entry != null) {
+            if (contentMode == ReaderContentMode.ResumePrompt && entry != null) {
                 ResumePrompt(
                     entry = entry,
                     onResume = { viewModel.resume(fromStart = false) },

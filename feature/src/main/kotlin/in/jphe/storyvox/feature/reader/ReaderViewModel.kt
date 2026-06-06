@@ -213,6 +213,19 @@ class ReaderViewModel @Inject constructor(
         !f.isNullOrBlank() && !c.isNullOrBlank()
     }
 
+    /**
+     * TechEmpower wrong-book regression (v1.1.1) — the fictionId from the
+     * explicit `/reader/{fictionId}/{chapterId}` nav args, or null on the
+     * bare `/playing` route. [HybridReaderScreen] compares this to the
+     * GLOBAL PlaybackController's current fictionId: when they differ, the
+     * controller is still showing a PRIOR (surviving) book and the screen
+     * must hold the loading card for the requested fiction rather than
+     * paint the prior book. See [readerContentMode]. Blank on the Playing
+     * tab, which intentionally renders the controller's current chapter /
+     * the resume prompt.
+     */
+    val argFictionId: String? = savedState.get<String>("fictionId")?.takeIf { it.isNotBlank() }
+
     private val _activePane = MutableStateFlow(ReaderView.Audiobook)
     private val _recap = MutableStateFlow<RecapUiState>(RecapUiState.Hidden)
 
