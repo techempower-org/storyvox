@@ -15,6 +15,7 @@ import `in`.jphe.storyvox.feature.api.UiChapter
 import `in`.jphe.storyvox.feature.api.UiPlaybackState
 import `in`.jphe.storyvox.feature.api.UiRecapPlaybackState
 import `in`.jphe.storyvox.feature.api.UiSleepTimerMode
+import `in`.jphe.storyvox.ui.theme.ReaderColors
 import `in`.jphe.storyvox.playback.PlaybackUiEvent
 import `in`.jphe.storyvox.llm.LlmError
 import `in`.jphe.storyvox.llm.feature.ChapterRecap
@@ -466,6 +467,16 @@ class ReaderViewModel @Inject constructor(
      */
     val focusModeEnabled: StateFlow<Boolean> = settings.readerFocusModeEnabled
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    /**
+     * Issue #993 — resolved reading-theme colours for the reader surface.
+     * Default [ReaderColors] is inactive, so the reader renders with the app
+     * theme until the user opts into a reading theme. Device-local pref.
+     */
+    val readerColors: StateFlow<ReaderColors> = settings.settings
+        .map { it.readerColors }
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ReaderColors())
 
     /** Issue #278 — user-initiated retry from the timed-out error block.
      *  Re-invokes the playback `play()` path; the underlying controller

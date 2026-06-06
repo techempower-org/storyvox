@@ -14,6 +14,7 @@ import `in`.jphe.storyvox.feature.api.PalaceProbeResult
 import `in`.jphe.storyvox.feature.api.ReadingDirection
 import `in`.jphe.storyvox.feature.api.SettingsRepositoryUi
 import `in`.jphe.storyvox.feature.api.SpeakChapterMode
+import `in`.jphe.storyvox.ui.theme.ReaderTheme
 import `in`.jphe.storyvox.feature.api.ThemeOverride
 import `in`.jphe.storyvox.feature.api.UiLlmProvider
 import `in`.jphe.storyvox.feature.api.UiSettings
@@ -552,6 +553,14 @@ class SettingsViewModel @Inject constructor(
     /** Issue #598 — Android Auto bucket size. */
     fun setAutoItemsPerCategory(count: Int) =
         viewModelScope.launch { repo.setAutoItemsPerCategory(count) }
+
+    /** Issue #993 — reading-theme (color overlay) for the reader surface. */
+    fun setReaderTheme(theme: ReaderTheme) =
+        viewModelScope.launch { repo.setReaderTheme(theme) }
+
+    /** Issue #993 — custom reading-theme fg/bg as ARGB ints; implies Custom. */
+    fun setReaderCustomColors(fgArgb: Int, bgArgb: Int) =
+        viewModelScope.launch { repo.setReaderCustomColors(fgArgb, bgArgb) }
 }
 
 /** Map the feature-layer enum to the :core-llm enum. The two are

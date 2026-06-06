@@ -69,6 +69,7 @@ import `in`.jphe.storyvox.source.azure.AzureVoiceRoster
 import `in`.jphe.storyvox.feature.api.CacheQuotaOptions
 import `in`.jphe.storyvox.feature.api.UiSettings
 import `in`.jphe.storyvox.feature.api.UiSigil
+import `in`.jphe.storyvox.ui.theme.ReaderTheme
 import `in`.jphe.storyvox.playback.cache.CacheStatsRepository
 import `in`.jphe.storyvox.playback.cache.PcmCache
 import `in`.jphe.storyvox.playback.cache.PcmCacheConfig
@@ -827,6 +828,15 @@ private object Keys {
      *  fall back to [ReadingDirection.FollowSystem] on read. */
     val A11Y_READING_DIRECTION = stringPreferencesKey("pref_a11y_reading_direction")
 
+    /** Issue #993 — reading-theme (color overlay) for the reader surface.
+     *  Stored as the [ReaderTheme] enum's name; unknown values fall back to
+     *  [ReaderTheme.Default] on read. Custom fg/bg are ARGB ints (0 = unset).
+     *  Device-local (NOT synced) — same per-device rationale as the reader
+     *  typography prefs (#992). */
+    val READER_THEME = stringPreferencesKey("pref_reader_theme")
+    val READER_CUSTOM_FG_ARGB = intPreferencesKey("pref_reader_custom_fg_argb")
+    val READER_CUSTOM_BG_ARGB = intPreferencesKey("pref_reader_custom_bg_argb")
+
     /**
      * Accessibility scaffold Phase 2 (#488, v0.5.43) — one-shot
      * dismissal flag for the TalkBack-install nudge surfaced in the
@@ -1486,6 +1496,15 @@ class SettingsRepositoryUiImpl(
             autoItemsPerCategory = snapAutoItemsPerCategory(
                 prefs[Keys.AUTO_ITEMS_PER_CATEGORY] ?: 6,
             ),
+            // Issue #993 — reading-theme. Unknown enum strings fall back to
+            // Default; custom fg/bg are raw ARGB ints (0 = unset). The
+            // UiSettings.readerColors accessor resolves these into the
+            // ReaderColors triple consumed by the reader.
+            readerTheme = prefs[Keys.READER_THEME]
+                ?.let { runCatching { ReaderTheme.valueOf(it) }.getOrNull() }
+                ?: ReaderTheme.Default,
+            readerCustomFgArgb = prefs[Keys.READER_CUSTOM_FG_ARGB] ?: 0,
+            readerCustomBgArgb = prefs[Keys.READER_CUSTOM_BG_ARGB] ?: 0,
         )
     }
 
@@ -2451,6 +2470,26 @@ class SettingsRepositoryUiImpl(
             it[Keys.AUTO_ITEMS_PER_CATEGORY] = snapAutoItemsPerCategory(count)
         }
         stampSyncedWrite()
+    }
+
+    // ── Reading theme / color overlay (issue #993) ─────────────────
+    // DEVICE-LOCAL — reading themes are a per-device reading-comfort choice
+    // (sepia on a phone, dark on a tablet), so these setters are deliberately
+    // NOT in SYNC_ALLOWLIST and do NOT call stampSyncedWrite(). Same rationale
+    // and idiom as the #992 reader-typography prefs.
+    override suspend fun setReaderTheme(theme: ReaderTheme) {
+        store.edit { it[Keys.READER_THEME] = theme.name }
+    }
+
+    override suspend fun setReaderCustomColors(fgArgb: Int, bgArgb: Int) {
+        // Selecting a custom pair implies the Custom theme, so flip the theme
+        // enum in the same edit — otherwise the colours would persist but the
+        // reader would keep showing whatever preset was active.
+        store.edit {
+            it[Keys.READER_CUSTOM_FG_ARGB] = fgArgb
+            it[Keys.READER_CUSTOM_BG_ARGB] = bgArgb
+            it[Keys.READER_THEME] = ReaderTheme.Custom.name
+        }
     }
 
     // ── Azure Speech Services BYOK (#182, PR-3) ────────────────────

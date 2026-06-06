@@ -1,6 +1,8 @@
 package `in`.jphe.storyvox.feature.api
 
 import `in`.jphe.storyvox.playback.cache.ChapterCacheState
+import `in`.jphe.storyvox.ui.theme.ReaderColors
+import `in`.jphe.storyvox.ui.theme.ReaderTheme
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -1324,7 +1326,31 @@ data class UiSettings(
      * Per-device pref (NOT synced) — Auto pairing is device-bound.
      */
     val autoItemsPerCategory: Int = 6,
+    /**
+     * Issue #993 — reading-theme (color overlay) for the chapter-reading
+     * surface only, not app chrome. [ReaderTheme.Default] inherits the app
+     * theme (the reader renders exactly as today). Presets cover sepia /
+     * cream / high-contrast pairs; [ReaderTheme.Custom] uses
+     * [readerCustomFgArgb] / [readerCustomBgArgb].
+     *
+     * Per-device pref (NOT synced) — like reader typography (#992) and the
+     * other reader-comfort knobs, a user may want sepia on a phone and dark
+     * on a tablet; syncing would push one device's choice onto the other.
+     */
+    val readerTheme: ReaderTheme = ReaderTheme.Default,
+    /** Custom-theme foreground, as an ARGB int (`Color.toArgb`). 0 = unset. */
+    val readerCustomFgArgb: Int = 0,
+    /** Custom-theme background, as an ARGB int (`Color.toArgb`). 0 = unset. */
+    val readerCustomBgArgb: Int = 0,
 ) {
+    /**
+     * Resolved reading-surface colours for the reader (#993). Inactive when
+     * [readerTheme] is [ReaderTheme.Default] (or Custom with unset colours),
+     * in which case the reader uses `MaterialTheme` colours unchanged.
+     */
+    val readerColors: ReaderColors
+        get() = ReaderColors.resolve(readerTheme, readerCustomFgArgb, readerCustomBgArgb)
+
     /** Speed value the engine should run at right now — the active
      *  voice's override if set, otherwise the global default (#195). */
     val effectiveSpeed: Float
@@ -1747,6 +1773,17 @@ interface SettingsRepositoryUi {
      * [4, 6, 8, 12] on write. Default impl is a no-op.
      */
     suspend fun setAutoItemsPerCategory(count: Int) = Unit
+    /**
+     * Issue #993 — set the reading-theme (color overlay) for the reader
+     * surface. Device-local (NOT synced). Default impl is a no-op.
+     */
+    suspend fun setReaderTheme(theme: ReaderTheme) = Unit
+    /**
+     * Issue #993 — set the custom reading-theme foreground/background pair,
+     * as ARGB ints (`Color.toArgb`). Selecting a custom pair also implies
+     * [ReaderTheme.Custom]. Device-local (NOT synced). Default impl no-op.
+     */
+    suspend fun setReaderCustomColors(fgArgb: Int, bgArgb: Int) = Unit
     suspend fun setDefaultSpeed(speed: Float)
     suspend fun setDefaultPitch(pitch: Float)
     suspend fun setDefaultVoice(voiceId: String?)
