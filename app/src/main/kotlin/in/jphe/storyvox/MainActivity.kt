@@ -247,13 +247,29 @@ class MainActivity : ComponentActivity() {
                         // body runs before NavHost finishes composing.
                         snapshotFlow { navController.currentBackStackEntry }
                             .first { it != null }
+                        // Debug-only deterministic seed: an ACTION_VIEW with
+                        // the [EXTRA_LOAD_SAMPLE] flag imports the bundled
+                        // plaintext fixture (no network, no SAF picker, known
+                        // character offsets) and routes to its detail. Gated
+                        // to debug builds so it can never fire in release.
+                        // Used by the adb seed command + instrumented tests
+                        // (see SEED.md). Checked before the #1000 import path
+                        // because the sample intent carries no document Uri.
+                        val sampleRoute = if (BuildConfig.DEBUG &&
+                            i.getBooleanExtra(EXTRA_LOAD_SAMPLE, false)
+                        ) {
+                            loadDebugSample()
+                        } else {
+                            null
+                        }
                         // Issue #1000 — "Open With" file-import intents take
                         // precedence: an ACTION_VIEW/ACTION_SEND carrying a
                         // document Uri imports the file and routes to its
                         // fiction detail. Non-import intents fall through to
                         // the URL / notification resolver.
-                        val importRoute = DeepLinkResolver.documentImportUri(i)
-                            ?.let { uri -> importDocument(uri) }
+                        val importRoute = sampleRoute
+                            ?: DeepLinkResolver.documentImportUri(i)
+                                ?.let { uri -> importDocument(uri) }
                         val route = importRoute ?: DeepLinkResolver.resolve(i)
                         route?.let { navController.navigate(it) }
                         intentFlow.value = null
@@ -407,6 +423,41 @@ class MainActivity : ComponentActivity() {
         return StoryvoxRoutes.fictionDetail(fictionId)
     }
 
+    /**
+     * Debug-only deterministic reader seed (Layer 1 of the UI-test
+     * stack). Copies the bundled plaintext fixture
+     * ([SAMPLE_ASSET_PATH]) out of `assets/` into a private cache file
+     * the app can read back, then runs it through the same #1000 import
+     * path a real "Open With" TXT would take — producing a fiction with
+     * a single, fixed chapter whose displayed text (and therefore every
+     * character offset the highlight layer keys on) is known ahead of
+     * time. No network, no SAF picker, no Uri-permission dance: the file
+     * is the app's own, so [importDocument] reads it without a grant.
+     *
+     * Returns the fiction-detail route to navigate to, or null if the
+     * asset copy fails (logged, never crashes a debug build). Reuses
+     * [importDocument] verbatim so the seed exercises the production
+     * ingest, not a parallel one.
+     */
+    private suspend fun loadDebugSample(): String? {
+        val cached: java.io.File = withContext(Dispatchers.IO) {
+            runCatching {
+                val out = java.io.File(cacheDir, SAMPLE_CACHE_NAME)
+                assets.open(SAMPLE_ASSET_PATH).use { input ->
+                    out.outputStream().use { input.copyTo(it) }
+                }
+                out
+            }.getOrElse {
+                Log.w(TAG, "Could not stage debug sample from assets", it)
+                null
+            }
+        } ?: return null
+        // file:// to our own cacheDir — importDocument's
+        // openInputStream reads it directly (we own the file), and the
+        // takePersistableUriPermission call no-ops on a file Uri.
+        return importDocument(Uri.fromFile(cached))
+    }
+
     /** Query the SAF [OpenableColumns.DISPLAY_NAME] for a content Uri.
      *  Returns null for non-content Uris or when the provider doesn't
      *  expose the column (the caller falls back to the last path
@@ -431,5 +482,19 @@ class MainActivity : ComponentActivity() {
 
     private companion object {
         private const val TAG = "MainActivity"
+
+        /** Debug-only ACTION_VIEW boolean extra that triggers
+         *  [loadDebugSample]. Fully-qualified to avoid collision with
+         *  any real intent extra. */
+        private const val EXTRA_LOAD_SAMPLE = "in.jphe.storyvox.debug.LOAD_SAMPLE"
+
+        /** Bundled plaintext fixture (assets path) with fixed, known
+         *  content — see SEED.md for the exact displayed text and the
+         *  character offsets the highlight tests rely on. */
+        private const val SAMPLE_ASSET_PATH = "sample/candela-reader-sample.txt"
+
+        /** Filename the fixture is staged under in cacheDir. Drives the
+         *  imported fiction's display title (sans ".txt"). */
+        private const val SAMPLE_CACHE_NAME = "candela-reader-sample.txt"
     }
 }
