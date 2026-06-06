@@ -11,6 +11,7 @@ import `in`.jphe.storyvox.data.repository.playback.PlaybackResumePolicyConfig
 import `in`.jphe.storyvox.feature.api.FictionRepositoryUi
 import `in`.jphe.storyvox.feature.api.PlaybackControllerUi
 import `in`.jphe.storyvox.feature.api.SettingsRepositoryUi
+import `in`.jphe.storyvox.ui.theme.ReaderTypography
 import `in`.jphe.storyvox.feature.api.UiChapter
 import `in`.jphe.storyvox.feature.api.UiPlaybackState
 import `in`.jphe.storyvox.feature.api.UiRecapPlaybackState
@@ -477,6 +478,17 @@ class ReaderViewModel @Inject constructor(
         .map { it.readerColors }
         .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ReaderColors())
+
+    /**
+     * Issue #992 — reader-surface typography (font family + size + line/letter
+     * spacing). Derived from [SettingsRepositoryUi.settings] and fed to the
+     * reader via `LocalReaderTypography`. Defaults reproduce the legacy reader
+     * style, so the surface is unchanged until the user opts in.
+     */
+    val readerTypography: StateFlow<ReaderTypography> = settings.settings
+        .map { it.readerTypography }
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ReaderTypography())
 
     /** Issue #278 — user-initiated retry from the timed-out error block.
      *  Re-invokes the playback `play()` path; the underlying controller

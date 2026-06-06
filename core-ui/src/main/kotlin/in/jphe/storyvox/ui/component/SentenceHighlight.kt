@@ -24,6 +24,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import `in`.jphe.storyvox.ui.theme.LocalMotion
 import `in`.jphe.storyvox.ui.theme.LocalReaderColors
+import `in`.jphe.storyvox.ui.theme.LocalReaderTypography
 import `in`.jphe.storyvox.ui.theme.LocalReducedMotion
 
 /**
@@ -169,7 +170,11 @@ fun SentenceHighlight(
 
     Text(
         text = annotated,
-        style = MaterialTheme.typography.bodyLarge,
+        // Reader-surface typography (#992): overlay the user's font / size /
+        // line + letter spacing onto the base reader style. Default
+        // LocalReaderTypography reproduces bodyLarge exactly, so un-provided
+        // call sites render identically to before.
+        style = LocalReaderTypography.current.toTextStyle(MaterialTheme.typography.bodyLarge),
         color = onSurface,
         onTextLayout = {
             layout = it

@@ -77,8 +77,10 @@ import `in`.jphe.storyvox.feature.R
 import `in`.jphe.storyvox.feature.api.UiPlaybackState
 import `in`.jphe.storyvox.ui.component.SentenceHighlight
 import `in`.jphe.storyvox.ui.theme.LocalReaderColors
+import `in`.jphe.storyvox.ui.theme.LocalReaderTypography
 import `in`.jphe.storyvox.ui.theme.LocalSpacing
 import `in`.jphe.storyvox.ui.theme.ReaderColors
+import `in`.jphe.storyvox.ui.theme.ReaderTypography
 import kotlin.math.roundToInt
 import kotlinx.coroutines.launch
 
@@ -178,6 +180,11 @@ fun ReaderTextView(
      *  the body background + text + sentence underline are re-tinted. No-op
      *  default keeps preview/test/audiobook callsites unchanged. */
     readerColors: ReaderColors = ReaderColors(),
+    /** Issue #992 — reader-surface typography (font / size / line + letter
+     *  spacing) provided to the chapter text via [LocalReaderTypography].
+     *  Default reproduces the legacy reader style, so preview/test callsites
+     *  render unchanged. */
+    readerTypography: ReaderTypography = ReaderTypography(),
     modifier: Modifier = Modifier,
 ) {
     val spacing = LocalSpacing.current
@@ -369,6 +376,12 @@ fun ReaderTextView(
             if (chapterText.isEmpty()) {
                 EmptyChapterPlaceholder()
             } else {
+                // Issue #992 — provide reader-surface typography to the chapter
+                // text (and only the chapter text). SentenceHighlight consumes
+                // LocalReaderTypography; app chrome above/around this Provider is
+                // unaffected, so enlarging the reading text never blows up the
+                // controls.
+                CompositionLocalProvider(LocalReaderTypography provides readerTypography) {
                 Box(
                     modifier = contentWidthModifier.onGloballyPositioned { coords ->
                         // Position relative to the scrolling Column root: walk up to the parent that holds
@@ -389,7 +402,8 @@ fun ReaderTextView(
                         searchMatches = matches,
                         activeMatchIndex = activeMatchIndex,
                     )
-                }
+                } // Box
+                } // CompositionLocalProvider(LocalReaderTypography) — #992
             }
         }
 
