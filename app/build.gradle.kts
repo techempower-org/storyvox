@@ -476,7 +476,7 @@ androidComponents {
             val suffix = if (variant.name == "benchmark") "-benchmark" else ""
             variant.outputs.forEach { output ->
                 output.outputFileName.set(
-                    "storyvox-v${android.defaultConfig.versionName}$suffix.apk"
+                    "candela-v${android.defaultConfig.versionName}$suffix.apk"
                 )
             }
         }
