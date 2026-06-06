@@ -13,6 +13,7 @@ import `in`.jphe.storyvox.source.wikisource.net.WikisourceAllPagesResponse
 import `in`.jphe.storyvox.source.wikisource.net.WikisourceCategoryMember
 import `in`.jphe.storyvox.source.wikisource.net.WikisourceCategoryQuery
 import `in`.jphe.storyvox.source.wikisource.net.WikisourceCategoryQueryResponse
+import `in`.jphe.storyvox.source.wikisource.net.naturalSubpageOrder
 import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -94,9 +95,9 @@ class WikisourceSourceTest {
         // War_and_Peace is the canonical multi-volume example called
         // out in the issue. The wire shape is
         // `query.allpages: [{pageid, ns, title}]` with the prefix-
-        // matched parent included in every title. We rely on
-        // alphabetical ordering by MediaWiki for chapter-order
-        // approximation; verify the parse preserves that order.
+        // matched parent included in every title. Verify the parse
+        // extracts the titles cleanly; chapter ordering is applied
+        // separately by `naturalSubpageOrder` (see #1060).
         val payload = """
             {
               "batchcomplete": "",
@@ -126,6 +127,106 @@ class WikisourceSourceTest {
         assertEquals(
             "Book Two",
             subpageDisplayName(parentTitle = "War_and_Peace", subpageTitle = titles[1].replace(' ', '_')),
+        )
+    }
+
+    // ─── 2b. Natural (numeric-aware) chapter ordering (#1060) ─────────
+
+    @Test
+    fun `naturalSubpageOrder sorts bare-number chapters numerically not lexically`() {
+        // MediaWiki list=allpages returns codepoint order, which puts
+        // Chapter_10/11/12 before Chapter_2 for non-zero-padded works
+        // (the dominant en.wikisource convention). Feed the input in the
+        // alphabetical order the API would deliver and assert the output
+        // is reading order: 1, 2, 3, 10, 11.
+        val alphabetical = listOf(
+            "War_and_Peace/Chapter_1",
+            "War_and_Peace/Chapter_10",
+            "War_and_Peace/Chapter_11",
+            "War_and_Peace/Chapter_2",
+            "War_and_Peace/Chapter_3",
+        )
+        val ordered = naturalSubpageOrder(alphabetical)
+        assertEquals(
+            listOf(
+                "War_and_Peace/Chapter_1",
+                "War_and_Peace/Chapter_2",
+                "War_and_Peace/Chapter_3",
+                "War_and_Peace/Chapter_10",
+                "War_and_Peace/Chapter_11",
+            ),
+            ordered,
+        )
+    }
+
+    @Test
+    fun `naturalSubpageOrder is stable for already-correct zero-padded works`() {
+        // Zero-padded works alphabetize correctly by luck. The sort must
+        // not perturb them — same numeric key order is preserved.
+        val padded = listOf(
+            "Book/Chapter_01",
+            "Book/Chapter_02",
+            "Book/Chapter_03",
+        )
+        assertEquals(padded, naturalSubpageOrder(padded))
+    }
+
+    @Test
+    fun `naturalSubpageOrder extracts the trailing number not a leading one`() {
+        // The chapter ordinal lives at the END of the leaf name. A leaf
+        // like "2nd_Part_3" must sort by 3 (the trailing run), and a
+        // title with no trailing digit must not be misread off an
+        // internal number.
+        val titles = listOf(
+            "Work/Section_3",
+            "Work/Section_1",
+            "Work/Section_2",
+        )
+        assertEquals(
+            listOf("Work/Section_1", "Work/Section_2", "Work/Section_3"),
+            naturalSubpageOrder(titles),
+        )
+    }
+
+    @Test
+    fun `naturalSubpageOrder keeps prose-named subpages lexicographic and after numbered ones`() {
+        // Prose-named subpages (no trailing number) fall back to
+        // lexicographic order and group together. Mixed with numbered
+        // chapters, the numbered ones lead (they carry an explicit
+        // ordinal) and prose pages follow in stable alpha order — so a
+        // "/Preface" doesn't jump into the middle of "/Chapter_N".
+        val mixed = listOf(
+            "Work/Chapter_10",
+            "Work/Preface",
+            "Work/Chapter_2",
+            "Work/Appendix",
+        )
+        assertEquals(
+            listOf(
+                "Work/Chapter_2",
+                "Work/Chapter_10",
+                "Work/Appendix",
+                "Work/Preface",
+            ),
+            naturalSubpageOrder(mixed),
+        )
+    }
+
+    @Test
+    fun `naturalSubpageOrder sorts on the leaf name not the shared parent prefix`() {
+        // The parent prefix is identical across every subpage, so the
+        // numeric key must come from the trailing leaf segment. A naive
+        // sort over the whole title would still work here, but a work
+        // whose PARENT title ends in a number (e.g. "Henry_V") must not
+        // leak that into the per-chapter ordinal.
+        val titles = listOf(
+            "Henry_V/Scene_1",
+            "Henry_V/Scene_12",
+            "Henry_V/Scene_2",
+        )
+        assertEquals(
+            listOf("Henry_V/Scene_1", "Henry_V/Scene_2", "Henry_V/Scene_12"),
+            naturalSubpageOrder(titles),
         )
     }
 
