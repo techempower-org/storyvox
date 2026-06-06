@@ -21,11 +21,13 @@ import org.junit.Test
 class EpubParserResolveHrefTest {
 
     private companion object {
-        // Three #1021 cases converge on this one canonical resolved path,
-        // each reaching it from a different input href (./, leading-slash,
-        // plain). Naming it documents the convergence (and clears DeepSource
-        // KT-W1042's duplicate-literal gate).
-        const val OEBPS_CH1 = "OEBPS/ch1.xhtml"
+        // The bare root-level chapter leaf, reused as both an input href and
+        // an expected resolved path across several cases. CH1 is the leaf;
+        // OEBPS_CH1 is that leaf joined under the OPF dir. Naming both keeps
+        // each assertion self-documenting and clears DeepSource KT-W1042's
+        // duplicate-literal gate (the literal recurs 3+ times otherwise).
+        const val CH1 = "ch1.xhtml"
+        const val OEBPS_CH1 = "OEBPS/$CH1"
     }
 
     // ── #1035: percent-encoded hrefs ─────────────────────────────
@@ -81,11 +83,11 @@ class EpubParserResolveHrefTest {
     }
 
     @Test fun `simple join when href is in the opf dir`() {
-        assertEquals(OEBPS_CH1, EpubParser.resolveHref("OEBPS", "ch1.xhtml"))
+        assertEquals(OEBPS_CH1, EpubParser.resolveHref("OEBPS", CH1))
     }
 
     @Test fun `empty opf dir leaves a root-level href untouched`() {
-        assertEquals("ch1.xhtml", EpubParser.resolveHref("", "ch1.xhtml"))
+        assertEquals(CH1, EpubParser.resolveHref("", CH1))
     }
 
     @Test fun `nested opf dir with deep parent traversal`() {
@@ -99,7 +101,7 @@ class EpubParserResolveHrefTest {
     @Test fun `parent traversal past root is clamped not escaped`() {
         // A pathological "../../.." can't produce a leading "../" — zip
         // names are root-relative, so we clamp at root.
-        assertEquals("ch1.xhtml", EpubParser.resolveHref("OEBPS", "../../../ch1.xhtml"))
+        assertEquals(CH1, EpubParser.resolveHref("OEBPS", "../../../ch1.xhtml"))
     }
 
     // ── #1035 + #1021 combined: encoded AND relative ─────────────
