@@ -8,7 +8,7 @@ ksp = "2.3.9"
 # Cloud service-account JSON with Play Console "Release manager"
 # permission (see docs/play-store/RUNBOOK.md). Plugin is wired but no-ops
 # unless `storyvox.playPublisher.credentialsFile` is set in local.properties.
-play-publisher = "3.10.1"
+play-publisher = "4.0.0"
 
 # AndroidX core
 core-ktx = "1.18.0"
