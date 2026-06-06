@@ -221,7 +221,7 @@ internal class LibriVoxApi @Inject constructor(
         const val PAGE_SIZE: Int = 50
 
         const val USER_AGENT: String =
-            "storyvox-librivox/1.0 (+https://github.com/techempower-org/storyvox)"
+            "storyvox-librivox/1.0 (+https://github.com/techempower-org/candela)"
     }
 }
 

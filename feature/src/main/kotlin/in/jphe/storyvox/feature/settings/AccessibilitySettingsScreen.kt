@@ -273,12 +273,12 @@ fun AccessibilitySettingsScreen(
                 // the verified false positives from the static sweep,
                 // and the partnership-outreach plan. Lives at
                 // /docs/accessibility.md in the repo, hosted at the
-                // GitHub Pages site (storyvox.techempower.org).
+                // GitHub Pages site (candela.techempower.org).
                 SettingsLinkRow(
                     title = stringResource(R.string.settings_accessibility_learn_more_title),
                     subtitle = stringResource(R.string.settings_accessibility_learn_more_subtitle),
                     onClick = {
-                        uriHandler.openUri("https://storyvox.techempower.org/accessibility")
+                        uriHandler.openUri("https://candela.techempower.org/accessibility")
                     },
                 )
             }

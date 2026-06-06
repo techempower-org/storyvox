@@ -292,7 +292,7 @@ are scoped to real workloads.
 - [ ] Release keystore generated (see `release-keystore.md`)
 - [ ] AAB built with the release keystore, verified with `apksigner verify --print-certs`
 - [ ] Play App Signing enrolled (upload key cert exported & uploaded)
-- [ ] Privacy policy live at `https://storyvox.techempower.org/privacy/`
+- [ ] Privacy policy live at `https://candela.techempower.org/privacy/`
 - [ ] Listing copy finalized (`play-store-listing.md`)
 - [ ] Graphics produced (icon, feature graphic, 4–8 phone, 4–8 tablet)
 - [ ] Data Safety form completed per section 4 above
@@ -302,7 +302,7 @@ are scoped to real workloads.
 - [ ] Emergency Help disclaimer added ("US/Canada numbers; use your local
       emergency number elsewhere") — section 3
 - [ ] Settings → About → Privacy Policy link added (links to
-      `storyvox.techempower.org/privacy/`)
+      `candela.techempower.org/privacy/`)
 - [ ] Settings → About → Report objectionable content (mailto) added —
       section 1
 - [ ] Settings → About → Open Source Licenses verified complete

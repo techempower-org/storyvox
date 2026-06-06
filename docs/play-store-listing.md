@@ -106,8 +106,8 @@ FEATURES
 • Free, GPL-3.0, ad-free, no tracking
 
 Candela is built by TechEmpower, a 501(c)(3) nonprofit. The source is
-open at github.com/techempower-org/storyvox. Privacy policy:
-storyvox.techempower.org/privacy/
+open at github.com/techempower-org/candela. Privacy policy:
+candela.techempower.org/privacy/
 ```
 
 ---
@@ -259,7 +259,7 @@ library state, encrypted in transit, deletable by the user.
 
 ## Privacy policy URL
 
-`https://storyvox.techempower.org/privacy/`
+`https://candela.techempower.org/privacy/`
 
 The policy lives at `docs/privacy-policy.md`; Jekyll renders it at
 `/privacy/` via the `permalink: /privacy/` front-matter directive. Verify
@@ -271,7 +271,7 @@ the URL resolves before Play submission.
 
 - **Email:** _DRAFT — JP to fill in_ (`claude2@techempower.org` or
   `jp@jphein.com`)
-- **Website:** `https://storyvox.techempower.org`
+- **Website:** `https://candela.techempower.org`
 - **Phone:** Play Console requires a phone number on the developer profile,
   not on the listing. JP's call which number to use (TechEmpower's main, or
   a personal number).
@@ -326,7 +326,7 @@ incrementally post-launch without re-submitting.
 
 Things to wire into the Candela UI as part of v1.0:
 
-- **Settings → About** → "Privacy Policy" link → `https://storyvox.techempower.org/privacy/`
+- **Settings → About** → "Privacy Policy" link → `https://candela.techempower.org/privacy/`
 - **Settings → About** → "Open Source Licenses" (already present, verify it lists every dep)
 - **Settings → About** → "Rate Candela" → `market://details?id=org.techempower.candela`
 - **Settings → About** → "What's New" — pull from the latest release notes

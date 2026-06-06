@@ -134,6 +134,6 @@ class LibriVoxSourceTest {
 
     @Test fun `user-agent identifies storyvox-librivox`() {
         assertTrue(LibriVoxSource.USER_AGENT.contains("storyvox-librivox"))
-        assertTrue(LibriVoxSource.USER_AGENT.contains("github.com/techempower-org/storyvox"))
+        assertTrue(LibriVoxSource.USER_AGENT.contains("github.com/techempower-org/candela"))
     }
 }
