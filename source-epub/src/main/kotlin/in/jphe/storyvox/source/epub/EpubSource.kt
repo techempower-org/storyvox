@@ -13,8 +13,10 @@ import `in`.jphe.storyvox.data.source.model.FictionSummary
 import `in`.jphe.storyvox.data.source.model.ListPage
 import `in`.jphe.storyvox.data.source.model.SearchQuery
 import `in`.jphe.storyvox.source.epub.config.EpubConfig
+import `in`.jphe.storyvox.source.epub.config.EpubEntryKind
 import `in`.jphe.storyvox.source.epub.config.EpubFileEntry
 import `in`.jphe.storyvox.source.epub.parse.EpubBook
+import `in`.jphe.storyvox.source.epub.parse.EpubChapter
 import `in`.jphe.storyvox.source.epub.parse.EpubParseException
 import `in`.jphe.storyvox.source.epub.parse.EpubParser
 import javax.inject.Inject
@@ -196,12 +198,47 @@ internal class EpubSource @Inject constructor(
 
     private suspend fun parseBook(entry: EpubFileEntry): EpubBook? {
         val bytes = config.readBookBytes(entry.uriString) ?: return null
-        return try {
-            EpubParser.parseFromBytes(bytes)
-        } catch (_: EpubParseException) {
-            null
+        return when (entry.kind) {
+            EpubEntryKind.Epub -> try {
+                EpubParser.parseFromBytes(bytes)
+            } catch (_: EpubParseException) {
+                null
+            }
+            // Issue #1000 — a plaintext file imported via "Open With".
+            // No zip/OPF/spine; synthesise a single-chapter book from
+            // the UTF-8 body so the rest of the source (chapter list,
+            // chapter content, word count) flows through unchanged.
+            EpubEntryKind.Text -> textBook(entry, bytes)
         }
     }
+}
+
+/** Issue #1000 — wrap a plaintext file's bytes into a one-chapter
+ *  [EpubBook]. The body is HTML-escaped and dropped into a `<pre>`
+ *  block so the downstream HTML→plaintext stripper (which the engine
+ *  feeds from) round-trips it without mangling angle brackets or
+ *  collapsing the prose. Title is the filename sans extension. */
+private fun textBook(entry: EpubFileEntry, bytes: ByteArray): EpubBook {
+    val text = bytes.toString(Charsets.UTF_8)
+    val title = entry.displayName
+        .substringBeforeLast('.', missingDelimiterValue = entry.displayName)
+        .ifBlank { entry.displayName }
+    val escaped = text
+        .replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+    return EpubBook(
+        title = title,
+        author = "",
+        chapters = listOf(
+            EpubChapter(
+                id = "txt-0",
+                title = title,
+                index = 0,
+                htmlBody = "<pre>$escaped</pre>",
+            ),
+        ),
+    )
 }
 
 /** Compose a stable chapter id from the fictionId + the per-EPUB
@@ -212,7 +249,9 @@ private fun chapterIdFor(fictionId: String, idref: String): String =
 private fun EpubFileEntry.toSummary(): FictionSummary = FictionSummary(
     id = fictionId,
     sourceId = SourceIds.EPUB,
-    title = displayName.removeSuffix(".epub"),
+    // #1000 — strip the real extension (.epub/.txt/…) rather than only
+    // ".epub", so imported plaintext files show a clean browse title.
+    title = displayName.substringBeforeLast('.', missingDelimiterValue = displayName),
     author = "",
     description = displayName,
     status = FictionStatus.COMPLETED,

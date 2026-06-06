@@ -1,4 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Candela</string>
+    <!-- Issue #1000 — chooser label shown for Candela in the Android
+         "Open with" / share sheet for EPUB & text documents. -->
+    <string name="open_with_label">Listen with Candela</string>
 </resources>

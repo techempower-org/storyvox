@@ -41,6 +41,23 @@ interface EpubConfig {
 }
 
 /**
+ * Issue #1000 — what kind of document an indexed entry is, so the
+ * source knows how to turn its bytes into a book. Folder-enumerated
+ * entries are always [Epub]; the "Open With" import path (#1000) can
+ * also register a [Text] file, which the source wraps into a single-
+ * chapter book rather than running through the EPUB zip parser.
+ */
+enum class EpubEntryKind {
+    /** A real `.epub` — parse the zip/OPF/spine. */
+    Epub,
+
+    /** A plaintext file — synthesise a one-chapter book from the UTF-8
+     *  body (the reader/engine pipeline downstream is HTML-tolerant, so
+     *  the body is wrapped in a `<pre>` block). */
+    Text,
+}
+
+/**
  * One indexed EPUB file. The fictionId is a stable hash of the URI
  * string — same file at the same SAF path resolves to the same id
  * across re-launches. Display name comes from DocumentFile.getName()
@@ -51,6 +68,10 @@ data class EpubFileEntry(
     val fictionId: String,
     val uriString: String,
     val displayName: String,
+    /** Issue #1000 — how to read this entry's bytes into a book.
+     *  Defaults to [EpubEntryKind.Epub] so existing folder-enumeration
+     *  call sites (and any persisted state) keep their behaviour. */
+    val kind: EpubEntryKind = EpubEntryKind.Epub,
 )
 
 /** Issue #235 — derive the persistent fictionId from a SAF URI.

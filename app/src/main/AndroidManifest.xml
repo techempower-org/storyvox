@@ -84,6 +84,71 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="text/plain" />
             </intent-filter>
+
+            <!--
+                Issue #1000 — "Open With" file association. Advertise
+                Candela as a handler for EPUB and plaintext documents so
+                a long-press → "Open with" (file manager) or an email
+                attachment → "Open" lands the file straight into the app
+                (the fastest "read this for me" path for a low-vision /
+                low-literacy user). MainActivity.importDocument ingests
+                the Uri (SAF), persists read permission, and reuses the
+                :source-epub import path to create the fiction.
+
+                Why so many <data> rows: file managers / mail clients are
+                inconsistent about the mime they attach. We register the
+                canonical mime AND the filename extension (pathPattern on
+                a host-less content/file Uri) so a .epub that arrives as
+                application/octet-stream (or no mime) is still claimed.
+                DocumentImportClassifier does the final mime-then-
+                extension bucketing on our side.
+
+                PDF (application/pdf) is intentionally NOT advertised yet
+                — it's gated on #996 (PDF text extraction). When #996
+                lands: flip DocumentImportClassifier.PDF_ENABLED and add
+                a <data android:mimeType="application/pdf"/> row + a
+                ".pdf" pathPattern here. Advertising the filter before
+                the extractor exists would put Candela in the chooser for
+                a type it can't open — the dead-end this issue calls out.
+            -->
+            <!-- ACTION_VIEW: file-manager "Open with Candela" by mime. -->
+            <intent-filter android:label="@string/open_with_label">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="content" />
+                <data android:scheme="file" />
+                <data android:mimeType="application/epub+zip" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+            <!-- ACTION_VIEW: claim by .epub/.txt extension when the mime
+                 is generic (octet-stream) or absent. host="*" + a
+                 mimeType is required for pathPattern matching on
+                 content/file Uris; we use a broad */* mime and let
+                 DocumentImportClassifier reject anything whose extension
+                 isn't one we handle. The doubled patterns cover
+                 names with a second dot (e.g. "book.v2.epub"). -->
+            <intent-filter android:label="@string/open_with_label">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="content" />
+                <data android:scheme="file" />
+                <data android:host="*" />
+                <data android:mimeType="*/*" />
+                <data android:pathPattern=".*\\.epub" />
+                <data android:pathPattern=".*\\.txt" />
+                <data android:pathPattern=".*\\..*\\.epub" />
+                <data android:pathPattern=".*\\..*\\.txt" />
+            </intent-filter>
+            <!-- ACTION_SEND: "Share → Candela" for an EPUB attachment.
+                 (text/plain file-shares ride the #472 filter above —
+                 documentImportUri picks EXTRA_STREAM before EXTRA_TEXT.) -->
+            <intent-filter android:label="@string/open_with_label">
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="application/epub+zip" />
+            </intent-filter>
         </activity>
 
         <!-- Disable default WorkManager init so Hilt's Configuration.Provider takes over. -->

@@ -2,6 +2,7 @@ package `in`.jphe.storyvox.navigation
 
 import android.content.Intent
 import android.net.Uri
+import androidx.core.content.IntentCompat
 import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
@@ -1394,6 +1395,45 @@ object DeepLinkResolver {
      *  screen pulls this off the nav arguments on first composition
      *  and pre-fills the sheet via `viewModel.openAddByUrlPrefilled`. */
     const val ARG_SHARED_URL = "sharedUrl"
+
+    /**
+     * Issue #1000 — extract the document Uri an "Open With" intent is
+     * carrying, or null if this intent isn't a file-import. Pure
+     * inspection (no ContentResolver, no permission grant); the
+     * side-effecting import — mime/name resolution,
+     * [takePersistableUriPermission], registering with the EPUB config,
+     * and the final navigate — lives in `MainActivity`, which has the
+     * injected deps. We return the Uri here only to keep the
+     * "what kind of intent is this?" decision in one place.
+     *
+     * Two shapes reach us:
+     *  - `ACTION_VIEW` with a `content://` (or `file://`) data Uri — the
+     *    file-manager "Open with Candela" path.
+     *  - `ACTION_SEND` carrying `EXTRA_STREAM` — the share-sheet
+     *    "Share → Candela" path for a file (the text/URL `EXTRA_TEXT`
+     *    share is #472, handled in [resolve]).
+     */
+    fun documentImportUri(intent: Intent): Uri? {
+        when (intent.action) {
+            Intent.ACTION_VIEW -> {
+                val data = intent.data ?: return null
+                if (data.scheme == "content" || data.scheme == "file") return data
+                return null
+            }
+            Intent.ACTION_SEND -> {
+                // IntentCompat handles the API-33 getParcelableExtra
+                // type-safe overload split without a deprecation warning.
+                val stream = IntentCompat.getParcelableExtra(
+                    intent,
+                    Intent.EXTRA_STREAM,
+                    Uri::class.java,
+                ) ?: return null
+                if (stream.scheme == "content" || stream.scheme == "file") return stream
+                return null
+            }
+            else -> return null
+        }
+    }
 
     fun resolve(intent: Intent): String? {
         // Notification tap → reader for the currently-playing chapter.
