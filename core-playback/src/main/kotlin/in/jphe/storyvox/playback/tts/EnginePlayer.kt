@@ -4,6 +4,7 @@ import android.content.Context
 import android.media.AudioAttributes as PlatformAudioAttributes
 import android.media.AudioFormat as AndroidAudioFormat
 import android.media.AudioManager
+import android.media.AudioTimestamp
 import android.media.AudioTrack
 import android.os.Looper
 import android.os.Process as AndroidProcess
@@ -1344,7 +1345,44 @@ class EnginePlayer @AssistedInject constructor(
         // `track.play()` and `playbackHeadPosition` is meaningful.
         val firstSentenceEmitted = state.currentSentenceRange != null
         if (track != null && sr > 0 && pipelineRunning.get() && firstSentenceEmitted) {
-            val headFrames = runCatching { track.playbackHeadPosition.toLong() }.getOrDefault(0L)
+            // Issue #974 — prefer AudioTrack.getTimestamp over
+            // getPlaybackHeadPosition. getTimestamp's (framePosition,
+            // nanoTime) pair is anchored to when those frames crossed
+            // the DAC — i.e. what the listener actually heard — which on
+            // Samsung deep-mixer paths trails the userspace
+            // playbackHeadPosition counter by 30-80 ms. We extrapolate
+            // that anchor forward to "frames played by now" via the pure
+            // [extrapolateFrames] helper (unit-tested in
+            // PositionExtrapolationTest).
+            //
+            // Readiness gate: getTimestamp returns false (and/or a
+            // degenerate (0,0) pair) for the first 2-3 buffer cycles
+            // after play(). The outer firstSentenceEmitted gate covers
+            // most of that, but we also require ok && framePosition > 0
+            // before trusting the anchor; otherwise we fall through to
+            // the legacy playbackHeadPosition read so behavior on
+            // devices that don't support getTimestamp — or on the brief
+            // post-play() / post-flush window — is byte-identical to the
+            // pre-#974 path. The monotonic clamp below still guards
+            // against the 1-2 ms negative drifts the issue notes.
+            val tsFrames = runCatching {
+                val ts = AudioTimestamp()
+                if (track.getTimestamp(ts) && ts.framePosition > 0L) {
+                    extrapolateFrames(
+                        anchorFrames = ts.framePosition,
+                        anchorNanos = ts.nanoTime,
+                        nowNanos = System.nanoTime(),
+                        sampleRate = sr,
+                    )
+                } else {
+                    null // not ready / unsupported — use the legacy read
+                }
+            }.getOrNull()
+            // Fall back to the legacy playbackHeadPosition read whenever
+            // getTimestamp isn't usable (not ready, unsupported, or threw)
+            // so this branch never returns worse than the pre-#974 value.
+            val headFrames = tsFrames
+                ?: runCatching { track.playbackHeadPosition.toLong() }.getOrDefault(0L)
             // Wall-clock-ms-of-PCM-played, then scaled up by the speed
             // the PCM was synthesized at to get media-time-ms.
             val wallClockMs = (headFrames * 1000L) / sr.coerceAtLeast(1)
@@ -2831,7 +2869,20 @@ class EnginePlayer @AssistedInject constructor(
                     // launch when the index actually changes.
                     if (!resumedFromPause && chunk.sentenceIndex != currentSentenceIndex) {
                         currentSentenceIndex = chunk.sentenceIndex
-                        scope.launch {
+                        // Issue #974 (Part B) — dispatch the sentence-range
+                        // emit with Dispatchers.Main.immediate. The highlight
+                        // the user sees is driven by this currentSentenceRange
+                        // update; under heavy Compose recomposition the default
+                        // Main dispatcher can back up by tens of ms, delaying
+                        // the highlight a beat behind the audio. .immediate runs
+                        // the update synchronously when we're already on Main
+                        // (and gives the URGENT_AUDIO-thread case a priority
+                        // bump), shaving that queue wait. Same pattern as the
+                        // #573 emit at the chapter-done path below. The
+                        // _observableState.update remains a single atomic
+                        // whole-PlaybackState snapshot — we only change the
+                        // dispatcher, not the atomicity.
+                        scope.launch(Dispatchers.Main.immediate) {
                             _observableState.update {
                                 it.copy(
                                     currentSentenceRange = chunk.range,
