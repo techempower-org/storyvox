@@ -9,6 +9,24 @@ Entries before v0.5.12 are reconstructed from the git log — see
 
 ## [Unreleased]
 
+## [1.1.2] -- 2026-06-06
+
+**Right book, every time.** A focused fix for a reader regression, plus the foundation for on-device UI testing.
+
+### Fixed
+
+- **Reader no longer shows the *previously-played* book.** Opening a different fiction (e.g. tapping the TechEmpower **Resources** tile) whose chapter body was still loading from a cold fetch could paint the prior book in the reader — and stay stuck on it if the fetch timed out. The reader now holds a loading state scoped to the fiction you actually opened until its content is ready, with a scoped retry on timeout. Completes the #638 guard for the cold-load window. (#1093)
+
+### Added — testing foundation (internal)
+
+- Stable `testTag`s across the navigable surface + a `testTagsAsResourceId` bridge, so Maestro and uiautomator can address Compose UI by id. (#1090)
+- Instrumented Compose UI test infrastructure + an on-device launch smoke test. (#1091)
+- A deterministic, debug-only plaintext reader seed for offset-precise reader/highlight tests. (#1089)
+
+### Fixed (internal)
+
+- `:feature` unit tests compile again (test fakes updated for the #996 PDF-folder interface members). (#1092)
+
 ## [1.1.1] -- 2026-06-06
 
 **The candle, lit.** A small follow-up to the v1.1.0 wave — a hidden flourish of magic, plus three correctness fixes.
