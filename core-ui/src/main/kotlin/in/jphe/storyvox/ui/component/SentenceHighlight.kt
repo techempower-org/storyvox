@@ -46,6 +46,15 @@ import `in`.jphe.storyvox.ui.theme.LocalReducedMotion
  * @param activeMatchIndex optional (#998) — index into [searchMatches] of the hit the next/prev chevrons
  *                last landed on; it gets a stronger fill so the reader sees which match is focused. `-1`
  *                (default) means no active match — every hit paints with the dimmer fill.
+ * @param wordStart optional (#994) — UTF-16 char index of the word currently being spoken, for the
+ *                per-word "karaoke" fill. `-1` (default) = no word fill, so every existing callsite
+ *                renders pixel-identically. Drawn as a translucent draw-layer rect *behind* the
+ *                spoken-sentence underline, so the underline stays visible over the wash.
+ * @param wordEnd optional (#994) — exclusive UTF-16 end of the karaoke word. The fill paints only when
+ *                `wordEnd > wordStart && wordStart >= 0`.
+ * @param wordFill optional (#994) — colour for the per-word fill. Default null lets it derive from the
+ *                active reading-theme accent (or MaterialTheme.primary when inactive); a non-null value
+ *                is the user's custom highlight colour (issue #994 "customizable highlight color").
  */
 @Composable
 fun SentenceHighlight(
@@ -58,6 +67,9 @@ fun SentenceHighlight(
     onLayout: ((TextLayoutResult) -> Unit)? = null,
     searchMatches: List<IntRange> = emptyList(),
     activeMatchIndex: Int = -1,
+    wordStart: Int = -1,
+    wordEnd: Int = -1,
+    wordFill: androidx.compose.ui.graphics.Color? = null,
 ) {
     // #993 — when a reading theme is active, the chapter text uses the
     // theme's foreground and the sentence underline uses its accent; otherwise
@@ -66,6 +78,13 @@ fun SentenceHighlight(
     val brass = readerColors?.accent ?: MaterialTheme.colorScheme.primary
     val onSurface = readerColors?.foreground ?: MaterialTheme.colorScheme.onSurface
     val motion = LocalMotion.current
+
+    // #994 — per-word karaoke fill colour. A user-set custom colour wins;
+    // otherwise we derive from the same accent the sentence underline uses
+    // (brass), so out of the box the word fill harmonises with the active
+    // reading theme (#993). 0.25 alpha = a soft wash the dark text reads
+    // through. Distinct draw layer from #998's search-hit *span* fills.
+    val wordFillColor = (wordFill ?: brass).copy(alpha = 0.25f)
 
     var layout by remember { mutableStateOf<TextLayoutResult?>(null) }
 
@@ -232,6 +251,39 @@ fun SentenceHighlight(
             )
             .drawBehind {
                 val l = layout ?: return@drawBehind
+
+                // #994 — per-word karaoke fill, drawn FIRST so the spoken-
+                // sentence underline (below) sits on top of the wash. Full
+                // line-height rect behind the current word, segmented per
+                // visible line exactly like the underline. No `animated`
+                // fade: the word fill should track the voice crisply, not
+                // breathe. Paints only for a valid word range — `-1`
+                // defaults make this a no-op for every non-karaoke callsite.
+                if (wordEnd > wordStart && wordStart >= 0) {
+                    val wStart = wordStart.coerceIn(0, text.length)
+                    val wEnd = wordEnd.coerceIn(wStart, text.length)
+                    if (wEnd > wStart) {
+                        val wFirst = l.getLineForOffset(wStart)
+                        val wLast = l.getLineForOffset(wEnd.coerceAtLeast(wStart + 1) - 1)
+                        for (line in wFirst..wLast) {
+                            val lineStart = l.getLineStart(line)
+                            val lineEnd = l.getLineEnd(line, visibleEnd = true)
+                            val segStart = maxOf(wStart, lineStart)
+                            val segEnd = minOf(wEnd, lineEnd)
+                            if (segEnd <= segStart) continue
+                            val xStart = l.getHorizontalPosition(segStart, usePrimaryDirection = true)
+                            val xEnd = l.getHorizontalPosition(segEnd, usePrimaryDirection = true)
+                            val top = l.getLineTop(line)
+                            val bottom = l.getLineBottom(line)
+                            drawRect(
+                                color = wordFillColor,
+                                topLeft = Offset(xStart, top),
+                                size = Size(xEnd - xStart, bottom - top),
+                            )
+                        }
+                    }
+                }
+
                 if (drawEnd <= drawStart) return@drawBehind
                 val safeStart = drawStart.coerceIn(0, text.length)
                 val safeEnd = drawEnd.coerceIn(safeStart, text.length)

@@ -616,6 +616,19 @@
     <string name="settings_reading_preview_text">The quick brown fox jumps over the lazy dog. Reading should feel comfortable.</string>
     <string name="settings_reading_reset">Reset to defaults</string>
 
+    <!-- Settings · Read-along highlight (#994) -->
+    <string name="settings_highlight_group_title">Read-along highlight</string>
+    <string name="settings_highlight_mode_title">Highlight style</string>
+    <string name="settings_highlight_mode_subtitle">How the reader marks the words being narrated.</string>
+    <string name="settings_highlight_mode_off">Off</string>
+    <string name="settings_highlight_mode_sentence">Sentence</string>
+    <string name="settings_highlight_mode_word">Word</string>
+    <string name="settings_highlight_mode_both">Both</string>
+    <string name="settings_highlight_color_title">Word highlight color</string>
+    <string name="settings_highlight_color_theme">Using the reading theme color</string>
+    <string name="settings_highlight_color_custom">Custom color</string>
+    <string name="settings_highlight_color_reset">Use theme color</string>
+
     <!-- Settings · Cloud voices subscreen -->
     <string name="settings_cloud_voices_title">Cloud voices</string>
 

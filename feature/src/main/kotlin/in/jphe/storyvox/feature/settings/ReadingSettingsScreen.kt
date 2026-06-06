@@ -33,6 +33,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import `in`.jphe.storyvox.feature.R
+import `in`.jphe.storyvox.feature.api.HighlightMode
 import `in`.jphe.storyvox.feature.api.ThemeOverride
 import `in`.jphe.storyvox.ui.theme.LocalReaderTypography
 import `in`.jphe.storyvox.ui.theme.LocalSpacing
@@ -117,8 +118,104 @@ fun ReadingSettingsScreen(
                     onParagraphSpacing = viewModel::setReaderParagraphSpacing,
                 )
             }
+
+            // #994 — read-along highlight: sentence underline / per-word
+            // karaoke fill / both / off, plus an optional custom word colour.
+            SettingsSectionHeader(label = stringResource(R.string.settings_highlight_group_title))
+            SettingsGroupCard {
+                HighlightGroup(
+                    mode = s.highlightMode,
+                    wordHighlightArgb = s.wordHighlightArgb,
+                    accentArgb = s.readerColors.resolved?.accent?.toArgb() ?: 0,
+                    onSetMode = viewModel::setHighlightMode,
+                    onSetWordColor = viewModel::setWordHighlightColor,
+                )
+            }
         }
     }
+}
+
+/**
+ * Issue #994 — read-along highlight controls: a segmented mode picker
+ * (Off / Sentence / Word / Both) and, when a per-word mode is active, an
+ * optional custom highlight colour. The colour defaults to the reading-theme
+ * accent (#993) — "Use theme colour" clears the override (stores 0); picking
+ * a colour stores the ARGB so the karaoke fill uses it.
+ */
+@Composable
+private fun HighlightGroup(
+    mode: HighlightMode,
+    wordHighlightArgb: Int,
+    accentArgb: Int,
+    onSetMode: (HighlightMode) -> Unit,
+    onSetWordColor: (Int) -> Unit,
+) {
+    val spacing = LocalSpacing.current
+    Column(verticalArrangement = Arrangement.spacedBy(spacing.sm)) {
+        SettingsSegmentedBlock(
+            title = stringResource(R.string.settings_highlight_mode_title),
+            subtitle = stringResource(R.string.settings_highlight_mode_subtitle),
+            options = HighlightMode.entries.map { it.label() },
+            selectedIndex = HighlightMode.entries.indexOf(mode).coerceAtLeast(0),
+            onSelected = { idx -> onSetMode(HighlightMode.entries[idx]) },
+        )
+
+        // Word colour only matters when a per-word fill is showing.
+        if (mode == HighlightMode.Word || mode == HighlightMode.Both) {
+            // Effective swatch: the custom colour if set, else the theme accent.
+            val effectiveArgb = if (wordHighlightArgb != 0) wordHighlightArgb else accentArgb
+            Text(
+                text = stringResource(R.string.settings_highlight_color_title),
+                style = MaterialTheme.typography.bodyLarge,
+                modifier = Modifier.padding(horizontal = spacing.md),
+            )
+            Row(
+                modifier = Modifier.padding(horizontal = spacing.md),
+                horizontalArrangement = Arrangement.spacedBy(spacing.sm),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(28.dp)
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(Color(effectiveArgb).copy(alpha = 1f)),
+                )
+                Text(
+                    text = if (wordHighlightArgb != 0) {
+                        stringResource(R.string.settings_highlight_color_custom)
+                    } else {
+                        stringResource(R.string.settings_highlight_color_theme)
+                    },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            RgbSliders(
+                label = stringResource(R.string.settings_highlight_color_title),
+                color = Color(effectiveArgb),
+                onColor = { onSetWordColor(it.toArgb()) },
+            )
+            if (wordHighlightArgb != 0) {
+                Text(
+                    text = stringResource(R.string.settings_highlight_color_reset),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier
+                        .padding(horizontal = spacing.md)
+                        .clickable { onSetWordColor(0) },
+                )
+            }
+        }
+    }
+}
+
+/** Display label for a [HighlightMode] segment. */
+@Composable
+private fun HighlightMode.label(): String = when (this) {
+    HighlightMode.Off -> stringResource(R.string.settings_highlight_mode_off)
+    HighlightMode.Sentence -> stringResource(R.string.settings_highlight_mode_sentence)
+    HighlightMode.Word -> stringResource(R.string.settings_highlight_mode_word)
+    HighlightMode.Both -> stringResource(R.string.settings_highlight_mode_both)
 }
 
 /** Maps a [ReaderTheme] to its display-name string resource. */

@@ -94,6 +94,8 @@ fun HybridReaderScreen(
     val focusModeEnabled by viewModel.focusModeEnabled.collectAsStateWithLifecycle()
     val readerColors by viewModel.readerColors.collectAsStateWithLifecycle()
     val readerTypography by viewModel.readerTypography.collectAsStateWithLifecycle()
+    val highlightMode by viewModel.highlightMode.collectAsStateWithLifecycle()
+    val wordHighlightArgb by viewModel.wordHighlightArgb.collectAsStateWithLifecycle()
     val playback = state.playback
 
     // Calliope (v0.5.00) — first-natural-chapter-completion confetti.
@@ -366,6 +368,9 @@ fun HybridReaderScreen(
                 readerColors = readerColors,
                 // Issue #992 — reader-surface typography from settings.
                 readerTypography = readerTypography,
+                // Issue #994 — per-word karaoke highlight mode + custom colour.
+                highlightMode = highlightMode,
+                wordHighlightArgb = wordHighlightArgb,
             )
         },
     )

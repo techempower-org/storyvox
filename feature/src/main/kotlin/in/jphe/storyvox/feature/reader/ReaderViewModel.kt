@@ -9,6 +9,7 @@ import `in`.jphe.storyvox.data.repository.ContinueListeningEntry
 import `in`.jphe.storyvox.data.repository.PlaybackPositionRepository
 import `in`.jphe.storyvox.data.repository.playback.PlaybackResumePolicyConfig
 import `in`.jphe.storyvox.feature.api.FictionRepositoryUi
+import `in`.jphe.storyvox.feature.api.HighlightMode
 import `in`.jphe.storyvox.feature.api.PlaybackControllerUi
 import `in`.jphe.storyvox.feature.api.SettingsRepositoryUi
 import `in`.jphe.storyvox.ui.theme.ReaderTypography
@@ -489,6 +490,26 @@ class ReaderViewModel @Inject constructor(
         .map { it.readerTypography }
         .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ReaderTypography())
+
+    /**
+     * Issue #994 — reading-highlight mode. [ReaderTextView] observes this to
+     * drive the per-word karaoke fill (Word / Both) vs the legacy sentence
+     * underline (Sentence) or no highlight (Off). Device-local pref; default
+     * [HighlightMode.Sentence] keeps today's behaviour.
+     */
+    val highlightMode: StateFlow<HighlightMode> = settings.settings
+        .map { it.highlightMode }
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HighlightMode.Sentence)
+
+    /**
+     * Issue #994 — custom per-word highlight colour (ARGB int; 0 = unset →
+     * derive from the reading-theme accent). Device-local pref.
+     */
+    val wordHighlightArgb: StateFlow<Int> = settings.settings
+        .map { it.wordHighlightArgb }
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 
     /** Issue #278 — user-initiated retry from the timed-out error block.
      *  Re-invokes the playback `play()` path; the underlying controller
