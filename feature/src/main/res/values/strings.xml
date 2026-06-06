@@ -592,6 +592,29 @@
     <!-- contentDescription for the per-preset swatch chip; %1$s = theme name -->
     <string name="settings_reading_overlay_cd">Reading color theme: %1$s</string>
 
+    <!-- Settings · Reading text typography (#992) -->
+    <string name="settings_reading_text_group_title">Reading text</string>
+    <string name="settings_reading_font_title">Font</string>
+    <string name="settings_reading_font_subtitle">Applies to the chapter text only, not the rest of the app.</string>
+    <string name="settings_reading_font_default">Default</string>
+    <string name="settings_reading_font_opendyslexic">OpenDyslexic</string>
+    <string name="settings_reading_font_atkinson">Atkinson</string>
+    <string name="settings_reading_size_title">Text size</string>
+    <string name="settings_reading_size_value">%1$d sp</string>
+    <string name="settings_reading_size_cd">Reading text size</string>
+    <string name="settings_reading_line_title">Line spacing</string>
+    <string name="settings_reading_line_value">%1$.2f×</string>
+    <string name="settings_reading_line_cd">Reading line spacing</string>
+    <string name="settings_reading_letter_title">Letter spacing</string>
+    <string name="settings_reading_letter_value">%1$.3f em</string>
+    <string name="settings_reading_letter_cd">Reading letter spacing</string>
+    <string name="settings_reading_paragraph_title">Paragraph spacing</string>
+    <string name="settings_reading_paragraph_value">%1$.2f×</string>
+    <string name="settings_reading_paragraph_cd">Reading paragraph spacing</string>
+    <string name="settings_reading_preview_label">Preview</string>
+    <string name="settings_reading_preview_text">The quick brown fox jumps over the lazy dog. Reading should feel comfortable.</string>
+    <string name="settings_reading_reset">Reset to defaults</string>
+
     <!-- Settings · Cloud voices subscreen -->
     <string name="settings_cloud_voices_title">Cloud voices</string>
 

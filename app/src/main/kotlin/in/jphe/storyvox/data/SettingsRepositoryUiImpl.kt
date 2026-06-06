@@ -70,6 +70,8 @@ import `in`.jphe.storyvox.feature.api.CacheQuotaOptions
 import `in`.jphe.storyvox.feature.api.UiSettings
 import `in`.jphe.storyvox.feature.api.UiSigil
 import `in`.jphe.storyvox.ui.theme.ReaderTheme
+import `in`.jphe.storyvox.ui.theme.ReaderFontFamily
+import `in`.jphe.storyvox.ui.theme.ReaderTypography
 import `in`.jphe.storyvox.playback.cache.CacheStatsRepository
 import `in`.jphe.storyvox.playback.cache.PcmCache
 import `in`.jphe.storyvox.playback.cache.PcmCacheConfig
@@ -837,6 +839,19 @@ private object Keys {
     val READER_CUSTOM_FG_ARGB = intPreferencesKey("pref_reader_custom_fg_argb")
     val READER_CUSTOM_BG_ARGB = intPreferencesKey("pref_reader_custom_bg_argb")
 
+    // ── Reader-surface typography (issue #992) ──────────────────────
+    /** Reader font family — stored as the [ReaderFontFamily] enum's name.
+     *  Unknown values fall back to [ReaderFontFamily.Default] on read. Synced. */
+    val READER_FONT_FAMILY = stringPreferencesKey("pref_reader_font_family")
+    /** Reader text size in sp (Float); clamped on read/write. Synced. */
+    val READER_FONT_SIZE_SP = floatPreferencesKey("pref_reader_font_size_sp")
+    /** Reader line height as a multiple of font size (Float); clamped. Synced. */
+    val READER_LINE_HEIGHT_MULT = floatPreferencesKey("pref_reader_line_height_mult")
+    /** Reader letter spacing in em (Float); clamped. Synced. */
+    val READER_LETTER_SPACING_EM = floatPreferencesKey("pref_reader_letter_spacing_em")
+    /** Reader inter-paragraph spacing multiplier (Float); clamped. Synced. */
+    val READER_PARAGRAPH_SPACING_MULT = floatPreferencesKey("pref_reader_paragraph_spacing_mult")
+
     /**
      * Accessibility scaffold Phase 2 (#488, v0.5.43) — one-shot
      * dismissal flag for the TalkBack-install nudge surfaced in the
@@ -1505,6 +1520,17 @@ class SettingsRepositoryUiImpl(
                 ?: ReaderTheme.Default,
             readerCustomFgArgb = prefs[Keys.READER_CUSTOM_FG_ARGB] ?: 0,
             readerCustomBgArgb = prefs[Keys.READER_CUSTOM_BG_ARGB] ?: 0,
+            // Issue #992 — reader-surface typography. Unknown enum strings
+            // fall back to Default; numeric fields are clamped by
+            // ReaderTypography.clamped() via UiSettings.readerTypography so we
+            // store them raw here and let the view-side accessor guard ranges.
+            readerFontFamily = prefs[Keys.READER_FONT_FAMILY]
+                ?.let { runCatching { ReaderFontFamily.valueOf(it) }.getOrNull() }
+                ?: ReaderFontFamily.Default,
+            readerFontSizeSp = prefs[Keys.READER_FONT_SIZE_SP] ?: 18f,
+            readerLineHeightMultiplier = prefs[Keys.READER_LINE_HEIGHT_MULT] ?: 1.5556f,
+            readerLetterSpacingEm = prefs[Keys.READER_LETTER_SPACING_EM] ?: 0.0111f,
+            readerParagraphSpacingMultiplier = prefs[Keys.READER_PARAGRAPH_SPACING_MULT] ?: 1f,
         )
     }
 
@@ -2368,6 +2394,55 @@ class SettingsRepositoryUiImpl(
     override suspend fun setA11yReadingDirection(direction: ReadingDirection) {
         store.edit { it[Keys.A11Y_READING_DIRECTION] = direction.name }
         stampSyncedWrite()
+    }
+
+    // ── Reader-surface typography (issue #992) ──────────────────────
+    // Each setter clamps into the safe range from ReaderTypography so a
+    // corrupt slider value can never persist something unreadable.
+    // DEVICE-LOCAL — these reader-comfort knobs are deliberately NOT in
+    // SYNC_ALLOWLIST and do NOT call stampSyncedWrite(): per the #992
+    // ruling, reader typography is per-device (a user may want larger
+    // text on a phone than a tablet), matching the existing device-local
+    // reader-pref pattern. A bare store.edit { } is the device-local
+    // idiom in this file (cf. non-synced reader toggles).
+    override suspend fun setReaderFontFamily(family: ReaderFontFamily) {
+        store.edit { it[Keys.READER_FONT_FAMILY] = family.name }
+    }
+
+    override suspend fun setReaderFontSizeSp(sizeSp: Float) {
+        store.edit {
+            it[Keys.READER_FONT_SIZE_SP] = sizeSp.coerceIn(
+                ReaderTypography.MIN_FONT_SIZE_SP,
+                ReaderTypography.MAX_FONT_SIZE_SP,
+            )
+        }
+    }
+
+    override suspend fun setReaderLineHeightMultiplier(multiplier: Float) {
+        store.edit {
+            it[Keys.READER_LINE_HEIGHT_MULT] = multiplier.coerceIn(
+                ReaderTypography.MIN_LINE_HEIGHT,
+                ReaderTypography.MAX_LINE_HEIGHT,
+            )
+        }
+    }
+
+    override suspend fun setReaderLetterSpacingEm(em: Float) {
+        store.edit {
+            it[Keys.READER_LETTER_SPACING_EM] = em.coerceIn(
+                ReaderTypography.MIN_LETTER_SPACING_EM,
+                ReaderTypography.MAX_LETTER_SPACING_EM,
+            )
+        }
+    }
+
+    override suspend fun setReaderParagraphSpacingMultiplier(multiplier: Float) {
+        store.edit {
+            it[Keys.READER_PARAGRAPH_SPACING_MULT] = multiplier.coerceIn(
+                ReaderTypography.MIN_PARAGRAPH_SPACING,
+                ReaderTypography.MAX_PARAGRAPH_SPACING,
+            )
+        }
     }
 
     override suspend fun setA11yTalkBackNudgeDismissed(dismissed: Boolean) {
@@ -3254,6 +3329,12 @@ class SettingsRepositoryUiImpl(
             "pref_a11y_speak_chapter_mode",
             "pref_a11y_font_scale_override",
             "pref_a11y_reading_direction",
+            // Issue #992 — reader-surface typography prefs
+            // (pref_reader_font_family / _font_size_sp / _line_height_mult
+            // / _letter_spacing_em / _paragraph_spacing_mult) are
+            // deliberately ABSENT from this allowlist: reader typography
+            // is device-local (per the #992 ruling), so a user can size
+            // text differently on phone vs tablet without sync clobber.
             // Issue #517 — TechEmpower Home onboarding gate.
             "pref_techempower_home_seen",
             // Issue #178 — Royal Road tag-sync metadata. The actual

@@ -17,6 +17,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -26,17 +27,22 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import `in`.jphe.storyvox.feature.R
 import `in`.jphe.storyvox.feature.api.ThemeOverride
+import `in`.jphe.storyvox.ui.theme.LocalReaderTypography
 import `in`.jphe.storyvox.ui.theme.LocalSpacing
 import `in`.jphe.storyvox.ui.theme.ReaderColors
 import `in`.jphe.storyvox.ui.theme.ReaderTheme
+import `in`.jphe.storyvox.ui.theme.ReaderFontFamily
+import `in`.jphe.storyvox.ui.theme.ReaderTypography
 import `in`.jphe.storyvox.ui.theme.WcagContrast
 import `in`.jphe.storyvox.ui.theme.WcagRating
+import kotlin.math.roundToInt
 
 /**
  * Settings → Reading subscreen (follow-up to #440 / #467).
@@ -46,9 +52,13 @@ import `in`.jphe.storyvox.ui.theme.WcagRating
  *  - Shake-to-extend sleep timer (#150).
  *  - Reading-color theme + custom overlay (#993) — tints the reading page
  *    only, leaving app chrome alone. Device-local pref.
+ *  - Reading-text typography (#992): font family (incl. OpenDyslexic /
+ *    Atkinson Hyperlegible), text size, line / letter / paragraph spacing.
+ *    These target the chapter reading surface specifically — they do NOT
+ *    scale app chrome (that is the separate Accessibility font-scale knob).
  *
- * The legacy long-scroll [SettingsScreen] still renders the first two rows
- * under the "Reading" section heading; this subscreen is the curated
+ * The legacy long-scroll [SettingsScreen] still renders the theme + shake
+ * rows under the "Reading" section heading; this subscreen is the curated
  * single-purpose surface reached from the hub.
  */
 @Composable
@@ -92,6 +102,19 @@ fun ReadingSettingsScreen(
                     customBgArgb = s.readerCustomBgArgb,
                     onSelectTheme = viewModel::setReaderTheme,
                     onCustomColors = viewModel::setReaderCustomColors,
+                )
+            }
+
+            // Reading-text typography (#992). Live preview at the top so the
+            // user sees each knob's effect on real chapter-style text.
+            SettingsGroupCard {
+                ReadingTextGroup(
+                    typo = s.readerTypography,
+                    onFamily = viewModel::setReaderFontFamily,
+                    onSize = viewModel::setReaderFontSize,
+                    onLineHeight = viewModel::setReaderLineHeight,
+                    onLetterSpacing = viewModel::setReaderLetterSpacing,
+                    onParagraphSpacing = viewModel::setReaderParagraphSpacing,
                 )
             }
         }
@@ -337,4 +360,130 @@ private fun ChannelSlider(name: String, value: Float, onValue: (Float) -> Unit) 
             modifier = Modifier.fillMaxWidth(),
         )
     }
+}
+
+@Composable
+private fun ReadingTextGroup(
+    typo: ReaderTypography,
+    onFamily: (ReaderFontFamily) -> Unit,
+    onSize: (Float) -> Unit,
+    onLineHeight: (Float) -> Unit,
+    onLetterSpacing: (Float) -> Unit,
+    onParagraphSpacing: (Float) -> Unit,
+) {
+    val spacing = LocalSpacing.current
+
+    // Live preview — the same LocalReaderTypography seam the reader uses, so
+    // what the user sees here is exactly what the chapter surface will render.
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = spacing.md, vertical = spacing.sm),
+        verticalArrangement = Arrangement.spacedBy(spacing.xs),
+    ) {
+        Text(
+            text = stringResource(R.string.settings_reading_text_group_title),
+            style = MaterialTheme.typography.titleMedium,
+        )
+        Text(
+            text = stringResource(R.string.settings_reading_preview_label),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        CompositionLocalProvider(LocalReaderTypography provides typo) {
+            Text(
+                text = stringResource(R.string.settings_reading_preview_text),
+                style = LocalReaderTypography.current
+                    .toTextStyle(MaterialTheme.typography.bodyLarge),
+            )
+        }
+    }
+
+    // Font family.
+    val familyOptions = listOf(
+        ReaderFontFamily.Default to stringResource(R.string.settings_reading_font_default),
+        ReaderFontFamily.OpenDyslexic to stringResource(R.string.settings_reading_font_opendyslexic),
+        ReaderFontFamily.AtkinsonHyperlegible to stringResource(R.string.settings_reading_font_atkinson),
+    )
+    SettingsSegmentedBlock(
+        title = stringResource(R.string.settings_reading_font_title),
+        subtitle = stringResource(R.string.settings_reading_font_subtitle),
+        options = familyOptions.map { it.second },
+        selectedIndex = familyOptions.indexOfFirst { it.first == typo.family }.coerceAtLeast(0),
+        onSelected = { idx -> onFamily(familyOptions[idx].first) },
+    )
+
+    // Text size (sp) — stepped in 1sp increments.
+    val sizeCd = stringResource(R.string.settings_reading_size_cd)
+    SettingsSliderBlock(
+        title = stringResource(R.string.settings_reading_size_title),
+        valueLabel = stringResource(R.string.settings_reading_size_value, typo.fontSizeSp.roundToInt()),
+        slider = {
+            Slider(
+                value = typo.fontSizeSp,
+                onValueChange = { onSize(it.roundToInt().toFloat()) },
+                valueRange = ReaderTypography.MIN_FONT_SIZE_SP..ReaderTypography.MAX_FONT_SIZE_SP,
+                // 12..48 sp in whole-sp steps → 35 interior ticks.
+                steps = (ReaderTypography.MAX_FONT_SIZE_SP - ReaderTypography.MIN_FONT_SIZE_SP).toInt() - 1,
+                modifier = Modifier.semantics {
+                    contentDescription = sizeCd
+                    stateDescription = "${typo.fontSizeSp.roundToInt()} sp"
+                },
+            )
+        },
+    )
+
+    // Line spacing (multiplier).
+    val lineCd = stringResource(R.string.settings_reading_line_cd)
+    SettingsSliderBlock(
+        title = stringResource(R.string.settings_reading_line_title),
+        valueLabel = stringResource(R.string.settings_reading_line_value, typo.lineHeightMultiplier),
+        slider = {
+            Slider(
+                value = typo.lineHeightMultiplier,
+                onValueChange = onLineHeight,
+                valueRange = ReaderTypography.MIN_LINE_HEIGHT..ReaderTypography.MAX_LINE_HEIGHT,
+                modifier = Modifier.semantics {
+                    contentDescription = lineCd
+                    stateDescription = "%.2f".format(typo.lineHeightMultiplier)
+                },
+            )
+        },
+    )
+
+    // Letter spacing (em).
+    val letterCd = stringResource(R.string.settings_reading_letter_cd)
+    SettingsSliderBlock(
+        title = stringResource(R.string.settings_reading_letter_title),
+        valueLabel = stringResource(R.string.settings_reading_letter_value, typo.letterSpacingEm),
+        slider = {
+            Slider(
+                value = typo.letterSpacingEm,
+                onValueChange = onLetterSpacing,
+                valueRange = ReaderTypography.MIN_LETTER_SPACING_EM..ReaderTypography.MAX_LETTER_SPACING_EM,
+                modifier = Modifier.semantics {
+                    contentDescription = letterCd
+                    stateDescription = "%.3f".format(typo.letterSpacingEm)
+                },
+            )
+        },
+    )
+
+    // Paragraph spacing (multiplier).
+    val paragraphCd = stringResource(R.string.settings_reading_paragraph_cd)
+    SettingsSliderBlock(
+        title = stringResource(R.string.settings_reading_paragraph_title),
+        valueLabel = stringResource(R.string.settings_reading_paragraph_value, typo.paragraphSpacingMultiplier),
+        slider = {
+            Slider(
+                value = typo.paragraphSpacingMultiplier,
+                onValueChange = onParagraphSpacing,
+                valueRange = ReaderTypography.MIN_PARAGRAPH_SPACING..ReaderTypography.MAX_PARAGRAPH_SPACING,
+                modifier = Modifier.semantics {
+                    contentDescription = paragraphCd
+                    stateDescription = "%.2f".format(typo.paragraphSpacingMultiplier)
+                },
+            )
+        },
+    )
 }

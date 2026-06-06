@@ -3,6 +3,8 @@ package `in`.jphe.storyvox.feature.api
 import `in`.jphe.storyvox.playback.cache.ChapterCacheState
 import `in`.jphe.storyvox.ui.theme.ReaderColors
 import `in`.jphe.storyvox.ui.theme.ReaderTheme
+import `in`.jphe.storyvox.ui.theme.ReaderFontFamily
+import `in`.jphe.storyvox.ui.theme.ReaderTypography
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -1342,6 +1344,28 @@ data class UiSettings(
     val readerCustomFgArgb: Int = 0,
     /** Custom-theme background, as an ARGB int (`Color.toArgb`). 0 = unset. */
     val readerCustomBgArgb: Int = 0,
+    /**
+     * Issue #992 — reader-surface typography. These apply ONLY to the chapter
+     * reading text (via `LocalReaderTypography` in :core-ui), not app chrome.
+     * The legacy `a11yFontScaleOverride` scales the whole app UI; these knobs
+     * target the reading surface specifically so a reader can enlarge / respace
+     * book text without blowing up navigation and controls.
+     *
+     * Defaults reproduce the historic reader style (EB Garamond, 18sp / 28sp
+     * line height / 0.2sp letter spacing) so existing users see no change until
+     * they opt in. Per-device pref (NOT synced) — like the reading theme (#993)
+     * and the other reader-comfort knobs, a reading-comfort choice that may
+     * differ per device.
+     */
+    val readerFontFamily: ReaderFontFamily = ReaderFontFamily.Default,
+    /** Reader text size in sp; clamped 12..48 by [ReaderTypography.clamped]. */
+    val readerFontSizeSp: Float = 18f,
+    /** Line height as a multiple of font size; clamped 1.0..2.5. 1.5556 = legacy 28/18. */
+    val readerLineHeightMultiplier: Float = 1.5556f,
+    /** Letter spacing in em; clamped -0.05..0.25. 0.0111em = legacy 0.2sp at 18sp. */
+    val readerLetterSpacingEm: Float = 0.0111f,
+    /** Inter-paragraph spacing multiplier in the reader; clamped 0.5..3.0. 1.0 = legacy. */
+    val readerParagraphSpacingMultiplier: Float = 1f,
 ) {
     /**
      * Resolved reading-surface colours for the reader (#993). Inactive when
@@ -1350,6 +1374,18 @@ data class UiSettings(
      */
     val readerColors: ReaderColors
         get() = ReaderColors.resolve(readerTheme, readerCustomFgArgb, readerCustomBgArgb)
+
+    /** Reader-surface typography assembled from the persisted fields, with every
+     *  numeric value clamped into its safe range (#992). The reader provides this
+     *  via `LocalReaderTypography`. */
+    val readerTypography: ReaderTypography
+        get() = ReaderTypography.clamped(
+            family = readerFontFamily,
+            fontSizeSp = readerFontSizeSp,
+            lineHeightMultiplier = readerLineHeightMultiplier,
+            letterSpacingEm = readerLetterSpacingEm,
+            paragraphSpacingMultiplier = readerParagraphSpacingMultiplier,
+        )
 
     /** Speed value the engine should run at right now — the active
      *  voice's override if set, otherwise the global default (#195). */
@@ -1784,6 +1820,16 @@ interface SettingsRepositoryUi {
      * [ReaderTheme.Custom]. Device-local (NOT synced). Default impl no-op.
      */
     suspend fun setReaderCustomColors(fgArgb: Int, bgArgb: Int) = Unit
+    /**
+     * Issue #992 — reader-surface typography setters. Each clamps into the safe
+     * range from [ReaderTypography] on write. Default impls are no-ops so tests
+     * with a partial fake repo don't have to implement them.
+     */
+    suspend fun setReaderFontFamily(family: ReaderFontFamily) = Unit
+    suspend fun setReaderFontSizeSp(sizeSp: Float) = Unit
+    suspend fun setReaderLineHeightMultiplier(multiplier: Float) = Unit
+    suspend fun setReaderLetterSpacingEm(em: Float) = Unit
+    suspend fun setReaderParagraphSpacingMultiplier(multiplier: Float) = Unit
     suspend fun setDefaultSpeed(speed: Float)
     suspend fun setDefaultPitch(pitch: Float)
     suspend fun setDefaultVoice(voiceId: String?)

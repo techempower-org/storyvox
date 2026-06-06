@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Atkinson Hyperlegible — bundled offline font designed by the Braille Institute
+  for maximum legibility (distinct letterforms reduce character confusion for
+  low-vision and dyslexic readers) (#992).
+  Licensed under SIL OFL 1.1 (see fonts/OFL-AtkinsonHyperlegible.txt).
+-->
+<font-family xmlns:app="http://schemas.android.com/apk/res-auto">
+    <font
+        app:fontStyle="normal"
+        app:fontWeight="400"
+        app:font="@font/atkinson_hyperlegible_regular" />
+    <font
+        app:fontStyle="normal"
+        app:fontWeight="700"
+        app:font="@font/atkinson_hyperlegible_bold" />
+</font-family>

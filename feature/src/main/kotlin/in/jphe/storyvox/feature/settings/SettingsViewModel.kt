@@ -16,6 +16,7 @@ import `in`.jphe.storyvox.feature.api.SettingsRepositoryUi
 import `in`.jphe.storyvox.feature.api.SpeakChapterMode
 import `in`.jphe.storyvox.ui.theme.ReaderTheme
 import `in`.jphe.storyvox.feature.api.ThemeOverride
+import `in`.jphe.storyvox.ui.theme.ReaderFontFamily
 import `in`.jphe.storyvox.feature.api.UiLlmProvider
 import `in`.jphe.storyvox.feature.api.UiSettings
 import `in`.jphe.storyvox.feature.api.UiVoice
@@ -127,6 +128,12 @@ class SettingsViewModel @Inject constructor(
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SettingsUiState())
 
     fun setTheme(t: ThemeOverride) = viewModelScope.launch { repo.setTheme(t) }
+    // Reader-surface typography (#992).
+    fun setReaderFontFamily(f: ReaderFontFamily) = viewModelScope.launch { repo.setReaderFontFamily(f) }
+    fun setReaderFontSize(sp: Float) = viewModelScope.launch { repo.setReaderFontSizeSp(sp) }
+    fun setReaderLineHeight(m: Float) = viewModelScope.launch { repo.setReaderLineHeightMultiplier(m) }
+    fun setReaderLetterSpacing(em: Float) = viewModelScope.launch { repo.setReaderLetterSpacingEm(em) }
+    fun setReaderParagraphSpacing(m: Float) = viewModelScope.launch { repo.setReaderParagraphSpacingMultiplier(m) }
     fun setSpeed(s: Float) = viewModelScope.launch { repo.setDefaultSpeed(s) }
     fun setPitch(p: Float) = viewModelScope.launch { repo.setDefaultPitch(p) }
     fun setDefaultVoice(id: String?) = viewModelScope.launch { repo.setDefaultVoice(id) }
