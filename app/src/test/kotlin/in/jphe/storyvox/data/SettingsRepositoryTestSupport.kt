@@ -132,6 +132,22 @@ internal fun makeFakeEpubConfig(
     return EpubConfigImpl.forTesting(epubStore)
 }
 
+/** Real [PdfConfigImpl] over a temp DataStore (#996). Mirrors
+ *  [makeFakeEpubConfig] — the settings tests don't exercise SAF or PDF
+ *  enumeration, just need the dependency to satisfy the constructor.
+ *  [PdfConfigImpl.forTesting] supplies a no-op enumerator, so no SAF
+ *  context is touched. */
+internal fun makeFakePdfConfig(
+    dir: File,
+    scope: CoroutineScope,
+): PdfConfigImpl {
+    val pdfStore = PreferenceDataStoreFactory.create(
+        scope = scope,
+        produceFile = { File(dir, "storyvox_pdf.preferences_pb") },
+    )
+    return PdfConfigImpl.forTesting(pdfStore)
+}
+
 /** Real [OutlineConfigImpl] over a temp DataStore + fake secrets
  *  (#245). Settings tests don't exercise Outline state — the
  *  signature requires the dep, this satisfies it. */

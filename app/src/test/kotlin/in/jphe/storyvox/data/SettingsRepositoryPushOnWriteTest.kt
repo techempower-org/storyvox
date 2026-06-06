@@ -89,6 +89,7 @@ class SettingsRepositoryPushOnWriteTest {
             teamsAuth = fakeTeamsAuth(),
             rssConfig = makeFakeRssConfig(tempFolder.newFolder("rss_ds"), scope),
             epubConfig = makeFakeEpubConfig(tempFolder.newFolder("epub_ds"), scope),
+            pdfConfig = makeFakePdfConfig(tempFolder.newFolder("pdf_ds"), scope),
             outlineConfig = makeFakeOutlineConfig(tempFolder.newFolder("outline_ds"), scope),
             wikipediaConfig = makeFakeWikipediaConfig(tempFolder.newFolder("wiki_ds"), scope),
             notionConfig = makeFakeNotionConfig(tempFolder.newFolder("notion_ds"), scope),
