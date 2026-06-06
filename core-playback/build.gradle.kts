@@ -115,7 +115,7 @@ dependencies {
     // parallelism, XNNPACK→CPU fallback). Storyvox dispatches via
     // EngineType.Kitten in this PR.
     implementation("com.github.techempower-org:VoxSherpa-TTS:v2.8.0")
-    implementation("com.github.k2-fsa:sherpa-onnx:1.12.26")
+    implementation("com.github.k2-fsa:sherpa-onnx:1.13.1")
 
     // Media3 — session, player base classes
     implementation(libs.androidx.media3.session)
