@@ -1,0 +1,169 @@
+name: VoxSherpa upstream watch
+
+# Dependabot can track Maven/Gradle coordinates resolved through real
+# repositories, but VoxSherpa-TTS is consumed via JitPack as a raw GitHub
+# coordinate (com.github.techempower-org:VoxSherpa-TTS:vX.Y.Z). JitPack builds
+# whatever git tag you name — there is no Maven metadata for dependabot to
+# poll — so new VoxSherpa releases would otherwise slip past unnoticed.
+#
+# This job closes that gap: weekly (and on demand) it reads the pinned tag from
+# core-playback/build.gradle.kts, asks the GitHub API for the newest semver tag
+# on both the published fork (techempower-org/VoxSherpa-TTS, the JitPack
+# coordinate) and the upstream source (CodeBySonu95/VoxSherpa-TTS), and opens a
+# single `dependencies`-labelled issue when either is ahead of the pin.
+#
+# Idempotent: a stable marker line in the issue body is grepped across open
+# issues before filing, so a stale "new version" issue is updated/skipped
+# rather than duplicated week after week.
+
+on:
+  schedule:
+    # Mondays 06:17 UTC — off the :00 mark so we don't pile onto the
+    # top-of-hour cron crush, and early enough to land before the week's work.
+    - cron: '17 6 * * 1'
+  workflow_dispatch:
+
+# Issue creation needs write; nothing else is touched.
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: voxsherpa-watch
+  cancel-in-progress: false
+
+jobs:
+  watch:
+    name: Check VoxSherpa-TTS upstream
+    # Match the repo convention (android.yml / release-docs-sync.yml): the
+    # self-hosted katana runner avoids the hosted Actions-minutes cap. This
+    # job only needs git + gh + jq, all present on the runner.
+    runs-on: [self-hosted, linux]
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+      # The published fork (JitPack coordinate) and the upstream source.
+      FORK_REPO: techempower-org/VoxSherpa-TTS
+      UPSTREAM_REPO: CodeBySonu95/VoxSherpa-TTS
+      # Stable marker embedded in the issue body so the idempotency search
+      # matches our own issues and nothing else.
+      MARKER: '<!-- voxsherpa-watch -->'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Detect new VoxSherpa-TTS versions and file an issue
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          BUILD_FILE="core-playback/build.gradle.kts"
+
+          # --- Pinned version --------------------------------------------------
+          # Line looks like:
+          #   implementation("com.github.techempower-org:VoxSherpa-TTS:v2.8.0")
+          PINNED="$(grep -oE 'VoxSherpa-TTS:v[0-9]+\.[0-9]+(\.[0-9]+)?' "$BUILD_FILE" \
+                    | head -n1 | sed 's/.*://')"
+          if [ -z "${PINNED:-}" ]; then
+            echo "::error::Could not find a pinned VoxSherpa-TTS:vX.Y.Z in $BUILD_FILE"
+            exit 1
+          fi
+          echo "Pinned VoxSherpa-TTS version: $PINNED"
+
+          # --- Helpers ---------------------------------------------------------
+          # Newest semver-looking tag (vX.Y or vX.Y.Z) for a repo. Non-semver
+          # tags (voices-v2, piper-en-fp32, …) are filtered out so they never
+          # masquerade as a release. Empty string if the repo has no semver tag.
+          latest_semver_tag() {
+            local repo="$1"
+            gh api --paginate "repos/${repo}/tags" --jq '.[].name' 2>/dev/null \
+              | grep -E '^v[0-9]+\.[0-9]+(\.[0-9]+)?$' \
+              | sort -V \
+              | tail -n1
+          }
+
+          # Returns 0 (true) if $1 is strictly greater than $2 as a version.
+          version_gt() {
+            [ "$1" != "$2" ] && [ "$(printf '%s\n%s\n' "$1" "$2" | sort -V | tail -n1)" = "$1" ]
+          }
+
+          FORK_LATEST="$(latest_semver_tag "$FORK_REPO" || true)"
+          UPSTREAM_LATEST="$(latest_semver_tag "$UPSTREAM_REPO" || true)"
+          echo "Fork ($FORK_REPO) latest semver tag: ${FORK_LATEST:-<none>}"
+          echo "Upstream ($UPSTREAM_REPO) latest semver tag: ${UPSTREAM_LATEST:-<none>}"
+
+          # --- Compare ---------------------------------------------------------
+          # Strip leading 'v' for sort -V; it copes with it either way but be
+          # explicit so the comparison is unambiguous.
+          PIN_NUM="${PINNED#v}"
+          NEWER=()
+          if [ -n "${FORK_LATEST:-}" ] && version_gt "${FORK_LATEST#v}" "$PIN_NUM"; then
+            NEWER+=("$FORK_REPO -> $FORK_LATEST (JitPack coordinate; bump core-playback/build.gradle.kts)")
+          fi
+          if [ -n "${UPSTREAM_LATEST:-}" ] && version_gt "${UPSTREAM_LATEST#v}" "$PIN_NUM"; then
+            NEWER+=("$UPSTREAM_REPO -> $UPSTREAM_LATEST (upstream source; may need a fork-side release before JitPack can build it)")
+          fi
+
+          if [ "${#NEWER[@]}" -eq 0 ]; then
+            echo "VoxSherpa-TTS is up to date at $PINNED — nothing to file."
+            exit 0
+          fi
+
+          # --- Idempotency: skip if an open issue already carries our marker --
+          EXISTING="$(gh issue list --repo "$GITHUB_REPOSITORY" --state open \
+                        --search "in:body ${MARKER}" --json number --jq '.[0].number' 2>/dev/null || true)"
+          if [ -n "${EXISTING:-}" ] && [ "$EXISTING" != "null" ]; then
+            echo "Open VoxSherpa-watch issue #$EXISTING already exists — leaving a refresh comment instead of duplicating."
+            {
+              echo "Re-checked on $(date -u '+%Y-%m-%d %H:%M UTC'). Pinned: \`$PINNED\`. Newer versions still available:"
+              for n in "${NEWER[@]}"; do echo "- $n"; done
+            } | gh issue comment "$EXISTING" --repo "$GITHUB_REPOSITORY" --body-file -
+            exit 0
+          fi
+
+          # --- Ensure the `dependencies` label exists --------------------------
+          # The repo doesn't ship a `dependencies` label by default; create it
+          # idempotently (no-op / non-fatal if it already exists).
+          gh label create dependencies \
+            --repo "$GITHUB_REPOSITORY" \
+            --color 0366d6 \
+            --description "Dependency bumps and upstream version tracking" \
+            2>/dev/null || true
+
+          # --- File the issue --------------------------------------------------
+          BODY_FILE="$(mktemp)"
+          {
+            echo "$MARKER"
+            echo
+            echo "A newer **VoxSherpa-TTS** release is available than the one pinned in"
+            echo "\`core-playback/build.gradle.kts\`. Dependabot can't see this because the"
+            echo "dependency is resolved through JitPack as a raw GitHub coordinate"
+            echo "(\`com.github.techempower-org:VoxSherpa-TTS:vX.Y.Z\`), so this scheduled"
+            echo "watch tracks it instead."
+            echo
+            echo "**Currently pinned:** \`$PINNED\`"
+            echo
+            echo "**Newer available:**"
+            for n in "${NEWER[@]}"; do echo "- $n"; done
+            echo
+            echo "### To bump"
+            echo "1. If only the upstream (\`$UPSTREAM_REPO\`) is ahead, cut a matching"
+            echo "   tag/release on the fork \`$FORK_REPO\` first — JitPack builds the"
+            echo "   fork coordinate, not upstream."
+            echo "2. Update the pin in \`core-playback/build.gradle.kts\`:"
+            echo "   \`implementation(\"com.github.techempower-org:VoxSherpa-TTS:<new>\")\`"
+            echo "3. Build \`:core-playback:assembleDebug\` + \`:app:assembleDebug\`, then do an"
+            echo "   on-device TTS smoke test (synthesize a Kokoro/Kitten voice) — VoxSherpa"
+            echo "   wraps native sherpa-onnx, so runtime JNI behaviour matters beyond compile."
+            echo
+            echo "_Filed automatically by \`.github/workflows/voxsherpa-watch.yml\`._"
+          } > "$BODY_FILE"
+
+          gh issue create \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "VoxSherpa-TTS upstream is newer than the pinned $PINNED" \
+            --label dependencies \
+            --body-file "$BODY_FILE"
+
+          echo "Filed VoxSherpa upstream-watch issue."
