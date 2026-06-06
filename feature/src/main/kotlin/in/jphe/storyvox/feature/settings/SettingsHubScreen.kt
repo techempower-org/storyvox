@@ -42,10 +42,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import `in`.jphe.storyvox.feature.R
 import `in`.jphe.storyvox.feature.settings.components.SectionHeading
 import `in`.jphe.storyvox.ui.component.MagicTitleBar
+import `in`.jphe.storyvox.ui.component.TestTags
 import `in`.jphe.storyvox.ui.theme.LocalSpacing
 
 /**
@@ -165,6 +167,8 @@ fun SettingsHubScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                // UI-test selector for the settings hub section index.
+                .testTag(TestTags.SettingsList)
                 .padding(scaffoldPadding)
                 .verticalScroll(rememberScrollState())
                 .padding(spacing.md),

@@ -41,6 +41,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
@@ -69,6 +70,7 @@ import `in`.jphe.storyvox.ui.component.FictionCoverThumb
 import `in`.jphe.storyvox.ui.component.fictionMonogram
 import `in`.jphe.storyvox.ui.component.MagicSkeletonTile
 import `in`.jphe.storyvox.ui.component.MagicTitleBar
+import `in`.jphe.storyvox.ui.component.TestTags
 import `in`.jphe.storyvox.ui.component.cascadeReveal
 import `in`.jphe.storyvox.ui.layout.isAtLeastExpanded
 import `in`.jphe.storyvox.ui.theme.LocalSpacing
@@ -266,6 +268,8 @@ fun LibraryScreen(
                 Box {
                     FloatingActionButton(
                         onClick = { addMenuOpen = true },
+                        // UI-test selector for the primary add affordance.
+                        modifier = Modifier.testTag(TestTags.LibraryFab),
                         containerColor = MaterialTheme.colorScheme.primary,
                         contentColor = MaterialTheme.colorScheme.onPrimary,
                     ) {
@@ -519,6 +523,10 @@ fun LibraryScreen(
                         pendingRemoval = null
                         viewModel.removeFromLibrary(fictionId)
                     },
+                    // UI-test selector for a confirm action in a common
+                    // confirm/dismiss dialog (the remove-from-library
+                    // warning is the canonical example flows exercise).
+                    modifier = Modifier.testTag(TestTags.DialogConfirm),
                     variant = BrassButtonVariant.Primary,
                 )
             },
@@ -526,6 +534,8 @@ fun LibraryScreen(
                 BrassButton(
                     label = stringResource(R.string.fiction_cancel),
                     onClick = { pendingRemoval = null },
+                    // UI-test selector for the dismiss/cancel action.
+                    modifier = Modifier.testTag(TestTags.DialogDismiss),
                     variant = BrassButtonVariant.Secondary,
                 )
             },
@@ -1003,6 +1013,8 @@ private fun LibraryGridBody(
     val gridMinSizeDp =
         if (isAtLeastExpanded()) libraryGridExpandedMinSizeDp else libraryGridAdaptiveMinSizeDp
     LazyVerticalGrid(
+        // UI-test selector for the library grid container.
+        modifier = Modifier.testTag(TestTags.LibraryList),
         // Issue #452 — see [libraryGridAdaptiveMinSizeDp] for the
         // rationale. Pinned to 140dp below Expanded; the regression
         // test [LibraryGridLandscapeTest] guards both the value and
@@ -1052,6 +1064,10 @@ private fun LibraryGridBody(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
+                    // UI-test selector for an individual library tile. Every
+                    // fiction cell carries the same `library-item` tag; flows
+                    // select the first match (or count) rather than by title.
+                    .testTag(TestTags.LibraryItem)
                     .animateItem()
                     .cascadeReveal(index = index, key = fiction.id),
                 horizontalAlignment = Alignment.Start,

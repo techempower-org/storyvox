@@ -46,6 +46,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
@@ -260,6 +261,12 @@ private fun TabCell(
         // `.semantics { selected = isSelected }` must come BEFORE the
         // clickable so the role on clickable doesn't override it.
         modifier = modifier
+            // Stable selector for UI tests (Maestro / instrumented Compose):
+            // `nav-playing`, `nav-library`, … keyed off the tab name so the
+            // dock and the test selectors can't drift. Non-functional — only
+            // adds to the semantics tree; a11y still flows from the
+            // `selected` flag + the clickable's `onClickLabel` below.
+            .testTag(TestTags.navTab(tab))
             .semantics { selected = isSelected }
             .clickable(
                 interactionSource = interactionSource,

@@ -66,6 +66,7 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -95,6 +96,7 @@ import `in`.jphe.storyvox.ui.component.BrassButtonVariant
 import `in`.jphe.storyvox.ui.component.BrassProgressBar
 import `in`.jphe.storyvox.ui.component.MagicSkeletonTile
 import `in`.jphe.storyvox.ui.component.MagicTitleBar
+import `in`.jphe.storyvox.ui.component.TestTags
 import `in`.jphe.storyvox.ui.component.cascadeReveal
 import `in`.jphe.storyvox.ui.theme.LocalReducedMotion
 import androidx.compose.animation.core.animateFloatAsState
@@ -372,6 +374,8 @@ fun VoiceLibraryScreen(
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
+                    // UI-test selector for the voice catalog list.
+                    .testTag(TestTags.VoiceList)
                     .padding(horizontal = spacing.md),
                 verticalArrangement = Arrangement.spacedBy(spacing.xs),
                 contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = spacing.md),

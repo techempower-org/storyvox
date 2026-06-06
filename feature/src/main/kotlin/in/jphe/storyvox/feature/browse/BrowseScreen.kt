@@ -56,6 +56,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
@@ -79,6 +80,7 @@ import `in`.jphe.storyvox.ui.component.fictionMonogram
 import `in`.jphe.storyvox.ui.component.MagicSkeletonTile
 import `in`.jphe.storyvox.ui.component.MagicSpinner
 import `in`.jphe.storyvox.ui.component.MagicTitleBar
+import `in`.jphe.storyvox.ui.component.TestTags
 import `in`.jphe.storyvox.ui.layout.isAtLeastExpanded
 import `in`.jphe.storyvox.ui.theme.LocalSpacing
 
@@ -196,7 +198,8 @@ fun BrowseScreen(
             onHideSource = { viewModel.setSourceEnabled(it, enabled = false) },
             // Long-press + horizontal drag reorders source cards.
             onReorder = viewModel::reorderSources,
-            modifier = Modifier.fillMaxWidth(),
+            // UI-test selector for the source picker row.
+            modifier = Modifier.fillMaxWidth().testTag(TestTags.BrowseSourceList),
         )
 
         // Issue #695 — read the active source's `supportsSearch`
@@ -329,7 +332,8 @@ fun BrowseScreen(
                 value = state.query,
                 onValueChange = viewModel::setQuery,
                 label = { Text(stringResource(R.string.browse_search_hint, sourceLabel)) },
-                modifier = Modifier.fillMaxWidth().padding(spacing.md),
+                // UI-test selector for the Browse search input.
+                modifier = Modifier.fillMaxWidth().padding(spacing.md).testTag(TestTags.BrowseSearchField),
                 singleLine = true,
             )
         }
@@ -504,7 +508,10 @@ fun BrowseScreen(
                 LazyVerticalGrid(
                     state = gridState,
                     columns = GridCells.Adaptive(minSize = browseGridMinSizeDp(isAtLeastExpanded()).dp),
-                    modifier = Modifier.fillMaxSize(),
+                    // UI-test selector for the loaded results grid (the
+                    // skeleton/loading grid is intentionally untagged so a
+                    // flow waiting on `browse-results` waits for real content).
+                    modifier = Modifier.fillMaxSize().testTag(TestTags.BrowseResults),
                     contentPadding = PaddingValues(spacing.md),
                     horizontalArrangement = Arrangement.spacedBy(spacing.sm),
                     verticalArrangement = Arrangement.spacedBy(spacing.md),
@@ -687,6 +694,9 @@ fun BrowseScreen(
 
 @Composable
 private fun FilterButton(activeCount: Int, onClick: () -> Unit) {
+    // UI-test selector for the filter entrypoint. Same tag on both
+    // branches (badged vs. plain) so a flow addresses `browse-filter`
+    // regardless of whether any filter is currently active.
     if (activeCount > 0) {
         BadgedBox(
             badge = {
@@ -696,12 +706,12 @@ private fun FilterButton(activeCount: Int, onClick: () -> Unit) {
                 ) { Text(activeCount.toString()) }
             },
         ) {
-            IconButton(onClick = onClick) {
+            IconButton(onClick = onClick, modifier = Modifier.testTag(TestTags.BrowseFilter)) {
                 Icon(Icons.Outlined.FilterAlt, contentDescription = "Filter")
             }
         }
     } else {
-        IconButton(onClick = onClick) {
+        IconButton(onClick = onClick, modifier = Modifier.testTag(TestTags.BrowseFilter)) {
             Icon(Icons.Outlined.FilterAlt, contentDescription = "Filter")
         }
     }

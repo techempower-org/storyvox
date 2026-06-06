@@ -21,7 +21,11 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.ExperimentalComposeUiApi
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.core.content.ContextCompat
 import androidx.navigation.compose.rememberNavController
@@ -127,6 +131,10 @@ class MainActivity : ComponentActivity() {
      */
     @Inject lateinit var epubConfig: Lazy<EpubConfigImpl>
 
+    // testTagsAsResourceId is experimental Compose UI API. We opt in at
+    // the function holding setContent {} because that's where the flag is
+    // applied to the content root.
+    @OptIn(ExperimentalComposeUiApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // Android 15+ forces edge-to-edge by default for apps targeting
@@ -327,7 +335,22 @@ class MainActivity : ComponentActivity() {
                     }
                 }.toTypedArray()
                 CompositionLocalProvider(values = providers) {
-                    StoryvoxNavHost(navController = navController)
+                    // testTagsAsResourceId = true on the content root flips
+                    // every Modifier.testTag(...) below it into an Android
+                    // resource-id in the view hierarchy. Compose does NOT
+                    // expose testTags as resource-ids by default, so without
+                    // this the Layer-0 tags are invisible to Maestro and
+                    // uiautomator (both match by `id`) — which is why an
+                    // earlier `maestro hierarchy` dump came back empty. The
+                    // flag inherits down the semantics tree, so setting it
+                    // once at the NavHost root covers the whole app. The
+                    // modifier reaches StoryvoxNavHost's full-size Scaffold
+                    // root (it passes `modifier` straight through), so this
+                    // is non-functional — purely a semantics annotation.
+                    StoryvoxNavHost(
+                        navController = navController,
+                        modifier = Modifier.semantics { testTagsAsResourceId = true },
+                    )
                 }
             }
         }

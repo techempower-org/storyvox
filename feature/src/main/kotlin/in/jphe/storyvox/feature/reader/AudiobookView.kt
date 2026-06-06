@@ -92,6 +92,7 @@ import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import `in`.jphe.storyvox.feature.R
@@ -105,6 +106,7 @@ import `in`.jphe.storyvox.ui.component.BrassVoiceIcon
 import `in`.jphe.storyvox.ui.component.ErrorBlock
 import `in`.jphe.storyvox.ui.component.ErrorPlacement
 import `in`.jphe.storyvox.ui.component.FictionCoverThumb
+import `in`.jphe.storyvox.ui.component.TestTags
 import `in`.jphe.storyvox.ui.component.fictionMonogram
 import `in`.jphe.storyvox.ui.component.humanizeVoiceLabel
 import `in`.jphe.storyvox.ui.component.MagicSkeletonTile
@@ -356,7 +358,7 @@ fun AudiobookView(
                     modifier = Modifier.align(Alignment.CenterStart),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    IconButton(onClick = onBack) {
+                    IconButton(onClick = onBack, modifier = Modifier.testTag(TestTags.ReaderBack)) {
                         Icon(
                             Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "Back",
@@ -899,7 +901,11 @@ fun AudiobookView(
                             }
                             onPlayPause()
                         },
-                        modifier = Modifier.size(72.dp),
+                        // UI-test selector for the primary transport
+                        // play/pause button. The toggled state is read via
+                        // the crossfaded icon's contentDescription, not the
+                        // tag — the tag is a stable handle to the control.
+                        modifier = Modifier.size(72.dp).testTag(TestTags.ReaderPlay),
                         colors = IconButtonDefaults.filledIconButtonColors(
                             containerColor = MaterialTheme.colorScheme.primary,
                             contentColor = MaterialTheme.colorScheme.onPrimary,

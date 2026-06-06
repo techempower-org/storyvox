@@ -33,6 +33,7 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
@@ -158,6 +159,10 @@ private fun RailCell(
     val indication = LocalIndication.current
     Column(
         modifier = modifier
+            // Same stable `nav-<tab>` selector as the bottom bar so a UI
+            // test addresses the same destination regardless of which
+            // surface (rail vs. bar) the breakpoint chose. Non-functional.
+            .testTag(TestTags.navTab(tab))
             .semantics { selected = isSelected }
             .clickable(
                 interactionSource = interactionSource,
