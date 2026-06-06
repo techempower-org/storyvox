@@ -38,10 +38,15 @@ import kotlin.time.Duration.Companion.seconds
  * specific exceptions.
  */
 @Singleton
-internal class PlosApi @Inject constructor(
+internal open class PlosApi @Inject constructor(
     private val client: OkHttpClient,
 ) {
     private val json = Json { ignoreUnknownKeys = true; isLenient = true; coerceInputValues = true }
+
+    /** Solr search endpoint — `open` so JVM unit tests can point this
+     *  at a MockWebServer without restructuring the call sites (#1058,
+     *  same seam StandardEbooksApi.baseUrl uses). */
+    internal open val baseSearch: String = BASE_SEARCH
 
     // ─── search (Solr) ─────────────────────────────────────────────────
 
@@ -61,7 +66,7 @@ internal class PlosApi @Inject constructor(
         start: Int = 0,
         rows: Int = 50,
     ): FictionResult<PlosSearchResponse> {
-        val url = "$BASE_SEARCH" +
+        val url = baseSearch +
             "?q=" + URLEncoder.encode("*:*", "UTF-8") +
             // Issue #664 — PLOS retired the `journal_key` field; queries
             // against it return numFound=0 now. Two fq's together:
@@ -100,8 +105,18 @@ internal class PlosApi @Inject constructor(
         start: Int = 0,
         rows: Int = 50,
     ): FictionResult<PlosSearchResponse> {
-        val url = "$BASE_SEARCH" +
+        val url = baseSearch +
             "?q=" + URLEncoder.encode(term, "UTF-8") +
+            // Issue #1058 — parity with searchRecent's doc_type:full
+            // filter. PLOS's Solr indexes each article N+1 times (one
+            // full doc + one per section), so without this the free-
+            // text Search tab returned the parent article AND its 5+
+            // section fragments as duplicate cards with cryptic
+            // DOI-path titles (`/title`, `/abstract`, `/body`, ...).
+            // We deliberately do NOT pin a journal here — free-text
+            // search spans all PLOS journals, unlike the PLOS-ONE-only
+            // Popular landing.
+            "&fq=" + URLEncoder.encode("doc_type:full", "UTF-8") +
             "&start=$start" +
             "&rows=$rows" +
             "&fl=" + URLEncoder.encode(DEFAULT_FIELDS, "UTF-8") +
@@ -118,7 +133,7 @@ internal class PlosApi @Inject constructor(
      */
     suspend fun fetchByDoi(doi: String): FictionResult<PlosSearchResponse> {
         val q = "id:\"$doi\""
-        val url = "$BASE_SEARCH" +
+        val url = baseSearch +
             "?q=" + URLEncoder.encode(q, "UTF-8") +
             "&rows=1" +
             "&fl=" + URLEncoder.encode(DEFAULT_FIELDS, "UTF-8") +
