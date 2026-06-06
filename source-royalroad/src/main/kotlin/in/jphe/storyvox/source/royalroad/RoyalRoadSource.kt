@@ -36,17 +36,17 @@ import kotlin.time.Duration.Companion.seconds
 import okhttp3.HttpUrl.Companion.toHttpUrl
 
 /**
- * v1 stub. The full RoyalRoadSource impl (with parsers, search, browse, follows)
- * is in `_unintegrated/` pending an integration pass that bridges Oneiros's
- * parser output types to Selene's [FictionSource] interface shapes.
+ * Browse, search, fiction detail, and follows are wired against the live
+ * parsers under [parser]; the remaining reads still return Failure via
+ * [unimplemented] pending a later integration pass that bridges the rest of
+ * the parser output types to the [FictionSource] interface shapes.
  *
  * The auth/net infrastructure (rate-limited HTTP, challenge-aware fetcher,
  * cookie jar, login WebView, honeypot filter) is wired and ready to be plumbed
- * back in. This stub returns Failure for every read so the build is green
- * end-to-end while the integration is finished separately.
+ * back in.
  *
- * See `docs/superpowers/specs/2026-05-05-storyvox-design.md` §5 and
- * `scratch/dreamers/oneiros.md` for the full plan.
+ * See `docs/superpowers/specs/2026-05-05-storyvox-design.md` §5 for the full
+ * plan.
  */
 @SourcePlugin(
     id = SourceIds.ROYAL_ROAD,
@@ -326,7 +326,7 @@ class RoyalRoadSource @Inject internal constructor(
 
     private fun <T> unimplemented(): FictionResult<T> =
         FictionResult.NetworkError(
-            message = "RoyalRoadSource integration pending — see source-royalroad/_unintegrated/",
+            message = "RoyalRoadSource integration pending for this operation",
             cause = NotImplementedError("RoyalRoadSource v1 stub"),
         )
 

@@ -461,7 +461,7 @@ object AppBindings {
     fun provideWebViewFetcher(): WebViewFetcher = object : WebViewFetcher {
         override suspend fun fetch(url: String, cookieHeader: String?): FictionResult<String> =
             FictionResult.NetworkError(
-                message = "WebViewFetcher integration pending — see source-royalroad/_unintegrated/",
+                message = "WebViewFetcher integration pending",
                 cause = NotImplementedError("WebViewFetcher v1 stub"),
             )
     }
