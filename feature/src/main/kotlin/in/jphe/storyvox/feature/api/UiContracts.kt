@@ -1366,6 +1366,22 @@ data class UiSettings(
     val readerLetterSpacingEm: Float = 0.0111f,
     /** Inter-paragraph spacing multiplier in the reader; clamped 0.5..3.0. 1.0 = legacy. */
     val readerParagraphSpacingMultiplier: Float = 1f,
+    /**
+     * Issue #994 — reading-highlight mode. [HighlightMode.Sentence] (default)
+     * is today's brass-underline-only behaviour; [HighlightMode.Word] /
+     * [HighlightMode.Both] add the per-word karaoke fill. Per-device pref
+     * (NOT synced) — a reading-comfort choice, same rationale as the reading
+     * theme (#993) and reader typography (#992).
+     */
+    val highlightMode: HighlightMode = HighlightMode.Sentence,
+    /**
+     * Custom per-word highlight colour, as an ARGB int (`Color.toArgb`).
+     * `0` (default, unset) means derive from the active reading-theme accent
+     * (#993) — so out of the box the word fill harmonises with the theme.
+     * A non-zero value is the user's chosen colour (issue #994
+     * "customizable highlight color"). Per-device pref (NOT synced).
+     */
+    val wordHighlightArgb: Int = 0,
 ) {
     /**
      * Resolved reading-surface colours for the reader (#993). Inactive when
@@ -1668,6 +1684,21 @@ enum class SpeakChapterMode { Both, NumbersOnly, TitlesOnly }
 enum class ReadingDirection { FollowSystem, ForceLtr, ForceRtl }
 
 /**
+ * Issue #994 — how the reader highlights the text being narrated.
+ *
+ * - [Sentence] (default) reproduces today's behaviour: a brass underline
+ *   glides under the spoken sentence.
+ * - [Word] adds the per-word "karaoke" fill that follows the voice word by
+ *   word (no underline).
+ * - [Both] shows the sentence underline AND the per-word fill together.
+ * - [Off] disables reading highlights entirely.
+ *
+ * Default [Sentence] keeps existing users on the exact behaviour they have
+ * now until they opt into word-level highlighting.
+ */
+enum class HighlightMode { Off, Sentence, Word, Both }
+
+/**
  * Book-cover fallback style — what [`FictionCoverThumb`] renders when
  * the remote cover URL is missing, expired, or fails to load. Real
  * covers are always shown when they load successfully; this enum only
@@ -1820,6 +1851,17 @@ interface SettingsRepositoryUi {
      * [ReaderTheme.Custom]. Device-local (NOT synced). Default impl no-op.
      */
     suspend fun setReaderCustomColors(fgArgb: Int, bgArgb: Int) = Unit
+    /**
+     * Issue #994 — set the reading-highlight mode (sentence / word / both /
+     * off). Device-local (NOT synced). Default impl is a no-op.
+     */
+    suspend fun setHighlightMode(mode: HighlightMode) = Unit
+    /**
+     * Issue #994 — set the custom per-word highlight colour, as an ARGB int
+     * (`Color.toArgb`). `0` clears the override (fall back to the reading-
+     * theme accent). Device-local (NOT synced). Default impl is a no-op.
+     */
+    suspend fun setWordHighlightColor(argb: Int) = Unit
     /**
      * Issue #992 — reader-surface typography setters. Each clamps into the safe
      * range from [ReaderTypography] on write. Default impls are no-ops so tests

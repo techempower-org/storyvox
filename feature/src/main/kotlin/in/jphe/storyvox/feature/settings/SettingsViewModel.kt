@@ -12,6 +12,7 @@ import `in`.jphe.storyvox.feature.api.UiParticleIntensity
 import `in`.jphe.storyvox.feature.api.UiSkeletonStyle
 import `in`.jphe.storyvox.feature.api.PalaceProbeResult
 import `in`.jphe.storyvox.feature.api.ReadingDirection
+import `in`.jphe.storyvox.feature.api.HighlightMode
 import `in`.jphe.storyvox.feature.api.SettingsRepositoryUi
 import `in`.jphe.storyvox.feature.api.SpeakChapterMode
 import `in`.jphe.storyvox.ui.theme.ReaderTheme
@@ -578,6 +579,15 @@ class SettingsViewModel @Inject constructor(
     /** Issue #993 — custom reading-theme fg/bg as ARGB ints; implies Custom. */
     fun setReaderCustomColors(fgArgb: Int, bgArgb: Int) =
         viewModelScope.launch { repo.setReaderCustomColors(fgArgb, bgArgb) }
+
+    /** Issue #994 — reading-highlight mode (sentence / word / both / off). */
+    fun setHighlightMode(mode: HighlightMode) =
+        viewModelScope.launch { repo.setHighlightMode(mode) }
+
+    /** Issue #994 — custom per-word highlight colour (ARGB int; 0 clears
+     *  the override → fall back to the reading-theme accent). */
+    fun setWordHighlightColor(argb: Int) =
+        viewModelScope.launch { repo.setWordHighlightColor(argb) }
 }
 
 /** Map the feature-layer enum to the :core-llm enum. The two are

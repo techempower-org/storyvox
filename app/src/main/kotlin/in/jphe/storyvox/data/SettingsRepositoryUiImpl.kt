@@ -67,6 +67,7 @@ import `in`.jphe.storyvox.source.azure.AzureRegion
 import `in`.jphe.storyvox.source.azure.AzureSpeechClient
 import `in`.jphe.storyvox.source.azure.AzureVoiceRoster
 import `in`.jphe.storyvox.feature.api.CacheQuotaOptions
+import `in`.jphe.storyvox.feature.api.HighlightMode
 import `in`.jphe.storyvox.feature.api.UiSettings
 import `in`.jphe.storyvox.feature.api.UiSigil
 import `in`.jphe.storyvox.ui.theme.ReaderTheme
@@ -846,6 +847,15 @@ private object Keys {
     val READER_CUSTOM_FG_ARGB = intPreferencesKey("pref_reader_custom_fg_argb")
     val READER_CUSTOM_BG_ARGB = intPreferencesKey("pref_reader_custom_bg_argb")
 
+    /** Issue #994 — reading-highlight mode. Stored as the [HighlightMode]
+     *  enum's name; unknown values fall back to [HighlightMode.Sentence] on
+     *  read. Custom word-highlight colour is an ARGB int (0 = unset → use the
+     *  reading-theme accent). Device-local (NOT synced) — same per-device
+     *  reading-comfort rationale as the reading theme (#993) / typography
+     *  (#992). */
+    val HIGHLIGHT_MODE = stringPreferencesKey("pref_highlight_mode")
+    val WORD_HIGHLIGHT_ARGB = intPreferencesKey("pref_word_highlight_argb")
+
     // ── Reader-surface typography (issue #992) ──────────────────────
     /** Reader font family — stored as the [ReaderFontFamily] enum's name.
      *  Unknown values fall back to [ReaderFontFamily.Default] on read. Synced. */
@@ -1530,6 +1540,14 @@ class SettingsRepositoryUiImpl(
                 ?: ReaderTheme.Default,
             readerCustomFgArgb = prefs[Keys.READER_CUSTOM_FG_ARGB] ?: 0,
             readerCustomBgArgb = prefs[Keys.READER_CUSTOM_BG_ARGB] ?: 0,
+            // Issue #994 — reading-highlight mode + custom word colour.
+            // Unknown enum strings fall back to Sentence (today's behaviour);
+            // wordHighlightArgb is a raw ARGB int (0 = unset → reading-theme
+            // accent, resolved view-side).
+            highlightMode = prefs[Keys.HIGHLIGHT_MODE]
+                ?.let { runCatching { HighlightMode.valueOf(it) }.getOrNull() }
+                ?: HighlightMode.Sentence,
+            wordHighlightArgb = prefs[Keys.WORD_HIGHLIGHT_ARGB] ?: 0,
             // Issue #992 — reader-surface typography. Unknown enum strings
             // fall back to Default; numeric fields are clamped by
             // ReaderTypography.clamped() via UiSettings.readerTypography so we
@@ -2579,6 +2597,19 @@ class SettingsRepositoryUiImpl(
             it[Keys.READER_CUSTOM_BG_ARGB] = bgArgb
             it[Keys.READER_THEME] = ReaderTheme.Custom.name
         }
+    }
+
+    // ── Reading-highlight mode / per-word colour (issue #994) ──────
+    // DEVICE-LOCAL — like the reading theme (#993) and reader typography
+    // (#992), the highlight mode + custom word colour are per-device
+    // reading-comfort choices, so these are deliberately NOT in
+    // SYNC_ALLOWLIST and do NOT call stampSyncedWrite().
+    override suspend fun setHighlightMode(mode: HighlightMode) {
+        store.edit { it[Keys.HIGHLIGHT_MODE] = mode.name }
+    }
+
+    override suspend fun setWordHighlightColor(argb: Int) {
+        store.edit { it[Keys.WORD_HIGHLIGHT_ARGB] = argb }
     }
 
     // ── Azure Speech Services BYOK (#182, PR-3) ────────────────────

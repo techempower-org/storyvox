@@ -74,8 +74,12 @@ import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import `in`.jphe.storyvox.feature.R
+import `in`.jphe.storyvox.feature.api.HighlightMode
 import `in`.jphe.storyvox.feature.api.UiPlaybackState
+import androidx.compose.runtime.withFrameNanos
 import `in`.jphe.storyvox.ui.component.SentenceHighlight
+import `in`.jphe.storyvox.ui.component.currentWordRange
+import `in`.jphe.storyvox.ui.component.sentenceProgress
 import `in`.jphe.storyvox.ui.theme.LocalReaderColors
 import `in`.jphe.storyvox.ui.theme.LocalReaderTypography
 import `in`.jphe.storyvox.ui.theme.LocalSpacing
@@ -185,6 +189,14 @@ fun ReaderTextView(
      *  Default reproduces the legacy reader style, so preview/test callsites
      *  render unchanged. */
     readerTypography: ReaderTypography = ReaderTypography(),
+    /** Issue #994 — reading-highlight mode. [HighlightMode.Word] /
+     *  [HighlightMode.Both] drive the per-word karaoke fill; the default
+     *  [HighlightMode.Sentence] keeps the legacy underline-only behaviour, so
+     *  preview/test callsites are unchanged. */
+    highlightMode: HighlightMode = HighlightMode.Sentence,
+    /** Issue #994 — custom per-word highlight colour (ARGB int). 0 (default)
+     *  derives from the reading-theme accent. */
+    wordHighlightArgb: Int = 0,
     modifier: Modifier = Modifier,
 ) {
     val spacing = LocalSpacing.current
@@ -390,10 +402,60 @@ fun ReaderTextView(
                         bodyTopPx = coords.positionInParent().y
                     },
                 ) {
+                    // #994 — per-word karaoke clock. Word/Both modes drive a
+                    // proportional highlight (the issue-blessed model: no true
+                    // phoneme timing). We anchor wall-clock at each sentence
+                    // boundary and estimate the sentence's spoken duration from
+                    // its character count at the current speed (~16 chars/s at
+                    // 1.0x). currentWordRange maps that progress to a word; the
+                    // error self-corrects every boundary when the engine
+                    // advances the sentence range. Sentence/Off modes leave
+                    // wordStart/wordEnd at -1 → SentenceHighlight no-ops the fill.
+                    val wordHighlightActive =
+                        (highlightMode == HighlightMode.Word || highlightMode == HighlightMode.Both) &&
+                            state.isPlaying
+                    var sentenceElapsedMs by remember { mutableLongStateOf(0L) }
+                    LaunchedEffect(
+                        wordHighlightActive,
+                        state.sentenceStart,
+                        state.sentenceEnd,
+                    ) {
+                        sentenceElapsedMs = 0L
+                        if (!wordHighlightActive) return@LaunchedEffect
+                        val anchorNanos = withFrameNanos { it }
+                        while (true) {
+                            val nowNanos = withFrameNanos { it }
+                            sentenceElapsedMs = (nowNanos - anchorNanos) / 1_000_000L
+                        }
+                    }
+                    // Estimate spoken duration from char count. ~16 chars/s at
+                    // 1.0x; faster speed → shorter estimate. Floor of 1 char so
+                    // a degenerate range never yields 0ms (handled anyway by
+                    // sentenceProgress's durationMs<=0 guard).
+                    val sentenceChars = (state.sentenceEnd - state.sentenceStart).coerceAtLeast(1)
+                    val speed = state.speed.coerceAtLeast(0.1f)
+                    val estDurationMs = (sentenceChars * 1000L / (16f * speed)).toLong()
+                    val wordRange = if (wordHighlightActive) {
+                        currentWordRange(
+                            text = chapterText,
+                            sentenceStart = state.sentenceStart,
+                            sentenceEnd = state.sentenceEnd,
+                            sentenceProgress = sentenceProgress(sentenceElapsedMs, estDurationMs),
+                        )
+                    } else {
+                        null
+                    }
+                    // #994 — Word-only mode hides the sentence underline (the
+                    // word fill IS the indicator); Both keeps both. Off/Sentence
+                    // keep today's underline.
+                    val underlineSuppressed = highlightMode == HighlightMode.Word ||
+                        highlightMode == HighlightMode.Off
+                    val customWordFill =
+                        if (wordHighlightArgb != 0) Color(wordHighlightArgb) else null
                     SentenceHighlight(
                         text = chapterText,
-                        highlightStart = state.sentenceStart,
-                        highlightEnd = state.sentenceEnd,
+                        highlightStart = if (underlineSuppressed) 0 else state.sentenceStart,
+                        highlightEnd = if (underlineSuppressed) 0 else state.sentenceEnd,
                         onTapWord = onSeekToChar,
                         onLongPressWord = { word -> lookupWord = word },
                         onLayout = { layout -> textLayout = layout },
@@ -401,6 +463,10 @@ fun ReaderTextView(
                         // (chevron target) gets the stronger fill.
                         searchMatches = matches,
                         activeMatchIndex = activeMatchIndex,
+                        // #994 — per-word karaoke fill.
+                        wordStart = wordRange?.first ?: -1,
+                        wordEnd = wordRange?.let { it.last + 1 } ?: -1,
+                        wordFill = customWordFill,
                     )
                 } // Box
                 } // CompositionLocalProvider(LocalReaderTypography) — #992
