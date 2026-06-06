@@ -255,6 +255,8 @@ private class FakePlayback : PlaybackControllerUi {
     override fun skipBack() = Unit
     override fun nextSentence() = Unit
     override fun previousSentence() = Unit
+    override fun nextParagraph() = Unit
+    override fun previousParagraph() = Unit
     override fun nextChapter() = Unit
     override fun previousChapter() = Unit
     override fun setSpeed(speed: Float) { appliedSpeed = speed }

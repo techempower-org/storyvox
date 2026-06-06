@@ -248,6 +248,11 @@ class EnginePlayer @AssistedInject constructor(
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
     private var sentences: List<Sentence> = emptyList()
+    /** Issue #1001 — sentence indices that open a paragraph, computed
+     *  once per chapter alongside [sentences]. Paragraph navigation
+     *  ([seekParagraph]) seeks to one of these sentences' `startChar`, so
+     *  it snaps to the same offsets the rest of the seek path uses. */
+    private var paragraphHeads: List<Int> = emptyList()
     @Volatile private var currentSentenceIndex: Int = 0
     private var currentSpeed: Float = 1.0f
     private var currentPitch: Float = 1.0f
@@ -1548,6 +1553,9 @@ class EnginePlayer @AssistedInject constructor(
         // on modest hardware; without this the screen sits blank that long.
         val text = chapter.text
         sentences = chunker.chunk(text, detectLocale(text))
+        // Issue #1001 — derive paragraph heads from the freshly-chunked
+        // sentence list (option B): nav targets a real sentence startChar.
+        paragraphHeads = paragraphHeadIndices(text, sentences)
         // Issue #442 — Gutenberg-derived plain text can be "stripTags(htmlBody)"-
         // empty for spine entries that are pure-HTML wrappers (front-matter,
         // PG header pages, image-only inserts). When that happens the
@@ -3917,6 +3925,21 @@ class EnginePlayer @AssistedInject constructor(
         if (targetIndex == currentSentenceIndex) return
         val target = sentences[targetIndex]
         seekToCharOffset(target.startChar)
+    }
+
+    /** Issue #1001 — step to the previous/next paragraph boundary
+     *  ([direction] -1/+1). Resolves the target sentence via the pure
+     *  [paragraphTargetIndex] over [paragraphHeads], then reuses
+     *  [seekToCharOffset] so the playhead, brass underline, and
+     *  auto-scroll all move together (same path as sentence-step / tap
+     *  seek). No-op at chapter bounds, when nothing is loaded, or in a
+     *  single-paragraph chapter with no further head to reach. */
+    fun seekParagraph(direction: Int) {
+        if (sentences.isEmpty()) return
+        val target = paragraphTargetIndex(currentSentenceIndex, paragraphHeads, direction)
+            ?: return
+        if (target == currentSentenceIndex) return
+        seekToCharOffset(sentences[target].startChar)
     }
 
     fun seekToCharOffset(offset: Int) {

@@ -936,6 +936,8 @@ internal class RealPlaybackControllerUi(
     override fun skipBack() = controller.skipBack30s()
     override fun nextSentence() = controller.nextSentence()
     override fun previousSentence() = controller.previousSentence()
+    override fun nextParagraph() = controller.nextParagraph()
+    override fun previousParagraph() = controller.previousParagraph()
     override fun nextChapter() {
         scope.launch { controller.nextChapter() }
     }

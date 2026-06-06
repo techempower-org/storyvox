@@ -509,6 +509,13 @@ interface PlaybackControllerUi {
     fun nextSentence()
     /** #120 — step to the previous sentence boundary. No-op at sentence 0. */
     fun previousSentence()
+    /** #1001 — step to the next paragraph (its first sentence). No-op in
+     *  the last paragraph. Accessibility navigation primitive. */
+    fun nextParagraph()
+    /** #1001 — step to the previous paragraph. Restarts the current
+     *  paragraph from mid-paragraph; steps back from a paragraph start.
+     *  No-op at the first paragraph. */
+    fun previousParagraph()
     fun nextChapter()
     fun previousChapter()
     fun setSpeed(speed: Float)

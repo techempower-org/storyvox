@@ -129,6 +129,10 @@ fun AudiobookView(
     onPreviousSentence: () -> Unit = {},
     /** #120 — step forward one sentence boundary. */
     onNextSentence: () -> Unit = {},
+    /** #1001 — step back one paragraph boundary. */
+    onPreviousParagraph: () -> Unit = {},
+    /** #1001 — step forward one paragraph boundary. */
+    onNextParagraph: () -> Unit = {},
     onPickVoice: () -> Unit,
     onSetSpeed: (Float) -> Unit,
     onPersistSpeed: (Float) -> Unit,
@@ -1067,6 +1071,8 @@ fun AudiobookView(
                     onCancelSleepTimer = onCancelSleepTimer,
                     onPreviousSentence = onPreviousSentence,
                     onNextSentence = onNextSentence,
+                    onPreviousParagraph = onPreviousParagraph,
+                    onNextParagraph = onNextParagraph,
                     onRequestRecap = {
                         overflowScope.launch { overflowSheetState.hide() }
                         showOverflowSheet = false
@@ -1357,6 +1363,10 @@ private fun PlayerOverflowSheet(
     onPreviousSentence: () -> Unit = {},
     /** #120 — step forward one sentence boundary. No-op at chapter end. */
     onNextSentence: () -> Unit = {},
+    /** #1001 — step back one paragraph boundary. No-op at first paragraph. */
+    onPreviousParagraph: () -> Unit = {},
+    /** #1001 — step forward one paragraph boundary. No-op at last paragraph. */
+    onNextParagraph: () -> Unit = {},
     onRequestRecap: () -> Unit = {},
     onOpenChat: () -> Unit = {},
     /** Issue #121 — bookmark the current playback position. */
@@ -1395,6 +1405,35 @@ private fun PlayerOverflowSheet(
             BrassButton(
                 label = stringResource(R.string.reader_step_next),
                 onClick = onNextSentence,
+                variant = BrassButtonVariant.Secondary,
+                modifier = Modifier.weight(1f),
+            )
+        }
+
+        // #1001 — paragraph-step transport. Sits between sentence-step and
+        // chapter-skip as the structural-navigation unit a non-visual
+        // listener uses to re-read a point or skip an aside. The button
+        // labels are self-describing ("Previous/Next paragraph") so
+        // TalkBack announces them unambiguously when swiped to in
+        // isolation — BrassButton merges the label into its semantics
+        // node (#743), so the label IS the content description.
+        SheetHeader(stringResource(R.string.reader_step_by_paragraph), null)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = spacing.xs),
+            horizontalArrangement = Arrangement.spacedBy(spacing.sm),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            BrassButton(
+                label = stringResource(R.string.reader_paragraph_previous),
+                onClick = onPreviousParagraph,
+                variant = BrassButtonVariant.Secondary,
+                modifier = Modifier.weight(1f),
+            )
+            BrassButton(
+                label = stringResource(R.string.reader_paragraph_next),
+                onClick = onNextParagraph,
                 variant = BrassButtonVariant.Secondary,
                 modifier = Modifier.weight(1f),
             )

@@ -276,6 +276,8 @@ fun HybridReaderScreen(
                 onPreviousChapter = viewModel::previousChapter,
                 onPreviousSentence = viewModel::previousSentence,
                 onNextSentence = viewModel::nextSentence,
+                onPreviousParagraph = viewModel::previousParagraph,
+                onNextParagraph = viewModel::nextParagraph,
                 onPickVoice = onPickVoice,
                 onSetSpeed = viewModel::setSpeed,
                 onPersistSpeed = viewModel::persistSpeed,

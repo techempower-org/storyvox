@@ -531,6 +531,9 @@ class ReaderViewModel @Inject constructor(
     }
     fun nextSentence() = playback.nextSentence()
     fun previousSentence() = playback.previousSentence()
+    /** #1001 — paragraph-level transport, delegated to playback. */
+    fun nextParagraph() = playback.nextParagraph()
+    fun previousParagraph() = playback.previousParagraph()
 
     fun setSpeed(speed: Float) {
         playback.setSpeed(speed)

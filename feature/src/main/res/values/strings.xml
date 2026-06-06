@@ -251,6 +251,11 @@
     <string name="reader_open_librarian_chat">Open librarian chat</string>
     <string name="reader_step_previous">← Previous</string>
     <string name="reader_step_next">Next →</string>
+    <!-- #1001 paragraph-level navigation. Labels are self-describing for
+         TalkBack (an accessibility navigation primitive). -->
+    <string name="reader_step_by_paragraph">Step by paragraph</string>
+    <string name="reader_paragraph_previous">Previous paragraph</string>
+    <string name="reader_paragraph_next">Next paragraph</string>
     <string name="reader_ask_ai_subtitle">Chat about plot, characters, pacing, and craft</string>
 
     <!-- Library -->

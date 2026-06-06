@@ -103,6 +103,14 @@ interface PlaybackController {
     /** #120 — step to the previous sentence boundary. No-op when
      *  already on sentence 0. */
     fun previousSentence()
+    /** #1001 — step to the next paragraph's first sentence. No-op in the
+     *  last paragraph of the chapter. An accessibility navigation
+     *  primitive (jump by structural unit between sentence and chapter). */
+    fun nextParagraph()
+    /** #1001 — step to the previous paragraph. From mid-paragraph this
+     *  restarts the current paragraph; from a paragraph start it steps to
+     *  the previous paragraph. No-op at the first paragraph. */
+    fun previousParagraph()
     suspend fun nextChapter()
     suspend fun previousChapter()
     suspend fun jumpToChapter(chapterId: String)
@@ -768,6 +776,8 @@ class DefaultPlaybackController @Inject constructor(
 
     override fun nextSentence() { player?.seekSentence(direction = 1) }
     override fun previousSentence() { player?.seekSentence(direction = -1) }
+    override fun nextParagraph() { player?.seekParagraph(direction = 1) }
+    override fun previousParagraph() { player?.seekParagraph(direction = -1) }
 
     override suspend fun nextChapter() { player?.advanceChapter(direction = 1) }
     override suspend fun previousChapter() {
