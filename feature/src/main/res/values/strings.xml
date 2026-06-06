@@ -304,6 +304,14 @@
     <!-- Issue #1003 — turn this fiction into a chaptered .m4b audiobook. -->
     <string name="fiction_export_audiobook">Export as audiobook…</string>
     <string name="fiction_clear_cache">Clear fiction cache…</string>
+    <!-- Issue #999 — highlights + notes list + export. -->
+    <string name="fiction_highlights_title">Highlights &amp; notes</string>
+    <string name="fiction_highlights_exporting">Exporting…</string>
+    <string name="fiction_highlights_remove">Remove</string>
+    <string name="fiction_highlights_export_markdown">Export Markdown</string>
+    <string name="fiction_highlights_export_text">Export text</string>
+    <string name="fiction_highlights_export_ready">Your highlights are ready</string>
+    <string name="fiction_highlights_export_empty">No highlights yet — the file is a placeholder.</string>
     <string name="fiction_chapter_count">%1$d ch</string>
     <string name="fiction_separator">·</string>
     <string name="fiction_name_label">Name</string>

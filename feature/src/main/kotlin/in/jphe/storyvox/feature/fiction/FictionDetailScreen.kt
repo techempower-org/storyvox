@@ -69,6 +69,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import `in`.jphe.storyvox.data.annotation.AnnotationExportFormatter
 import `in`.jphe.storyvox.feature.R
 import `in`.jphe.storyvox.feature.api.UiChapter
 import `in`.jphe.storyvox.feature.api.UiFiction
@@ -130,6 +131,13 @@ fun FictionDetailScreen(
     // change without re-firing the export.
     var pendingExport by remember { mutableStateOf<EpubExportResult?>(null) }
 
+    // Issue #999 — pending highlights/notes export, held the same way as the
+    // EPUB export so its Share / Save sheet survives config change without
+    // re-firing the write.
+    var pendingAnnotationExport by remember {
+        mutableStateOf<`in`.jphe.storyvox.data.annotation.AnnotationExportResult?>(null)
+    }
+
     // Issue #1003 — audiobook (.m4b) export status. Drives a progress chip
     // while rendering and the Share / Save-As sheet when done.
     val audiobookStatus by viewModel.audiobookExportStatus.collectAsStateWithLifecycle()
@@ -176,12 +184,34 @@ fun FictionDetailScreen(
         }
     }
 
+    // Issue #999 — SAF "Save…" launcher for the highlights/notes export. The
+    // contract type is "*/*" because the file is .md OR .txt depending on the
+    // user's pick; the suggested name carries the right extension. Copies the
+    // cached export file into the user's chosen target.
+    val saveAnnotationLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("*/*"),
+    ) { destination ->
+        val source = pendingAnnotationExport
+        if (destination != null && source != null) {
+            runCatching {
+                context.contentResolver.openOutputStream(destination)?.use { out ->
+                    source.file.inputStream().use { it.copyTo(out) }
+                }
+            }
+        }
+        pendingAnnotationExport = null
+    }
+
     LaunchedEffect(viewModel) {
         viewModel.events.collect { event ->
             when (event) {
                 is FictionDetailUiEvent.OpenReader -> onOpenReader(event.fictionId, event.chapterId)
                 is FictionDetailUiEvent.EpubExported -> pendingExport = event.result
                 is FictionDetailUiEvent.EpubExportFailed ->
+                    snackbarHostState.showSnackbar(event.message)
+                // Issue #999 — highlights/notes export finished / failed.
+                is FictionDetailUiEvent.AnnotationsExported -> pendingAnnotationExport = event.result
+                is FictionDetailUiEvent.AnnotationsExportFailed ->
                     snackbarHostState.showSnackbar(event.message)
                 FictionDetailUiEvent.OpenRoyalRoadSignIn -> onOpenRoyalRoadSignIn()
                 is FictionDetailUiEvent.FollowFailed ->
@@ -445,6 +475,14 @@ fun FictionDetailScreen(
                         onDelete = viewModel::deleteNotebookEntry,
                         onAdd = viewModel::addNotebookEntry,
                     )
+                    // Issue #999 — Highlights & notes list + export, in the
+                    // wide-layout left column. Hides itself when empty.
+                    HighlightsSection(
+                        groups = state.annotationGroups,
+                        isExporting = state.isExportingAnnotations,
+                        onDelete = viewModel::deleteAnnotation,
+                        onExport = { format -> viewModel.exportAnnotations(context, format) },
+                    )
                 }
                 // Issue #794 — chapter search + jump-to-#. Renders only
                 // when the list crosses CHAPTER_SEARCH_THRESHOLD; for
@@ -639,6 +677,17 @@ fun FictionDetailScreen(
                         onAdd = viewModel::addNotebookEntry,
                     )
                 }
+                // Issue #999 — Highlights & notes list + export in the narrow
+                // (phone) layout. Single LazyColumn item so it scrolls with
+                // the chapter list; hides itself when empty.
+                item {
+                    HighlightsSection(
+                        groups = state.annotationGroups,
+                        isExporting = state.isExportingAnnotations,
+                        onDelete = viewModel::deleteAnnotation,
+                        onExport = { format -> viewModel.exportAnnotations(context, format) },
+                    )
+                }
                 if (narrowShowSearch) {
                     item(key = "chapter-search") {
                         ChapterSearchBar(
@@ -723,6 +772,35 @@ fun FictionDetailScreen(
                 pendingExport = null
             },
             onDismiss = { pendingExport = null },
+        )
+    }
+
+    // Issue #999 — highlights/notes Share / Save-as sheet. Renders after the
+    // export use case posts AnnotationsExported. Same two-route plumbing as the
+    // EPUB sheet (ACTION_SEND primary, SAF Save… secondary) over the
+    // FileProvider-backed Uri; the share type tracks the chosen format.
+    pendingAnnotationExport?.let { exported ->
+        AnnotationExportSheet(
+            export = exported,
+            onShare = {
+                val send = Intent(Intent.ACTION_SEND).apply {
+                    type = exported.mimeType
+                    putExtra(Intent.EXTRA_STREAM, exported.uri)
+                    putExtra(Intent.EXTRA_TITLE, exported.suggestedFileName)
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }
+                context.startActivity(
+                    Intent.createChooser(send, "Share highlights").also {
+                        it.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    },
+                )
+                pendingAnnotationExport = null
+            },
+            onSaveAs = {
+                // launcher's result callback clears pendingAnnotationExport.
+                saveAnnotationLauncher.launch(exported.suggestedFileName)
+            },
+            onDismiss = { pendingAnnotationExport = null },
         )
     }
 
@@ -1514,3 +1592,168 @@ private fun UiChapter.toCardState(currentId: String?) = ChapterCardState(
     // window instead of flickering bogus state.
     cacheState = cacheState,
 )
+
+/**
+ * Issue #999 — per-fiction "Highlights & notes" list with export. Renders the
+ * annotations grouped by chapter (chapter header + each quote, with its note
+ * and color label below), a per-row delete, and a Markdown / Plain-text export
+ * row that fires the share-sheet via the ViewModel.
+ *
+ * Hides itself entirely when there are no annotations (early return), the same
+ * empty-state behaviour as [NotebookSection] — a first-launch user shouldn't
+ * see an empty highlights card pointing at a workflow they haven't started
+ * (highlights are created from the reader, #999 phase 2).
+ */
+@Composable
+private fun HighlightsSection(
+    groups: List<AnnotationGroup>,
+    isExporting: Boolean,
+    onDelete: (String) -> Unit,
+    onExport: (AnnotationExportFormatter.Format) -> Unit,
+) {
+    if (groups.isEmpty()) return
+    val spacing = LocalSpacing.current
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = spacing.md, vertical = spacing.sm),
+        verticalArrangement = Arrangement.spacedBy(spacing.xs),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Text(
+                stringResource(R.string.fiction_highlights_title),
+                style = MaterialTheme.typography.titleMedium,
+            )
+            if (isExporting) {
+                Text(
+                    stringResource(R.string.fiction_highlights_exporting),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        groups.forEach { group ->
+            Text(
+                group.chapterTitle,
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(top = spacing.xs),
+            )
+            group.annotations.forEach { ann ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.Top,
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            // Collapse internal newlines so a multi-line
+                            // selection reads as one quote in the list row.
+                            "“${ann.quotedText.replace("\n", " ").trim()}”",
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        val note = ann.note
+                        if (!note.isNullOrBlank()) {
+                            Text(
+                                note.trim(),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        Text(
+                            ann.color.lowercase(),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    BrassButton(
+                        label = stringResource(R.string.fiction_highlights_remove),
+                        onClick = { onDelete(ann.id) },
+                        variant = BrassButtonVariant.Text,
+                    )
+                }
+            }
+        }
+        Spacer(Modifier.height(spacing.xxs))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(spacing.sm),
+        ) {
+            BrassButton(
+                label = stringResource(R.string.fiction_highlights_export_markdown),
+                onClick = { onExport(AnnotationExportFormatter.Format.MARKDOWN) },
+                variant = BrassButtonVariant.Secondary,
+                modifier = Modifier.weight(1f),
+            )
+            BrassButton(
+                label = stringResource(R.string.fiction_highlights_export_text),
+                onClick = { onExport(AnnotationExportFormatter.Format.PLAIN) },
+                variant = BrassButtonVariant.Secondary,
+                modifier = Modifier.weight(1f),
+            )
+        }
+    }
+}
+
+/**
+ * Issue #999 — modal bottom sheet after a highlights/notes export completes.
+ * Offers Share (primary, ACTION_SEND chooser) and Save… (secondary, SAF
+ * CreateDocument). Mirrors [ExportSheet] (#117); the only divergence is the
+ * empty-export hint, since a fiction with no annotations still exports a
+ * placeholder file.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AnnotationExportSheet(
+    export: `in`.jphe.storyvox.data.annotation.AnnotationExportResult,
+    onShare: () -> Unit,
+    onSaveAs: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val spacing = LocalSpacing.current
+    val sheetState = rememberModalBottomSheetState()
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = spacing.lg, vertical = spacing.md),
+            verticalArrangement = Arrangement.spacedBy(spacing.sm),
+        ) {
+            Text(
+                text = stringResource(R.string.fiction_highlights_export_ready),
+                style = MaterialTheme.typography.titleMedium,
+            )
+            Text(
+                text = export.suggestedFileName,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            if (export.isEmpty) {
+                Text(
+                    text = stringResource(R.string.fiction_highlights_export_empty),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Spacer(Modifier.height(spacing.xs))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(spacing.sm),
+            ) {
+                BrassButton(
+                    label = "Save…",
+                    onClick = onSaveAs,
+                    variant = BrassButtonVariant.Secondary,
+                    modifier = Modifier.weight(1f),
+                )
+                BrassButton(
+                    label = "Share",
+                    onClick = onShare,
+                    variant = BrassButtonVariant.Primary,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
+    }
+}

@@ -17,6 +17,7 @@ import `in`.jphe.storyvox.data.db.StoryvoxDatabase
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import `in`.jphe.storyvox.data.db.dao.AnnotationDao
 import `in`.jphe.storyvox.data.db.dao.AuthDao
 import `in`.jphe.storyvox.data.db.dao.ChapterDao
 import `in`.jphe.storyvox.data.db.dao.ChapterHistoryDao
@@ -29,6 +30,8 @@ import `in`.jphe.storyvox.data.db.dao.LlmSessionDao
 import `in`.jphe.storyvox.data.db.dao.PlaybackDao
 import `in`.jphe.storyvox.data.db.migration.ALL_MIGRATIONS
 import `in`.jphe.storyvox.data.repository.AuthRepository
+import `in`.jphe.storyvox.data.repository.AnnotationRepository
+import `in`.jphe.storyvox.data.repository.AnnotationRepositoryImpl
 import `in`.jphe.storyvox.data.repository.AuthRepositoryImpl
 import `in`.jphe.storyvox.data.repository.ChapterDownloadScheduler
 import `in`.jphe.storyvox.data.repository.ChapterRepository
@@ -119,6 +122,9 @@ object DataModule {
     @Provides fun fictionShelfDao(db: StoryvoxDatabase): FictionShelfDao = db.fictionShelfDao()
     @Provides fun inboxEventDao(db: StoryvoxDatabase): InboxEventDao = db.inboxEventDao()
     @Provides fun fictionMemoryDao(db: StoryvoxDatabase): FictionMemoryDao = db.fictionMemoryDao()
+    // Issue #999 — highlights + notes. Consumed by AnnotationsSyncer,
+    // ExportAnnotationsUseCase, and AnnotationRepository.
+    @Provides fun annotationDao(db: StoryvoxDatabase): AnnotationDao = db.annotationDao()
 
     /**
      * Long-lived [CoroutineScope] for singleton repositories that need to fire
@@ -300,6 +306,11 @@ abstract class RepositoryBindings {
     abstract fun bindFictionMemoryRepository(
         impl: FictionMemoryRepositoryImpl,
     ): FictionMemoryRepository
+
+    @Binds @Singleton
+    abstract fun bindAnnotationRepository(
+        impl: AnnotationRepositoryImpl,
+    ): AnnotationRepository
 
     @Binds @Singleton
     abstract fun bindChapterDownloadScheduler(

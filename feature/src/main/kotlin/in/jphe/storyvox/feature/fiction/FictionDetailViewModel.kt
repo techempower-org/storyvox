@@ -6,7 +6,12 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import `in`.jphe.storyvox.data.annotation.AnnotationExportFormatter
+import `in`.jphe.storyvox.data.annotation.AnnotationExportResult
+import `in`.jphe.storyvox.data.annotation.ExportAnnotationsUseCase
+import `in`.jphe.storyvox.data.db.entity.Annotation
 import `in`.jphe.storyvox.data.db.entity.FictionMemoryEntry
+import `in`.jphe.storyvox.data.repository.AnnotationRepository
 import `in`.jphe.storyvox.data.repository.FictionMemoryRepository
 import `in`.jphe.storyvox.data.repository.pronunciation.PronunciationDictRepository
 import `in`.jphe.storyvox.feature.api.DownloadMode
@@ -64,6 +69,27 @@ data class FictionDetailUiState(
      *  book has no recorded entities yet — the UI hides the section
      *  rather than rendering an empty card. */
     val notebookEntries: List<FictionMemoryEntry> = emptyList(),
+    /** Issue #999 — highlights + notes for this fiction, grouped by chapter
+     *  in reading order for the "Highlights & notes" list. Empty list when
+     *  the book has no annotations yet — the UI hides the section (like the
+     *  Notebook) rather than rendering an empty card. */
+    val annotationGroups: List<AnnotationGroup> = emptyList(),
+    /** Issue #999 — true while [ExportAnnotationsUseCase] writes the
+     *  Markdown/TXT file. Surfaces a building chip, like [isExportingEpub]. */
+    val isExportingAnnotations: Boolean = false,
+)
+
+/**
+ * Issue #999 — one chapter's worth of annotations for the FictionDetail list.
+ * UI-facing projection: [chapterTitle] is resolved from the chapter row (so
+ * the list shows real titles, not ids), [annotations] are the raw rows in the
+ * DAO's start-offset order. Distinct from the export formatter's internal
+ * `ChapterGroup` so the UI layer doesn't depend on the formatter's shape.
+ */
+@Immutable
+data class AnnotationGroup(
+    val chapterTitle: String,
+    val annotations: List<Annotation>,
 )
 
 sealed interface FictionDetailUiEvent {
@@ -87,6 +113,17 @@ sealed interface FictionDetailUiEvent {
      *  (network, CSRF token miss, 500). Surfaced as a toast so the
      *  user knows the tap didn't take. */
     data class FollowFailed(val message: String) : FictionDetailUiEvent
+
+    /**
+     * Issue #999 — fired when a highlights/notes export finishes. The screen
+     * collects this and surfaces the Share / Save-As sheet, mirroring #117's
+     * [EpubExported]. One-shot via the event channel so the share action
+     * doesn't re-fire on configuration change.
+     */
+    data class AnnotationsExported(val result: AnnotationExportResult) : FictionDetailUiEvent
+
+    /** Issue #999 — non-fatal export failure (disk write error). Toasted. */
+    data class AnnotationsExportFailed(val message: String) : FictionDetailUiEvent
 }
 
 @HiltViewModel
@@ -116,6 +153,12 @@ class FictionDetailViewModel @Inject constructor(
     /** Issue #1003 — enqueues + observes the "export this fiction as an
      *  audiobook" render. Mirrors the EPUB export's home on this screen. */
     private val audiobookExportScheduler: AudiobookExportScheduler,
+    /** Issue #999 — read/delete surface for this fiction's highlights +
+     *  notes (the "Highlights & notes" list). */
+    private val annotationRepo: AnnotationRepository,
+    /** Issue #999 — builds the Markdown/TXT export file + FileProvider URI
+     *  for the share-sheet. Injected like [exportEpub] (#117). */
+    private val exportAnnotations: ExportAnnotationsUseCase,
     savedState: SavedStateHandle,
 ) : ViewModel() {
 
@@ -139,6 +182,11 @@ class FictionDetailViewModel @Inject constructor(
      *  through the combine below. Held outside the combine so the suspend
      *  call site can flip it cleanly around the use-case invocation. */
     private val isExporting = MutableStateFlow(false)
+
+    /** Issue #999 — highlights-export-in-flight flag. Exposed via
+     *  [FictionDetailUiState.isExportingAnnotations]; held outside the combine
+     *  so [exportAnnotations] can flip it around the use-case invocation. */
+    private val isExportingAnnotationsFlow = MutableStateFlow(false)
 
     /** Issue #1003 — unique work name of an in-flight audiobook export for
      *  this fiction (null until the user taps "Export as audiobook"). */
@@ -233,11 +281,25 @@ class FictionDetailViewModel @Inject constructor(
                 )
             }
         }
+        // Issue #999 — highlights/notes feed, grouped by chapter for the list.
+        // Combined with the chapter list (for titles + reading order) and the
+        // export-in-flight flag. Re-grouping on every annotation change is
+        // cheap (a groupBy over a handful of rows). Emits a Pair so the outer
+        // combine stays within the 5-arg ceiling.
+        val annotationsFlow: kotlinx.coroutines.flow.Flow<Pair<List<AnnotationGroup>, Boolean>> =
+            combine(
+                annotationRepo.observeForFiction(fictionId),
+                repo.chaptersFor(fictionId),
+                isExportingAnnotationsFlow,
+            ) { annotations, chapters, exporting ->
+                groupAnnotations(annotations, chapters) to exporting
+            }
         combine(
             base,
             memoryRepo.entitiesForFiction(fictionId),
             cacheStates,
-        ) { state, notebook, cacheStateMap ->
+            annotationsFlow,
+        ) { state, notebook, cacheStateMap, (annotationGroups, exportingAnnotations) ->
             // PR-H — fold the cache-state map onto each UiChapter. If
             // the inspector hasn't produced a value for a chapter
             // (empty map on missing voice, or new chapter not yet in
@@ -251,8 +313,38 @@ class FictionDetailViewModel @Inject constructor(
                     if (ch.cacheState == cs) ch else ch.copy(cacheState = cs)
                 }
             }
-            state.copy(chapters = chaptersWithCache, notebookEntries = notebook)
+            state.copy(
+                chapters = chaptersWithCache,
+                notebookEntries = notebook,
+                annotationGroups = annotationGroups,
+                isExportingAnnotations = exportingAnnotations,
+            )
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), FictionDetailUiState())
+    }
+
+    /**
+     * Issue #999 — group a flat annotation list (chapter-index ordered by the
+     * DAO) into per-chapter [AnnotationGroup]s with resolved titles. Mirrors
+     * the export use case's `groupAnnotationsByChapter`, but keyed off the
+     * already-loaded [UiChapter] list (the VM has it via [repo.chaptersFor])
+     * rather than re-reading the DB. A blank/unknown chapter falls back to a
+     * "Chapter N" label so a highlight never renders title-less or vanishes.
+     */
+    private fun groupAnnotations(
+        annotations: List<Annotation>,
+        chapters: List<UiChapter>,
+    ): List<AnnotationGroup> {
+        if (annotations.isEmpty()) return emptyList()
+        val chapterById = chapters.associateBy { it.id }
+        return annotations.groupBy { it.chapterId }.entries
+            .sortedBy { (chapterId, _) -> chapterById[chapterId]?.number ?: Int.MAX_VALUE }
+            .map { (chapterId, anns) ->
+                val ch = chapterById[chapterId]
+                val title = ch?.title?.ifBlank { null }
+                    ?: ch?.let { "Chapter ${it.number}" }
+                    ?: "Chapter"
+                AnnotationGroup(chapterTitle = title, annotations = anns)
+            }
     }
 
     /** Issue #760 — synopsis-aloud TTS state. Reuses the recap-aloud
@@ -395,6 +487,44 @@ class FictionDetailViewModel @Inject constructor(
                 isExporting.value = false
             }
         }
+    }
+
+    /**
+     * Issue #999 — build a Markdown / plain-text file of this fiction's
+     * highlights + notes in the cache dir and emit
+     * [FictionDetailUiEvent.AnnotationsExported] so the screen fires the
+     * share-sheet / SAF flow. Mirrors [exportToEpub] (#117): takes [context]
+     * for `cacheDir` + `FileProvider`, idempotent against a double-tap while a
+     * previous export is in flight.
+     *
+     * Exports even when there are no annotations (the file carries a friendly
+     * "No highlights yet." line); the screen can choose to gate the menu item
+     * on a non-empty list, but the use case itself never refuses.
+     */
+    fun exportAnnotations(context: Context, format: AnnotationExportFormatter.Format) {
+        if (isExportingAnnotationsFlow.value) return
+        viewModelScope.launch {
+            isExportingAnnotationsFlow.value = true
+            try {
+                val result = exportAnnotations.export(context, fictionId, format)
+                _events.send(FictionDetailUiEvent.AnnotationsExported(result))
+            } catch (t: Throwable) {
+                _events.send(
+                    FictionDetailUiEvent.AnnotationsExportFailed(
+                        "Couldn't export highlights: ${t.message ?: t.javaClass.simpleName}",
+                    ),
+                )
+            } finally {
+                isExportingAnnotationsFlow.value = false
+            }
+        }
+    }
+
+    /** Issue #999 — delete one annotation by its UUID. The "Highlights &
+     *  notes" list's per-row delete routes here; the list updates via the
+     *  observed flow. */
+    fun deleteAnnotation(id: String) {
+        viewModelScope.launch { annotationRepo.delete(id) }
     }
 
     /**
