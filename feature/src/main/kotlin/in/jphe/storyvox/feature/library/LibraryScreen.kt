@@ -21,6 +21,7 @@ import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.DocumentScanner
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
@@ -127,6 +128,12 @@ fun LibraryScreen(
      * preview surfaces that don't exercise the hero still compile.
      */
     onOpenTechEmpower: () -> Unit = {},
+    /**
+     * Issue #995 — "Scan a page" add-flow entry. Routes to the OCR
+     * capture surface ([StoryvoxRoutes.OCR_CAPTURE]). Default no-op so
+     * test / preview surfaces that don't exercise it still compile.
+     */
+    onScanPage: () -> Unit = {},
     viewModel: LibraryViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -235,35 +242,54 @@ fun LibraryScreen(
             )
         },
         floatingActionButton = {
-            // Issue #1003 — the + now offers two ways in: add a fiction by
+            // Issue #995 + #1003 — stacked add affordances. The smaller
+            // "Scan a page" FAB sits above the primary add FAB: scan-to-read
+            // is the highest-leverage accessibility entry, so it gets a
+            // visible top-level affordance rather than living only in a sheet.
+            // The primary FAB keeps #1003's DropdownMenu — add a fiction by
             // URL (the original flow) or make your own audiobook from pasted
-            // text. A compact DropdownMenu keeps the single, familiar FAB.
-            androidx.compose.foundation.layout.Box {
-                FloatingActionButton(
-                    onClick = { addMenuOpen = true },
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary,
+            // text — so all three entry points coexist on the single corner.
+            Column(
+                horizontalAlignment = androidx.compose.ui.Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(LocalSpacing.current.sm),
+            ) {
+                androidx.compose.material3.SmallFloatingActionButton(
+                    onClick = onScanPage,
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
                 ) {
-                    Icon(Icons.Filled.Add, contentDescription = "Add to library")
+                    Icon(
+                        Icons.Filled.DocumentScanner,
+                        contentDescription = stringResource(R.string.library_scan_page_cd),
+                    )
                 }
-                androidx.compose.material3.DropdownMenu(
-                    expanded = addMenuOpen,
-                    onDismissRequest = { addMenuOpen = false },
-                ) {
-                    androidx.compose.material3.DropdownMenuItem(
-                        text = { Text("Add by URL") },
-                        onClick = {
-                            addMenuOpen = false
-                            viewModel.showAddByUrl()
-                        },
-                    )
-                    androidx.compose.material3.DropdownMenuItem(
-                        text = { Text("Make your own audiobook") },
-                        onClick = {
-                            addMenuOpen = false
-                            createAudiobookOpen = true
-                        },
-                    )
+                Box {
+                    FloatingActionButton(
+                        onClick = { addMenuOpen = true },
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary,
+                    ) {
+                        Icon(Icons.Filled.Add, contentDescription = "Add to library")
+                    }
+                    androidx.compose.material3.DropdownMenu(
+                        expanded = addMenuOpen,
+                        onDismissRequest = { addMenuOpen = false },
+                    ) {
+                        androidx.compose.material3.DropdownMenuItem(
+                            text = { Text("Add by URL") },
+                            onClick = {
+                                addMenuOpen = false
+                                viewModel.showAddByUrl()
+                            },
+                        )
+                        androidx.compose.material3.DropdownMenuItem(
+                            text = { Text("Make your own audiobook") },
+                            onClick = {
+                                addMenuOpen = false
+                                createAudiobookOpen = true
+                            },
+                        )
+                    }
                 }
             }
         },

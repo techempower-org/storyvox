@@ -191,6 +191,24 @@ object AppBindings {
     @Provides @Singleton
     fun provideEpubConfig(impl: `in`.jphe.storyvox.data.EpubConfigImpl): `in`.jphe.storyvox.source.epub.config.EpubConfig = impl
 
+    /** Issue #995 — bridges the source-ocr [OcrConfig] read interface
+     *  to the concrete app-side DataStore-backed impl. The same impl
+     *  also serves the [OcrDocumentStore] write side (see
+     *  [provideOcrDocumentStore]) — one DataStore, two facets. */
+    @Provides @Singleton
+    fun provideOcrConfig(impl: `in`.jphe.storyvox.data.OcrConfigImpl): `in`.jphe.storyvox.source.ocr.config.OcrConfig = impl
+
+    /** Issue #995 — write side of the OCR store, consumed by the
+     *  capture flow's ViewModel to persist a finished scan. */
+    @Provides @Singleton
+    fun provideOcrDocumentStore(impl: `in`.jphe.storyvox.data.OcrConfigImpl): `in`.jphe.storyvox.source.ocr.config.OcrDocumentStore = impl
+
+    /** Issue #995 — bridges the :core-data [OcrTextRecognizer] seam to
+     *  the bundled, offline ML Kit Latin recognizer. Shared by the
+     *  camera/gallery capture flow (#995) and #996's scanned-PDF import. */
+    @Provides @Singleton
+    fun provideOcrTextRecognizer(impl: `in`.jphe.storyvox.data.ocr.MlKitOcrTextRecognizer): `in`.jphe.storyvox.data.ocr.OcrTextRecognizer = impl
+
     /** Bridges source-outline OutlineConfig (#245) to the app-side
      *  DataStore + EncryptedSharedPreferences impl. */
     @Provides @Singleton

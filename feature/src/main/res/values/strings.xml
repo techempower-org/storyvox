@@ -832,4 +832,21 @@
     <string name="settings_github_revoke_subtitle">Sign-out clears the local token; use this to revoke Candela\'s authorization on GitHub\'s side too.</string>
     <string name="settings_github_expired_subtitle">Session expired — sign in again to recover.</string>
 
+    <!-- Issue #995 — OCR scan-to-read -->
+    <string name="ocr_capture_title">Scan to read</string>
+    <string name="ocr_capture_back_cd">Back</string>
+    <string name="ocr_capture_intro">Point your camera at a printed page, or pick a photo, and Candela reads it aloud. Scan several pages to make one document.</string>
+    <string name="ocr_camera_rationale">To scan printed text, Candela needs camera access. Nothing leaves your device — text recognition runs entirely offline.</string>
+    <string name="ocr_camera_denied">Camera access is off. You can still scan by picking a photo from your gallery below, or turn the camera on in system Settings.</string>
+    <string name="ocr_enable_camera">Enable camera</string>
+    <string name="ocr_pick_from_gallery">Pick a photo</string>
+    <string name="ocr_capture_button">Capture page</string>
+    <string name="ocr_capture_button_cd">Capture this page for text recognition</string>
+    <string name="ocr_recognizing">Reading text…</string>
+    <string name="ocr_document_title_label">Document title</string>
+    <string name="ocr_pages_summary">%1$d page(s) · %2$d words</string>
+    <string name="ocr_remove_page_cd">Remove %1$s</string>
+    <string name="ocr_save_and_read">Save and read</string>
+    <string name="library_scan_page_cd">Scan a printed page to read aloud</string>
+
 </resources>

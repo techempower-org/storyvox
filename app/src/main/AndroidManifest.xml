@@ -18,6 +18,21 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
+    <!-- Issue #995 — OCR scan-to-read. CAMERA is requested at runtime
+         with a plain-language rationale before the system prompt; a
+         denied camera never dead-ends the feature (the gallery-pick
+         path needs no permission). The camera feature is OPTIONAL so a
+         WiFi-only tablet without a rear camera still installs and uses
+         the gallery path — same required="false" posture as telephony
+         above. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature
+        android:name="android.hardware.camera.any"
+        android:required="false" />
+    <uses-feature
+        android:name="android.hardware.camera.autofocus"
+        android:required="false" />
+
     <!-- Issue #546 / #775 — telephony is OPTIONAL. The TechEmpower
          "Call 211" card (and the matching top-app-bar phone icon)
          dials only on devices with telephony hardware (phones, not

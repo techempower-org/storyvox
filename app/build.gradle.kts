@@ -543,6 +543,12 @@ dependencies {
     implementation(project(":source-rss"))
     implementation(project(":source-epub"))
     implementation(project(":source-epub-writer"))
+    // Issue #995 — OCR scan-to-read. The app hosts the ML Kit
+    // recognizer impl (MlKitOcrTextRecognizer) + the DataStore-backed
+    // OcrConfig / OcrDocumentStore; the source module + the :core-data
+    // OcrTextRecognizer seam carry the Android-free contracts.
+    implementation(project(":source-ocr"))
+    implementation(libs.mlkit.text.recognition)
     implementation(project(":source-outline"))
     implementation(project(":source-gutenberg"))
     implementation(project(":source-ao3"))

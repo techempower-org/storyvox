@@ -91,6 +91,14 @@ desugar = "2.1.5"
 # Storage Access Framework helpers (#235 EPUB import)
 documentfile = "1.1.0"
 
+# OCR / scan-to-read (#995). ML Kit Text Recognition v2 ships a bundled,
+# offline Latin-script model (no Play Services download, no network) —
+# the right posture for an accessibility tool used in low-connectivity
+# settings. CameraX drives the capture surface; the gallery-pick
+# alternative needs no extra dep (ActivityResultContracts.GetContent).
+mlkit-text-recognition = "16.0.1"
+camerax = "1.4.2"
+
 [libraries]
 # AndroidX core
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "core-ktx" }
@@ -102,6 +110,15 @@ androidx-lifecycle-runtime-compose = { module = "androidx.lifecycle:lifecycle-ru
 androidx-startup = { module = "androidx.startup:startup-runtime", version.ref = "startup" }
 androidx-security-crypto = { module = "androidx.security:security-crypto", version.ref = "security-crypto" }
 androidx-documentfile = { module = "androidx.documentfile:documentfile", version.ref = "documentfile" }
+
+# OCR / scan-to-read (#995). Bundled offline text recognizer + CameraX
+# capture stack. ML Kit lib is consumed by :app (the MlKitOcrTextRecognizer
+# impl); CameraX libs by :feature (the OcrCaptureScreen).
+mlkit-text-recognition = { module = "com.google.mlkit:text-recognition", version.ref = "mlkit-text-recognition" }
+androidx-camera-core = { module = "androidx.camera:camera-core", version.ref = "camerax" }
+androidx-camera-camera2 = { module = "androidx.camera:camera-camera2", version.ref = "camerax" }
+androidx-camera-lifecycle = { module = "androidx.camera:camera-lifecycle", version.ref = "camerax" }
+androidx-camera-view = { module = "androidx.camera:camera-view", version.ref = "camerax" }
 
 # Navigation
 androidx-navigation-compose = { module = "androidx.navigation:navigation-compose", version.ref = "navigation-compose" }
@@ -257,4 +274,12 @@ wear-compose = [
     "androidx-wear-compose-material",
     "androidx-wear-compose-foundation",
     "androidx-wear-compose-navigation",
+]
+# CameraX capture stack for the OCR scan surface (#995). camera-view
+# gives the PreviewView + CameraController; camera2 is the backend.
+camerax = [
+    "androidx-camera-core",
+    "androidx-camera-camera2",
+    "androidx-camera-lifecycle",
+    "androidx-camera-view",
 ]

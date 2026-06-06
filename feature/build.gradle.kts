@@ -83,6 +83,14 @@ dependencies {
     // one place (the source module that owns the URL composition rule).
     implementation(project(":source-rss"))
 
+    // Issue #995 — OCR scan-to-read. The capture screen consumes the
+    // OcrDocumentStore / OcrPage types + OcrTextParser to turn a ML Kit
+    // recognition into a persisted document; the recognizer itself
+    // comes from :core-data (the OcrTextRecognizer seam). CameraX drives
+    // the capture surface (camera-view's PreviewView + CameraController).
+    implementation(project(":source-ocr"))
+    implementation(libs.bundles.camerax)
+
     implementation(libs.androidx.core.ktx)
     implementation(libs.bundles.lifecycle)
     implementation(libs.bundles.coroutines)

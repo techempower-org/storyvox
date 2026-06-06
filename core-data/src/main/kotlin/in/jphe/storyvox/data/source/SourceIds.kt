@@ -30,6 +30,12 @@ object SourceIds {
      *  source enumerates .epub files there as fictions. Zero-network,
      *  user-owned-content backend. */
     const val EPUB: String = "epub"
+    /** OCR scan-to-read (#995) — user captures printed text with the
+     *  camera (or picks an image) and on-device ML Kit OCR turns it
+     *  into a fiction (one capture session = one fiction; each captured
+     *  page = one chapter). Zero-network, user-owned-content backend.
+     *  The assistive-tech bridge from the printed world to audio. */
+    const val OCR: String = "ocr"
     /** Outline (#245) — self-hosted wiki. User configures host +
      *  API token; collections become fictions, documents become
      *  chapters. Zero third-party ToS surface. */

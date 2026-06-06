@@ -52,6 +52,12 @@ include(":source-epub-writer")
 // Issue #1003 — pure-JVM chapterizer + M4B chapter-marker math for the
 // "Make your own audiobook" export. Android encode/mux lives in :core-playback.
 include(":source-audiobook-writer")
+// Issue #995 — OCR scan-to-read. Camera / gallery capture → on-device
+// ML Kit Text Recognition (offline, bundled model) → a fiction the
+// EnginePlayer narrates. The assistive-tech bridge from the printed
+// world to accessible audio. Shares the :core-data OcrTextRecognizer
+// seam so #996's scanned-PDF import reuses the same recognizer.
+include(":source-ocr")
 include(":source-outline")
 include(":source-gutenberg")
 include(":source-ao3")

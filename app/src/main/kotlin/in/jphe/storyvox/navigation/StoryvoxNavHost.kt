@@ -72,6 +72,10 @@ object StoryvoxRoutes {
     const val LIBRARY = "library"
     const val FOLLOWS = "follows"
     const val BROWSE = "browse"
+    /** Issue #995 — OCR scan-to-read capture surface. Reached from the
+     *  Library add-flow ("Scan a page"); CameraX / gallery capture →
+     *  on-device ML Kit OCR → a fiction the reader narrates. */
+    const val OCR_CAPTURE = "ocr/capture"
     const val FICTION_DETAIL = "fiction/{fictionId}"
     const val READER = "reader/{fictionId}/{chapterId}"
     const val AUDIOBOOK = "audiobook/{fictionId}/{chapterId}"
@@ -722,6 +726,9 @@ private fun StoryvoxNavHostContent(
                     sharedUrl = sharedUrl,
                     onOpenFiction = { id -> navController.navigate(StoryvoxRoutes.fictionDetail(id)) },
                     onOpenReader = { f, c -> navController.navigate(StoryvoxRoutes.reader(f, c)) },
+                    // Issue #995 — "Scan a page" add-flow entry routes to
+                    // the OCR capture surface.
+                    onScanPage = { navController.navigate(StoryvoxRoutes.OCR_CAPTURE) },
                     // v0.5.72 — Browse is a first-class bottom-nav tab
                     // now; the standalone Browse route owns RR + AO3
                     // sign-in deep-links. Follows is still embedded
@@ -783,6 +790,27 @@ private fun StoryvoxNavHostContent(
                 FollowsScreen(
                     onOpenFiction = { id -> navController.navigate(StoryvoxRoutes.fictionDetail(id)) },
                     onOpenSignIn = { navController.navigate(StoryvoxRoutes.authWebView(SourceIds.ROYAL_ROAD)) },
+                )
+            }
+            composable(
+                // Issue #995 — OCR scan-to-read capture surface.
+                StoryvoxRoutes.OCR_CAPTURE,
+                enterTransition = pushEnter,
+                exitTransition = pushExit,
+                popEnterTransition = popEnter,
+                popExitTransition = popExit,
+            ) {
+                `in`.jphe.storyvox.feature.ocr.OcrCaptureScreen(
+                    onNavigateBack = { navController.popBackStack() },
+                    onScanComplete = { fictionId ->
+                        // Land on the new scanned document's detail page —
+                        // the standard landing for any freshly-added
+                        // fiction — and drop the capture screen from the
+                        // back stack so Back returns to the Library.
+                        navController.navigate(StoryvoxRoutes.fictionDetail(fictionId)) {
+                            popUpTo(StoryvoxRoutes.OCR_CAPTURE) { inclusive = true }
+                        }
+                    },
                 )
             }
             composable(
