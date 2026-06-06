@@ -9,6 +9,20 @@ Entries before v0.5.12 are reconstructed from the git log — see
 
 ## [Unreleased]
 
+## [1.1.1] -- 2026-06-06
+
+**The candle, lit.** A small follow-up to the v1.1.0 wave — a hidden flourish of magic, plus three correctness fixes.
+
+### Added
+- **Milestone magic & easter eggs** — a one-time *"Candela 1.1 — read it your way"* candle-**ignite** celebration on the first launch of a v1.1.x build (the flame draws to life, a warm glow blooms, light-motes rise, and the sound-wave arcs pulse outward as rings of light), with a calm static fallback under reduced-motion. Plus a **hidden candle egg** — tap the empty-library sigil seven times and the flame lights, sheds a few motes, and whispers *"Candela — the SI unit of luminous intensity."* And a **book-completion streak** that lights the same rising-mote celebration on your 1st / 5th / 10th / 25th finished book. All three run on one shared `LightMotes` animation, which also upgrades the chapter-complete celebration to the same luminous language.
+
+### Fixed
+- **#1082** **Royal Road "new chapters" count** — follow-only sources reported the entire un-downloaded backlog (e.g. "65 new chapters") on every poll instead of the genuinely new ones. New-chapter notifications now report the true delta since the last check, and following a fiction no longer announces its whole back-catalog as "new." (The poll worker counted `NOT_DOWNLOADED` chapters, which for subscribe-mode follows never clears.)
+- **#1085** **Restored `:app` unit-test compilation** — a required `pdfConfig` constructor parameter added in the PDF-import work (#996) was never threaded into the 16 `SettingsRepository*Test` fixtures, so the `:app` unit-test source set hadn't compiled (the required CI gate builds the release APK, which skips the test source set, so it slipped through). 202 tests green again.
+
+### Changed
+- **Release APK naming** — the published release artifact is now `candela-v*.apk` (was `storyvox-v*.apk`), the rebrand reaching the build outputs (both the local AGP rename and the CI publish step).
+
 ## [1.1.0] -- 2026-06-05
 
 **Read it your way — and bring your own.** The first post-launch feature wave turns Candela from "play what we fetch" into "read and listen to anything, however you need to." New ways to *get* text in — make your own audiobook from pasted text, scan a physical page (OCR), import a PDF, open a shared EPUB/PDF, or stream public-domain human narration (LibriVox). New ways to *read* it — a dyslexia-friendly typeface, custom color themes and overlays, in-chapter search, focused-reading and per-word read-along modes, paragraph navigation, and persistent highlights & notes you can export. Plus accessibility-first reader controls and a deep round of sync / playback / source correctness underneath. Built on the v1.0.3 Candela identity.
