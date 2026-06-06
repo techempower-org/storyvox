@@ -457,6 +457,113 @@ class AnonymousNotionDelegateTest {
         assertFalse(plain.contains("Tombstone"))
     }
 
+    // ─── #1056 — nested-block recursion (toggles, sub-lists, columns) ──
+
+    @Test
+    fun `renderPageBody recurses into toggle body children`() {
+        // A toggle renders its label, then the blocks it reveals when
+        // expanded — those children live in the toggle's own content[],
+        // which the old renderer never visited (#1056).
+        val rm = recordMapWith(
+            "root" to envelope("""{"type":"page","content":["tog"]}"""),
+            "tog" to envelope("""{"type":"toggle","content":["body1","body2"],"properties":{"title":[["Frequently asked"]]}}"""),
+            "body1" to envelope("""{"type":"text","properties":{"title":[["Hidden answer one."]]}}"""),
+            "body2" to envelope("""{"type":"text","properties":{"title":[["Hidden answer two."]]}}"""),
+        )
+        val root = rm.findBlock("root")!!
+        val (html, plain) = renderPageBody(rm, root)
+        assertTrue("toggle label kept", html.contains("Frequently asked"))
+        assertTrue("toggle body child 1 rendered", html.contains("<p>Hidden answer one.</p>"))
+        assertTrue("toggle body child 2 rendered", html.contains("<p>Hidden answer two.</p>"))
+        assertTrue(plain.contains("Hidden answer one."))
+        assertTrue(plain.contains("Hidden answer two."))
+    }
+
+    @Test
+    fun `renderPageBody recurses into nested list items`() {
+        // Sub-items indented under a parent bullet live in the parent's
+        // content[]; only the top level used to render (#1056).
+        val rm = recordMapWith(
+            "root" to envelope("""{"type":"page","content":["li1"]}"""),
+            "li1" to envelope("""{"type":"bulleted_list","content":["li1a","li1b"],"properties":{"title":[["Parent item"]]}}"""),
+            "li1a" to envelope("""{"type":"bulleted_list","properties":{"title":[["Child item A"]]}}"""),
+            "li1b" to envelope("""{"type":"bulleted_list","properties":{"title":[["Child item B"]]}}"""),
+        )
+        val root = rm.findBlock("root")!!
+        val (html, plain) = renderPageBody(rm, root)
+        assertTrue("parent item rendered", html.contains("Parent item"))
+        assertTrue("nested child A rendered", html.contains("Child item A"))
+        assertTrue("nested child B rendered", html.contains("Child item B"))
+        // HTML nests the children inside a sub-list rather than emitting
+        // them flat alongside the parent.
+        assertTrue("children wrapped in a nested <ul>", html.contains("<ul>"))
+        assertTrue(plain.contains("Parent item"))
+        assertTrue(plain.contains("Child item A"))
+        assertTrue(plain.contains("Child item B"))
+    }
+
+    @Test
+    fun `renderPageBody descends into column_list and column children`() {
+        // Multi-column sections: the column_list/column blocks carry no
+        // text of their own, but their children hold the actual content.
+        // The old renderer hit `else -> ""` and never visited the
+        // children, so whole columned sections vanished (#1056). About /
+        // Donate are column pages.
+        val rm = recordMapWith(
+            "root" to envelope("""{"type":"page","content":["cols"]}"""),
+            "cols" to envelope("""{"type":"column_list","content":["colA","colB"]}"""),
+            "colA" to envelope("""{"type":"column","content":["a1"]}"""),
+            "colB" to envelope("""{"type":"column","content":["b1"]}"""),
+            "a1" to envelope("""{"type":"text","properties":{"title":[["Left column text."]]}}"""),
+            "b1" to envelope("""{"type":"text","properties":{"title":[["Right column text."]]}}"""),
+        )
+        val root = rm.findBlock("root")!!
+        val (html, plain) = renderPageBody(rm, root)
+        assertTrue("left column text narrated", html.contains("<p>Left column text.</p>"))
+        assertTrue("right column text narrated", html.contains("<p>Right column text.</p>"))
+        assertTrue(plain.contains("Left column text."))
+        assertTrue(plain.contains("Right column text."))
+        // Reading order is left-to-right (acceptable for TTS).
+        assertTrue(
+            "columns narrated in left-to-right order",
+            plain.indexOf("Left column text.") < plain.indexOf("Right column text."),
+        )
+    }
+
+    @Test
+    fun `renderPageBody does not expand sub-pages even when they have children`() {
+        // The bridge-paragraph behavior for sub-pages must survive the
+        // recursion: a child `page` block is referenced by title, never
+        // expanded inline (would balloon the chapter).
+        val rm = recordMapWith(
+            "root" to envelope("""{"type":"page","content":["subp"]}"""),
+            "subp" to envelope("""{"type":"page","content":["deep"],"properties":{"title":[["How to use TechEmpower"]]}}"""),
+            "deep" to envelope("""{"type":"text","properties":{"title":[["This deep content must NOT be inlined."]]}}"""),
+        )
+        val root = rm.findBlock("root")!!
+        val (html, plain) = renderPageBody(rm, root)
+        assertTrue(html.contains("<p><strong>How to use TechEmpower</strong></p>"))
+        assertFalse("sub-page content must not be expanded inline", html.contains("must NOT be inlined"))
+        assertFalse(plain.contains("must NOT be inlined"))
+    }
+
+    @Test
+    fun `renderPageBody is cycle-safe against self-referential content`() {
+        // Notion tombstones + self/parent references can create cycles
+        // in content[]. The recursion must terminate (visited-set guard)
+        // rather than stack-overflow.
+        val rm = recordMapWith(
+            "root" to envelope("""{"type":"page","content":["tog"]}"""),
+            // toggle whose child points back to itself.
+            "tog" to envelope("""{"type":"toggle","content":["tog"],"properties":{"title":[["Self ref"]]}}"""),
+        )
+        val root = rm.findBlock("root")!!
+        val (html, _) = renderPageBody(rm, root)
+        // Terminates and renders the label exactly once.
+        assertTrue(html.contains("Self ref"))
+        assertEquals(1, Regex("Self ref").findAll(html).count())
+    }
+
     @Test
     fun `renderPageBody embeds sub-page titles as bridge paragraphs`() {
         // Sub-pages stay reachable through their authored titles; the

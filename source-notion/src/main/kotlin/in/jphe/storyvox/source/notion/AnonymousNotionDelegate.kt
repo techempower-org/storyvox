@@ -811,12 +811,37 @@ internal fun blockToPlain(block: JsonObject): String {
     }
 }
 
+/** Maximum recursion depth when descending into nested block children.
+ *  Notion pages nest a handful of levels at most (toggle → list → text);
+ *  this cap is a safety net against pathological/adversarial trees, paired
+ *  with the visited-set cycle guard. */
+private const val MAX_BLOCK_DEPTH = 32
+
+/** Container block types whose children carry the real content and must be
+ *  recursed into. `column_list`/`column` are pure layout (no own text); a
+ *  `toggle` has both a label *and* a revealed body in its children. */
+private val LIST_TYPES = setOf("bulleted_list", "numbered_list")
+
 /**
  * Render a single page's content as one chapter body. Returns a pair
  * (htmlBody, plainBody). All `alive:false` tombstones are filtered.
+ *
+ * Notion's unofficial model is flat at the storage layer: parent→child is
+ * expressed only by each block's own `content:[childId, …]` array, at every
+ * level. So this walks `content[]` **recursively** (#1056) — toggle bodies,
+ * nested list items, and `column_list`/`column` children all live one or more
+ * levels down and used to be dropped:
+ *  - toggles render their label, then their revealed body children inline;
+ *  - nested list items render as nested `<ul>`/`<ol>` in HTML, flattened
+ *    into reading order for the TTS-plain projection;
+ *  - `column_list`/`column` emit no wrapper but their children are visited
+ *    (left-to-right reading order, acceptable for narration).
+ *
  * Page blocks embedded in the content (sub-pages) render as bridge
- * paragraphs ("<strong>Sub-page title</strong>") rather than being
- * expanded inline.
+ * paragraphs ("<strong>Sub-page title</strong>") rather than being expanded
+ * inline — that behavior is preserved (we do not recurse into a child page's
+ * own content). A visited-set guard (seeded with the page block) plus a depth
+ * cap keep the recursion safe against Notion's self/parent references.
  */
 internal fun renderPageBody(
     rm: NotionRecordMap,
@@ -824,22 +849,121 @@ internal fun renderPageBody(
 ): Pair<String, String> {
     val html = StringBuilder()
     val plain = StringBuilder()
-    for (id in pageBlock.contentIds()) {
+    val visited = HashSet<String>()
+    // Seed the page block so a page that lists itself can't recurse forever.
+    (pageBlock["id"] as? JsonPrimitive)?.contentOrNull?.let { visited.add(it) }
+    renderChildren(rm, pageBlock.contentIds(), html, plain, visited, depth = 0)
+    return html.toString().trim() to plain.toString().trim()
+}
+
+/**
+ * Render an ordered list of child block ids into [html]/[plain], grouping
+ * consecutive list items under a single `<ul>`/`<ol>` and recursing into
+ * each block's own children. [visited] guards against cycles; [depth] caps
+ * recursion.
+ */
+private fun renderChildren(
+    rm: NotionRecordMap,
+    childIds: List<String>,
+    html: StringBuilder,
+    plain: StringBuilder,
+    visited: MutableSet<String>,
+    depth: Int,
+) {
+    if (depth > MAX_BLOCK_DEPTH) return
+    var openList: String? = null // "ul" | "ol" while inside a run of list items
+
+    fun closeListIfOpen() {
+        openList?.let { html.append("\n</").append(it).append('>') }
+        openList = null
+    }
+
+    for (id in childIds) {
+        if (!visited.add(id)) continue // already rendered → cycle, skip
         val block = rm.findBlock(id) ?: continue
-        val alive = (block["alive"] as? JsonPrimitive)?.booleanOrNull
-        if (alive == false) continue
-        val htmlPart = blockToHtml(rm, block)
-        if (htmlPart.isNotEmpty()) {
-            if (html.isNotEmpty()) html.append('\n')
-            html.append(htmlPart)
+        if ((block["alive"] as? JsonPrimitive)?.booleanOrNull == false) continue
+        val type = block.blockType()
+
+        // Maintain <ul>/<ol> grouping around runs of list items.
+        if (type in LIST_TYPES) {
+            val tag = if (type == "numbered_list") "ol" else "ul"
+            if (openList != tag) {
+                closeListIfOpen()
+                html.append(if (html.isEmpty()) "" else "\n").append('<').append(tag).append('>')
+                openList = tag
+            }
+            renderListItem(rm, block, html, plain, visited, depth)
+            continue
         }
-        val plainPart = blockToPlain(block)
-        if (plainPart.isNotEmpty()) {
-            if (plain.isNotEmpty()) plain.append("\n\n")
-            plain.append(plainPart)
+        closeListIfOpen()
+
+        // Pure layout containers: emit nothing themselves, recurse into kids.
+        if (type == "column_list" || type == "column") {
+            renderChildren(rm, block.contentIds(), html, plain, visited, depth + 1)
+            continue
+        }
+
+        // A toggle renders its own label, then its revealed body children.
+        if (type == "toggle") {
+            appendBlock(rm, block, html, plain)
+            renderChildren(rm, block.contentIds(), html, plain, visited, depth + 1)
+            continue
+        }
+
+        // Leaf (or sub-page bridge paragraph). Sub-pages are intentionally
+        // NOT expanded — render the bridge, don't recurse into their content.
+        appendBlock(rm, block, html, plain)
+        if (type != "page") {
+            renderChildren(rm, block.contentIds(), html, plain, visited, depth + 1)
         }
     }
-    return html.toString().trim() to plain.toString().trim()
+    closeListIfOpen()
+}
+
+/** Render a single list item plus any sub-items nested under it. The item's
+ *  own `<li>` text comes from [blockToHtml]; its child list items recurse into
+ *  a fresh nested `<ul>`/`<ol>`. Plain projection flattens to reading order. */
+private fun renderListItem(
+    rm: NotionRecordMap,
+    block: JsonObject,
+    html: StringBuilder,
+    plain: StringBuilder,
+    visited: MutableSet<String>,
+    depth: Int,
+) {
+    val li = blockToHtml(rm, block)
+    if (li.isNotEmpty()) {
+        if (html.isNotEmpty()) html.append('\n')
+        html.append(li)
+    }
+    val plainPart = blockToPlain(block)
+    if (plainPart.isNotEmpty()) {
+        if (plain.isNotEmpty()) plain.append("\n\n")
+        plain.append(plainPart)
+    }
+    // Sub-items / nested content of this list item.
+    if (block.contentIds().isNotEmpty()) {
+        renderChildren(rm, block.contentIds(), html, plain, visited, depth + 1)
+    }
+}
+
+/** Append a leaf block's HTML + plain projection to the builders. */
+private fun appendBlock(
+    rm: NotionRecordMap,
+    block: JsonObject,
+    html: StringBuilder,
+    plain: StringBuilder,
+) {
+    val htmlPart = blockToHtml(rm, block)
+    if (htmlPart.isNotEmpty()) {
+        if (html.isNotEmpty()) html.append('\n')
+        html.append(htmlPart)
+    }
+    val plainPart = blockToPlain(block)
+    if (plainPart.isNotEmpty()) {
+        if (plain.isNotEmpty()) plain.append("\n\n")
+        plain.append(plainPart)
+    }
 }
 
 /**
