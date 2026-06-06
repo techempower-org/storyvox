@@ -20,6 +20,14 @@ import org.junit.Test
  */
 class EpubParserResolveHrefTest {
 
+    private companion object {
+        // Three #1021 cases converge on this one canonical resolved path,
+        // each reaching it from a different input href (./, leading-slash,
+        // plain). Naming it documents the convergence (and clears DeepSource
+        // KT-W1042's duplicate-literal gate).
+        const val OEBPS_CH1 = "OEBPS/ch1.xhtml"
+    }
+
     // ── #1035: percent-encoded hrefs ─────────────────────────────
 
     @Test fun `percent-encoded space resolves to the decoded entry name`() {
@@ -63,17 +71,17 @@ class EpubParserResolveHrefTest {
     }
 
     @Test fun `current-dir segment collapses`() {
-        assertEquals("OEBPS/ch1.xhtml", EpubParser.resolveHref("OEBPS", "./ch1.xhtml"))
+        assertEquals(OEBPS_CH1, EpubParser.resolveHref("OEBPS", "./ch1.xhtml"))
     }
 
     @Test fun `leading slash is stripped`() {
         // Zip entry names are root-relative; a leading-slash absolute
         // href must not double-prefix or keep the slash.
-        assertEquals("OEBPS/ch1.xhtml", EpubParser.resolveHref("OEBPS", "/OEBPS/ch1.xhtml"))
+        assertEquals(OEBPS_CH1, EpubParser.resolveHref("OEBPS", "/OEBPS/ch1.xhtml"))
     }
 
     @Test fun `simple join when href is in the opf dir`() {
-        assertEquals("OEBPS/ch1.xhtml", EpubParser.resolveHref("OEBPS", "ch1.xhtml"))
+        assertEquals(OEBPS_CH1, EpubParser.resolveHref("OEBPS", "ch1.xhtml"))
     }
 
     @Test fun `empty opf dir leaves a root-level href untouched`() {
