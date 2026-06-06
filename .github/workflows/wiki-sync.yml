@@ -1,0 +1,89 @@
+name: Wiki content sync
+
+# Keeps the GitHub wiki (<repo>.wiki) current from the canonical repo docs.
+#
+# Source of truth is the repo, NOT the wiki. On every push to main that touches
+# docs/, CHANGELOG.md, or settings.gradle.kts, this regenerates the wiki pages
+# it OWNS and pushes them to the .wiki repo. It is idempotent (re-running with no
+# source change produces no commit) and never clobbers hand-authored wiki pages.
+#
+# Two-layer guard against clobbering manual edits:
+#   1. Explicit allowlist (PAGE_MAP below) — only listed pages are ever written.
+#      Hand-authored pages (Home, Getting-started, Fiction-sources, AI-chat,
+#      Voices, Voice-catalog, Settings-reference, Building-from-source,
+#      Troubleshooting) are not in the map and are never touched or deleted.
+#   2. Ownership marker — each generated page starts with an AUTO-GENERATED
+#      comment. Before overwriting an EXISTING page the sync checks for that
+#      marker: present => we own it, overwrite; absent => a human owns it, SKIP
+#      with a warning (takeover is opt-in, never silent). Pages are never deleted.
+#
+# The release-version line in wiki Home.md is owned by release-docs-sync.yml;
+# this workflow deliberately does not touch Home.md.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/**'
+      - 'CHANGELOG.md'
+      - 'settings.gradle.kts'
+      - '.github/workflows/wiki-sync.yml'
+  workflow_dispatch:
+    inputs:
+      force_takeover:
+        description: 'Overwrite hand-authored wiki pages that lack the AUTO-GENERATED marker (default false).'
+        type: boolean
+        default: false
+
+concurrency:
+  group: wiki-sync-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: [self-hosted, linux]
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repo (canonical source)
+        uses: actions/checkout@v5
+        with:
+          ref: main
+          fetch-depth: 1
+
+      - name: Sync docs -> wiki
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          OWNER: ${{ github.repository_owner }}
+          NAME: ${{ github.event.repository.name }}
+          FORCE_TAKEOVER: ${{ inputs.force_takeover }}
+          SRC_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+
+          WIKI_DIR="$RUNNER_TEMP/wiki"
+          rm -rf "$WIKI_DIR"
+          if ! git clone "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.wiki.git" "$WIKI_DIR" 2>/dev/null; then
+            echo "::warning::Wiki not initialized or not accessible — nothing to sync."
+            echo "Create the first wiki page in the GitHub UI to initialize the .wiki repo, then re-run."
+            exit 0
+          fi
+
+          REPO="$REPO" OWNER="$OWNER" NAME="$NAME" WIKI_DIR="$WIKI_DIR" \
+          FORCE_TAKEOVER="${FORCE_TAKEOVER:-false}" SRC_SHA="$SRC_SHA" \
+          python3 "$GITHUB_WORKSPACE/scripts/wiki/sync_wiki.py"
+
+          cd "$WIKI_DIR"
+          if git diff --quiet && git diff --cached --quiet; then
+            echo "Wiki already in sync — no commit."
+            exit 0
+          fi
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name  "github-actions[bot]"
+          # The Python step stages only managed pages; commit whatever it staged.
+          git commit -m "docs(wiki): sync from main @ ${SRC_SHA:0:7}"
+          git push
+          echo "Wiki synced and pushed."
