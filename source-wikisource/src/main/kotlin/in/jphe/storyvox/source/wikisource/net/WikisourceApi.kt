@@ -122,11 +122,17 @@ internal class WikisourceApi @Inject constructor(
      * work at `War_and_Peace` with chapters at `War_and_Peace/Book_One`,
      * `War_and_Peace/Book_Two`, etc.
      *
-     * Returns the subpage titles in the order MediaWiki returns them
-     * (alphabetical by title, which happens to be reading order for
-     * well-named works that pad with leading zeros or use Book_One /
-     * Book_Two text). Single-page works return an empty list and the
-     * caller falls back to heading-based splitting on the parent page.
+     * MediaWiki `list=allpages` returns titles in **codepoint
+     * (lexicographic) order**, which is NOT reading order for the
+     * dominant en.wikisource convention of bare chapter numbers
+     * (`/Chapter_1`, `/Chapter_10`, `/Chapter_2`) — lexicographic puts
+     * `Chapter_10` before `Chapter_2`. We apply [naturalSubpageOrder]
+     * here so both callers — index assignment in
+     * `WikisourceSource.fictionDetail` and the index→title re-derivation
+     * in `chapterFromSubpage` — consume the same numerically-sorted list
+     * and can never disagree (issue #1060). Single-page works return an
+     * empty list and the caller falls back to heading-based splitting on
+     * the parent page.
      *
      * `apprefix` parameter expects the prefix relative to the
      * namespace; we pass the underscored title followed by `/`.
@@ -143,7 +149,7 @@ internal class WikisourceApi @Inject constructor(
         return getJson<WikisourceAllPagesResponse>(url).let { res ->
             when (res) {
                 is FictionResult.Success ->
-                    FictionResult.Success(res.value.query?.allpages.orEmpty().map { it.title })
+                    FictionResult.Success(naturalSubpageOrder(res.value.query?.allpages.orEmpty().map { it.title }))
                 is FictionResult.Failure -> res
             }
         }
@@ -244,6 +250,58 @@ internal class WikisourceApi @Inject constructor(
         const val USER_AGENT: String =
             "storyvox-wikisource/1.0 (https://github.com/jphein/storyvox; jp@jphein.com)"
     }
+}
+
+// ─── chapter ordering ──────────────────────────────────────────────────
+
+/**
+ * Natural (numeric-aware) order for Wikisource subpage titles (#1060).
+ *
+ * MediaWiki `list=allpages` hands back codepoint order, which sequences
+ * bare-numbered chapters wrong: `Chapter_1, Chapter_10, Chapter_11,
+ * Chapter_2, …`. For works that zero-pad (`Chapter_01`) the lexicographic
+ * order happens to be correct, but the dominant en.wikisource convention
+ * is the bare form, so ≥10-chapter books play out of reading order.
+ *
+ * We sort on each subpage's **leaf name** (the segment after the last
+ * `/`) so a parent title that itself ends in a number (e.g. `Henry_V`)
+ * doesn't leak into the per-chapter ordinal. The sort key is:
+ *
+ *  1. numbered leaves first (those with a trailing integer run), ordered
+ *     by that integer — this is the chapter ordinal;
+ *  2. then prose-named leaves (no trailing number — `Preface`,
+ *     `Appendix`), ordered lexicographically and grouped after the
+ *     numbered ones so a stray `/Preface` can't land mid-book.
+ *
+ * The trailing-number rule targets the ordinal precisely: leaves are
+ * shaped `Chapter_10`, `Part_2`, `Scene_12`, where the discriminating
+ * integer is always at the end. The sort is **stable**, so equal keys
+ * (and already-correct zero-padded works) keep their incoming order.
+ *
+ * Roman numerals and spelled-out numbers (`Chapter_XII`, `Book_One`)
+ * fall into the prose-named bucket and sort lexicographically — a known
+ * follow-up, called out in the issue, not regressed by this change.
+ */
+internal fun naturalSubpageOrder(titles: List<String>): List<String> {
+    val trailingNumber = Regex("""(\d+)\s*$""")
+    return titles.sortedWith(
+        compareBy(
+            // Stable partition: numbered leaves (key 0) before prose (key 1).
+            { title ->
+                val leaf = title.substringAfterLast('/')
+                if (trailingNumber.containsMatchIn(leaf)) 0 else 1
+            },
+            // Numbered leaves order by the trailing integer; prose leaves
+            // share Long.MAX_VALUE here and fall through to the tiebreak.
+            { title ->
+                val leaf = title.substringAfterLast('/')
+                trailingNumber.find(leaf)?.groupValues?.get(1)?.toLongOrNull() ?: Long.MAX_VALUE
+            },
+            // Lexicographic tiebreak — orders the prose bucket and keeps
+            // the whole sort deterministic for duplicate numeric keys.
+            { it },
+        ),
+    )
 }
 
 // ─── wire types ───────────────────────────────────────────────────────
