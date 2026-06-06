@@ -2398,12 +2398,15 @@ class SettingsRepositoryUiImpl(
 
     // ── Reader-surface typography (issue #992) ──────────────────────
     // Each setter clamps into the safe range from ReaderTypography so a
-    // corrupt slider value or a synced-in out-of-range value can never
-    // persist something unreadable. Synced (reading-comfort, carried
-    // across devices) — every write stamps.
+    // corrupt slider value can never persist something unreadable.
+    // DEVICE-LOCAL — these reader-comfort knobs are deliberately NOT in
+    // SYNC_ALLOWLIST and do NOT call stampSyncedWrite(): per the #992
+    // ruling, reader typography is per-device (a user may want larger
+    // text on a phone than a tablet), matching the existing device-local
+    // reader-pref pattern. A bare store.edit { } is the device-local
+    // idiom in this file (cf. non-synced reader toggles).
     override suspend fun setReaderFontFamily(family: ReaderFontFamily) {
         store.edit { it[Keys.READER_FONT_FAMILY] = family.name }
-        stampSyncedWrite()
     }
 
     override suspend fun setReaderFontSizeSp(sizeSp: Float) {
@@ -2413,7 +2416,6 @@ class SettingsRepositoryUiImpl(
                 ReaderTypography.MAX_FONT_SIZE_SP,
             )
         }
-        stampSyncedWrite()
     }
 
     override suspend fun setReaderLineHeightMultiplier(multiplier: Float) {
@@ -2423,7 +2425,6 @@ class SettingsRepositoryUiImpl(
                 ReaderTypography.MAX_LINE_HEIGHT,
             )
         }
-        stampSyncedWrite()
     }
 
     override suspend fun setReaderLetterSpacingEm(em: Float) {
@@ -2433,7 +2434,6 @@ class SettingsRepositoryUiImpl(
                 ReaderTypography.MAX_LETTER_SPACING_EM,
             )
         }
-        stampSyncedWrite()
     }
 
     override suspend fun setReaderParagraphSpacingMultiplier(multiplier: Float) {
@@ -2443,7 +2443,6 @@ class SettingsRepositoryUiImpl(
                 ReaderTypography.MAX_PARAGRAPH_SPACING,
             )
         }
-        stampSyncedWrite()
     }
 
     override suspend fun setA11yTalkBackNudgeDismissed(dismissed: Boolean) {
@@ -3330,15 +3329,12 @@ class SettingsRepositoryUiImpl(
             "pref_a11y_speak_chapter_mode",
             "pref_a11y_font_scale_override",
             "pref_a11y_reading_direction",
-            // Issue #992 — reader-surface typography. Reading-comfort
-            // choices (dyslexia font, text size / line + letter spacing)
-            // that a user wants mirrored across their devices, same
-            // rationale as `pref_theme_override`.
-            "pref_reader_font_family",
-            "pref_reader_font_size_sp",
-            "pref_reader_line_height_mult",
-            "pref_reader_letter_spacing_em",
-            "pref_reader_paragraph_spacing_mult",
+            // Issue #992 — reader-surface typography prefs
+            // (pref_reader_font_family / _font_size_sp / _line_height_mult
+            // / _letter_spacing_em / _paragraph_spacing_mult) are
+            // deliberately ABSENT from this allowlist: reader typography
+            // is device-local (per the #992 ruling), so a user can size
+            // text differently on phone vs tablet without sync clobber.
             // Issue #517 — TechEmpower Home onboarding gate.
             "pref_techempower_home_seen",
             // Issue #178 — Royal Road tag-sync metadata. The actual
