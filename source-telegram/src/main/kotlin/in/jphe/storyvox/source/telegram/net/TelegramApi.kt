@@ -4,6 +4,8 @@ import `in`.jphe.storyvox.data.source.model.FictionResult
 import `in`.jphe.storyvox.source.telegram.config.TelegramConfig
 import `in`.jphe.storyvox.source.telegram.config.TelegramConfigState
 import `in`.jphe.storyvox.source.telegram.config.TelegramDefaults
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import okhttp3.OkHttpClient
@@ -123,7 +125,7 @@ internal class TelegramApi @Inject constructor(
 
     // ─── transport ────────────────────────────────────────────────────
 
-    private inline fun <reified T> getJson(url: String, state: TelegramConfigState): FictionResult<T> =
+    private suspend inline fun <reified T> getJson(url: String, state: TelegramConfigState): FictionResult<T> =
         when (val raw = doRequest(url, state)) {
             is FictionResult.Success -> try {
                 // Unwrap the {ok, result} envelope.
@@ -173,12 +175,19 @@ internal class TelegramApi @Inject constructor(
      * Single GET with Telegram's required headers + structured
      * failure mapping. Token is in the URL path (per Bot API
      * convention) so no Authorization header.
+     *
+     * Issue #585 — wrapped in [withContext]`(Dispatchers.IO)`, mirroring
+     * `DiscordApi.doRequest`: the suspend caller's dispatcher (often
+     * `Dispatchers.Main.immediate` via a Compose ViewModel scope) is
+     * inherited without an explicit pin, and the underlying OkHttp
+     * `execute()` blocks on DNS / TCP / TLS — fatal
+     * `NetworkOnMainThreadException`.
      */
-    private fun doRequest(
+    private suspend fun doRequest(
         url: String,
         @Suppress("UNUSED_PARAMETER") state: TelegramConfigState,
-    ): FictionResult<String> {
-        return try {
+    ): FictionResult<String> = withContext(Dispatchers.IO) {
+        try {
             val request = Request.Builder()
                 .url(url)
                 .header("Accept", "application/json")

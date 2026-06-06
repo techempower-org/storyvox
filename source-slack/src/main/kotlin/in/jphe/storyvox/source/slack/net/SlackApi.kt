@@ -4,6 +4,8 @@ import `in`.jphe.storyvox.data.source.model.FictionResult
 import `in`.jphe.storyvox.source.slack.config.SlackConfig
 import `in`.jphe.storyvox.source.slack.config.SlackConfigState
 import `in`.jphe.storyvox.source.slack.config.SlackDefaults
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
@@ -149,7 +151,7 @@ internal class SlackApi @Inject constructor(
 
     // ─── transport ────────────────────────────────────────────────────
 
-    private inline fun <reified T> getJson(url: String, state: SlackConfigState): FictionResult<T> =
+    private suspend inline fun <reified T> getJson(url: String, state: SlackConfigState): FictionResult<T> =
         when (val raw = doRequest(url, state)) {
             is FictionResult.Success -> try {
                 val parsed = json.decodeFromString<T>(raw.value)
@@ -205,12 +207,19 @@ internal class SlackApi @Inject constructor(
      * Single GET with Slack's required headers + structured failure
      * mapping. Token comes from [state] (a fresh snapshot per call)
      * so a Settings change applies on the next request.
+     *
+     * Issue #585 — wrapped in [withContext]`(Dispatchers.IO)`, mirroring
+     * `DiscordApi.doRequest`: the suspend caller's dispatcher (often
+     * `Dispatchers.Main.immediate` via a Compose ViewModel scope) is
+     * inherited without an explicit pin, and the underlying OkHttp
+     * `execute()` blocks on DNS / TCP / TLS — fatal
+     * `NetworkOnMainThreadException`.
      */
-    private fun doRequest(
+    private suspend fun doRequest(
         url: String,
         state: SlackConfigState,
-    ): FictionResult<String> {
-        return try {
+    ): FictionResult<String> = withContext(Dispatchers.IO) {
+        try {
             val request = Request.Builder()
                 .url(url)
                 // `Bearer <token>` is Slack's documented modern auth
