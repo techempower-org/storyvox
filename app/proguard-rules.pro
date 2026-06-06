@@ -233,3 +233,19 @@
 # covers them too.
 -keep class in.jphe.storyvox.widget.NowPlayingWidgetProvider { *; }
 -keep class in.jphe.storyvox.widget.NowPlayingWidgetProvider$WidgetEntryPoint { *; }
+
+# ----------------------------------------------------------------------
+# PdfBox-Android (#996 :source-pdf) — optional JPEG-2000 decoder.
+# ----------------------------------------------------------------------
+# com.tom_roush.pdfbox.filter.JPXFilter references
+# com.gemalto.jp2.JP2Decoder, an OPTIONAL JPEG-2000 image decoder that
+# PdfBox-Android only needs to rasterise JPX-compressed images embedded
+# in a PDF. We extract the text layer, never images, so we deliberately
+# don't ship the (native, heavyweight) com.gemalto.jp2:jp2-android dep.
+# R8 sees the dangling reference and, since AGP treats missing classes
+# as a hard error in release builds, fails minifyRelease without this
+# -dontwarn. Debug builds skip R8 entirely, which is why this only
+# surfaced in CI's :app:assembleRelease and not in compileDebugKotlin.
+# AGP auto-generates exactly this rule into
+# build/outputs/mapping/release/missing_rules.txt.
+-dontwarn com.gemalto.jp2.JP2Decoder
