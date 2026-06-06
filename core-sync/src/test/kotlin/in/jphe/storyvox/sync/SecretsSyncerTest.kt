@@ -228,6 +228,109 @@ class SecretsSyncerTest {
         assertEquals("local-only-key", prefsB.getString("llm.openai_key", null))
     }
 
+    @Test fun `wrong passphrase does NOT overwrite the remote blob and reports passphrase mismatch (regression #1027)`() = runTest {
+        // #1027 (data loss): device B with a wrong/rotated passphrase used
+        // to (a) re-encrypt its OWN local secrets under the wrong key,
+        // (b) overwrite device A's good remote blob with that garbage, and
+        // (c) report SyncOutcome.Ok — destroying cross-device secret sync
+        // silently. The fix makes a present-but-undecryptable remote row a
+        // non-clobbering Permanent outcome.
+        val backend = FakeInstantBackend()
+        val rowId = SyncIds.rowUuid(SecretsSyncer.DOMAIN, USER.userId)
+
+        // Device A encrypts under the CORRECT passphrase and pushes.
+        val prefsA = FakePrefs().apply {
+            edit().putString("llm.openai_key", "sk-correct-A").apply()
+        }
+        SecretsSyncer(
+            secrets = prefsA,
+            backend = backend,
+            passphraseProvider = { PASSPHRASE.copyOf() },
+        ).push(USER)
+        val goodBlob = backend.fetch(USER, "blobs", rowId).getOrNull()
+        assertNotNull("device A must have written the remote blob", goodBlob)
+
+        // Device B has its own local secret and a WRONG passphrase.
+        val prefsB = FakePrefs().apply {
+            edit().putString("llm.openai_key", "local-only-B").apply()
+        }
+        val deviceB = SecretsSyncer(
+            secrets = prefsB,
+            backend = backend,
+            passphraseProvider = { "wrong-passphrase".toCharArray() },
+        )
+        val outcome = deviceB.pull(USER)
+
+        // (1) The outcome is the passphrase-mismatch Permanent — NOT Ok.
+        assertTrue(
+            "undecryptable remote must yield Permanent, got $outcome",
+            outcome is SyncOutcome.Permanent,
+        )
+        assertEquals(
+            SecretsSyncer.PASSPHRASE_MISMATCH_MESSAGE,
+            (outcome as SyncOutcome.Permanent).message,
+        )
+
+        // (2) The remote blob is BYTE-FOR-BYTE the one device A wrote —
+        // device B did not push anything over it.
+        val afterBlob = backend.fetch(USER, "blobs", rowId).getOrNull()
+        assertNotNull(afterBlob)
+        assertEquals(
+            "remote secrets blob must be untouched after a wrong-passphrase sync",
+            goodBlob!!.payload,
+            afterBlob!!.payload,
+        )
+        assertEquals(goodBlob.updatedAt, afterBlob.updatedAt)
+
+        // (3) Device A (correct passphrase) can still decrypt the remote —
+        // i.e. the blob is genuinely still A's, not silently re-keyed.
+        val prefsA2 = FakePrefs()
+        val deviceA2 = SecretsSyncer(
+            secrets = prefsA2,
+            backend = backend,
+            passphraseProvider = { PASSPHRASE.copyOf() },
+        )
+        assertTrue(
+            "a device with the correct passphrase must still pull cleanly",
+            deviceA2.pull(USER) is SyncOutcome.Ok,
+        )
+        assertEquals("sk-correct-A", prefsA2.getString("llm.openai_key", null))
+
+        // (4) Device B's local secret is untouched too (pre-fix invariant
+        // that already held — kept here so a future change can't regress
+        // it while we're guarding the remote).
+        assertEquals("local-only-B", prefsB.getString("llm.openai_key", null))
+    }
+
+    @Test fun `a structurally garbled remote envelope is non-clobbering (regression #1027)`() = runTest {
+        // The issue notes that even a remote row that fails parseEnvelope
+        // (not just decrypt) used to trip the same unconditional overwrite.
+        // A present-but-unparseable row is treated as undecryptable: never
+        // overwrite a row we can't read.
+        val backend = FakeInstantBackend()
+        val rowId = SyncIds.rowUuid(SecretsSyncer.DOMAIN, USER.userId)
+        // Seed the remote with a payload that is NOT a valid v1/v2 envelope.
+        backend.upsert(USER, "blobs", rowId, payload = "not-a-valid-envelope", updatedAt = 123L)
+
+        val prefs = FakePrefs().apply {
+            edit().putString("llm.openai_key", "local-key").apply()
+        }
+        val device = SecretsSyncer(
+            secrets = prefs,
+            backend = backend,
+            passphraseProvider = { PASSPHRASE.copyOf() },
+        )
+        val outcome = device.pull(USER)
+        assertTrue(
+            "garbled remote envelope must yield Permanent, got $outcome",
+            outcome is SyncOutcome.Permanent,
+        )
+        // The garbled row is left exactly as-is — we don't push over it.
+        val after = backend.fetch(USER, "blobs", rowId).getOrNull()
+        assertEquals("not-a-valid-envelope", after?.payload)
+        assertEquals(123L, after?.updatedAt)
+    }
+
     @Test fun `no passphrase configured returns permanent and does not touch local or remote`() = runTest {
         val backend = FakeInstantBackend()
         val prefs = FakePrefs().apply {

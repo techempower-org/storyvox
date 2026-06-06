@@ -121,7 +121,26 @@ class SecretsSyncer @Inject constructor(
         val remote = backend.fetch(user, ENTITY, rowId(user)).getOrElse {
             return SyncOutcome.Transient("remote fetch: ${it.message}")
         }
-        val remoteDecoded: Stamped<Map<String, String>>? = remote?.let { decode(it.payload, it.updatedAt, key) }
+
+        // Issue #1027 (data loss): a remote row that EXISTS but cannot be
+        // decrypted/parsed is NOT the same as "no remote row." The old
+        // code collapsed both into `null`, picked local, and then pushed
+        // unconditionally — re-encrypting local secrets under the wrong
+        // key and silently destroying a perfectly good remote blob that a
+        // sibling device (holding the correct passphrase) still needed.
+        //
+        // We now distinguish the two. A present-but-opaque row means the
+        // passphrase doesn't match what the blob was encrypted with (wrong
+        // passphrase typed, or rotated on another device) — or, far more
+        // rarely, a garbled fetch. Either way we MUST NOT push: bail with a
+        // Permanent outcome so the coordinator stops retrying and the UI
+        // can prompt for the right passphrase, and leave both the remote
+        // blob and local prefs untouched.
+        val remoteDecoded: Stamped<Map<String, String>>? = when (val d = remote?.let { decode(it.payload, it.updatedAt, key) }) {
+            null -> null // no remote row at all — safe to originate from local
+            is DecodeResult.Undecryptable -> return SyncOutcome.Permanent(PASSPHRASE_MISMATCH_MESSAGE)
+            is DecodeResult.Decoded -> d.stamped
+        }
         val localStamp = Stamped(local, localUpdatedAt(local))
 
         val merged = when {
@@ -137,7 +156,11 @@ class SecretsSyncer @Inject constructor(
             secrets.edit { putLong(LAST_TOUCH_KEY, merged.updatedAt) }
         }
 
-        // Push merged back.
+        // Push merged back. Reaching here guarantees either there was no
+        // remote row, or the remote row decoded cleanly under this key —
+        // so this push never clobbers an opaque-but-present remote blob
+        // (the #1027 invariant). `merged` was therefore encrypted under the
+        // same key the existing remote uses (or originates a fresh blob).
         val envelope = encode(merged.value, key)
         val pushed = backend.upsert(
             user = user,
@@ -232,16 +255,41 @@ class SecretsSyncer @Inject constructor(
         return UserDerivedKey.envelope(blob)
     }
 
-    private fun decode(envelope: String, updatedAt: Long, key: SecretKey): Stamped<Map<String, String>>? {
-        val parsed = UserDerivedKey.parseEnvelope(envelope) ?: return null
-        val plain = runCatching { UserDerivedKey.decrypt(key, parsed.blob) }.getOrNull() ?: return null
+    /**
+     * Outcome of decoding a remote secrets row that we KNOW exists.
+     *
+     * Issue #1027: the caller must be able to tell "decoded cleanly" from
+     * "row is present but we can't read it" — the latter is the
+     * data-loss-causing case and must never lead to a push. ([reconcile]
+     * handles "no remote row at all" separately, before calling [decode],
+     * via the nullable `remote?.let { … }`.)
+     */
+    private sealed interface DecodeResult {
+        data class Decoded(val stamped: Stamped<Map<String, String>>) : DecodeResult
+
+        /**
+         * The envelope failed to parse, failed to decrypt (AES-GCM tag
+         * mismatch → wrong passphrase), or decrypted to non-JSON. The row
+         * exists on the server and belongs to someone's correct
+         * passphrase — overwriting it would be data loss.
+         */
+        data object Undecryptable : DecodeResult
+    }
+
+    private fun decode(envelope: String, updatedAt: Long, key: SecretKey): DecodeResult {
+        val parsed = UserDerivedKey.parseEnvelope(envelope) ?: return DecodeResult.Undecryptable
+        // AES-GCM authentication failure (wrong key) surfaces as an
+        // AEADBadTagException out of cipher.doFinal; any decrypt throw is
+        // treated as "can't read this row," never as "no row."
+        val plain = runCatching { UserDerivedKey.decrypt(key, parsed.blob) }.getOrNull()
+            ?: return DecodeResult.Undecryptable
         val map = runCatching {
             json.decodeFromString(
                 MapSerializer(String.serializer(), String.serializer()),
                 plain.decodeToString(),
             )
-        }.getOrNull() ?: return null
-        return Stamped(value = map, updatedAt = updatedAt)
+        }.getOrNull() ?: return DecodeResult.Undecryptable
+        return DecodeResult.Decoded(Stamped(value = map, updatedAt = updatedAt))
     }
 
     /** A 16-byte salt derived from the userId. Stable across devices for
@@ -258,6 +306,17 @@ class SecretsSyncer @Inject constructor(
         const val DOMAIN: String = "secrets"
         private const val ENTITY = "blobs"
         private const val LAST_TOUCH_KEY = "instantdb.secrets_synced_at"
+
+        /**
+         * Issue #1027 — user-facing outcome when the remote secrets blob
+         * exists but can't be decrypted with this device's passphrase.
+         * Surfaced via [SyncOutcome.Permanent] so the coordinator stops
+         * retrying and the Account screen can prompt the user to re-enter
+         * the passphrase used on their other device — instead of silently
+         * overwriting the remote blob (the data-loss bug this fixes).
+         */
+        const val PASSPHRASE_MISMATCH_MESSAGE: String =
+            "secrets: passphrase does not match the synced data — re-enter the passphrase used on your other device"
 
         /**
          * Hilt @Named qualifier for the passphrase provider binding.
