@@ -1,0 +1,31 @@
+# Candela — nav smoke. Proves the testTagsAsResourceId bridge (Compose
+# testTags addressable by Maestro `id:`) + that nav navigation works.
+# Tags from core-ui TestTags (#1090).
+#
+# NOTE: final assert uses `library-fab` (always present on Library) not
+# `library-list` — the LazyVerticalGrid carrying `library-list` only
+# renders when the library has content; empty library = absent. (Surfaced
+# by this flow on its first run — exactly what the tooling is for.)
+appId: org.techempower.candela
+name: nav-smoke
+---
+- launchApp:
+    clearState: false
+- assertVisible:
+    id: "nav-library"
+- tapOn:
+    id: "nav-browse"
+- assertVisible:
+    id: "browse-source-list"
+- tapOn:
+    id: "nav-voices"
+- assertVisible:
+    id: "voice-list"
+- tapOn:
+    id: "nav-settings"
+- assertVisible:
+    id: "settings-list"
+- tapOn:
+    id: "nav-library"
+- assertVisible:
+    id: "library-fab"
