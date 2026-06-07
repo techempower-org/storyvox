@@ -10,8 +10,8 @@ Candela is currently distributed by sideloading. CI builds debug APKs on every p
 
 ## Quick install
 
-1. Open the [Releases page](https://github.com/techempower-org/storyvox/releases) on your Android device.
-2. Download the latest `storyvox-vX.Y.Z.apk` from the assets.
+1. Open the [Releases page](https://github.com/techempower-org/candela/releases) on your Android device.
+2. Download the latest `candela-vX.Y.Z.apk` from the assets.
 3. On the device, enable **Install unknown apps** for whichever browser or file manager you used.
 4. Open the APK to install.
 5. Launch Candela. You'll be asked for **notification permission** (used for the lock-screen tile during playback).
@@ -67,8 +67,8 @@ To sign out: **Settings → Account → Sign out**.
 Requires JDK 17, Android SDK 36, and a system Gradle ≥ 8.10 for the wrapper bootstrap (the wrapper downloads Gradle 9.4.1).
 
 ```sh
-git clone https://github.com/techempower-org/storyvox.git
-cd storyvox
+git clone https://github.com/techempower-org/candela.git
+cd candela
 
 # One-time bootstrap
 gradle wrapper --gradle-version 9.4.1 --distribution-type bin
@@ -94,10 +94,10 @@ recommended for daily use. If you want to experiment, sideload the wear APK from
 
 Candela doesn't auto-update. When a new release ships:
 
-1. Download the new APK from [Releases](https://github.com/techempower-org/storyvox/releases).
+1. Download the new APK from [Releases](https://github.com/techempower-org/candela/releases).
 2. Open it. Android will prompt to upgrade in place — your library, voices, and progress are preserved.
 
 The app's signing key has been stable since `v0.4.15` (a checked-in debug keystore — see
-[#15](https://github.com/techempower-org/storyvox/pull/15)). Releases before that used the throwaway
+[#15](https://github.com/techempower-org/candela/pull/15)). Releases before that used the throwaway
 debug keystore Gradle generates per machine, so an upgrade from those earlier builds may
 require a clean uninstall first. Installs from `v0.4.15` forward upgrade in place.

@@ -19,7 +19,7 @@ needs more work, and how to file an accessibility issue.
 - **TalkBack** — Android's built-in screen reader. We test against
   `uiautomator dump` proxies since the audit tablet (Samsung Tab A7
   Lite, no Google Mobile Services) doesn't ship TalkBack itself. Issue
-  [#488](https://github.com/techempower-org/storyvox/issues/488) tracks
+  [#488](https://github.com/techempower-org/candela/issues/488) tracks
   installing TalkBack for live verification.
 - **Switch Access** — Material 3 components participate in Switch
   Access traversal by default. The `BottomTabBar` exposes
@@ -31,7 +31,7 @@ needs more work, and how to file an accessibility issue.
   Android Settings (which sets `Settings.Global.ANIMATOR_DURATION_SCALE`
   to 0), Candela's `LocalReducedMotion` CompositionLocal flips on
   and most decorative animations skip. The Phase 2 reduce-motion sweep
-  ([#480](https://github.com/techempower-org/storyvox/issues/480))
+  ([#480](https://github.com/techempower-org/candela/issues/480))
   wires this through `AnimatedVisibility` / `tween` / `LaunchedEffect`
   sites that previously animated unconditionally.
 - **High-contrast theme** — opt-in via Settings → Accessibility → High
@@ -43,7 +43,7 @@ needs more work, and how to file an accessibility issue.
   touch targets, TalkBack hints, etc.) backed by DataStore preference
   keys (`pref_a11y_*`) so the user's choices persist across launches.
 
-## Phase 1 — scaffold (v0.5.42, [#489](https://github.com/techempower-org/storyvox/pull/489))
+## Phase 1 — scaffold (v0.5.42, [#489](https://github.com/techempower-org/candela/pull/489))
 
 - New Settings → Accessibility subscreen with toggles for the seven
   Phase 2 affordances.
@@ -55,18 +55,18 @@ needs more work, and how to file an accessibility issue.
   landing is now a curated reader-friendly home rather than the
   community-mirror grid.
 
-## Phase 2 — static labels + Roles (v0.5.43, [#491](https://github.com/techempower-org/storyvox/pulls))
+## Phase 2 — static labels + Roles (v0.5.43, [#491](https://github.com/techempower-org/candela/pulls))
 
 Closes the high-leverage labeling gaps from the audit.
 
 | Issue | Fix |
 |---|---|
-| [#478](https://github.com/techempower-org/storyvox/issues/478) | 7 `Switch` composables wrapped in `Modifier.toggleable(role = Role.Switch)` so TalkBack announces the row's label merged with the switch state (was: unlabeled "Switch, on/off"). |
-| [#485](https://github.com/techempower-org/storyvox/issues/485) | `BottomTabBar.TabCell` exposes `Role.Tab` + `selected = isSelected` so TalkBack can announce the current tab. |
-| [#484](https://github.com/techempower-org/storyvox/issues/484) | Two `CircularProgressIndicator` sites (sync OAuth handshake, fiction-detail epub export) tag themselves with `contentDescription = "Loading: <label>"` + `liveRegion = Polite` so users hear the spinner. |
-| [#481](https://github.com/techempower-org/storyvox/issues/481) | Sweep over 27 bare `Modifier.clickable` sites that lacked `Role` semantics. Each got a `Role.Button` / `Role.Switch` / `Role.Checkbox` + `onClickLabel` (action verb). |
-| [#483](https://github.com/techempower-org/storyvox/issues/483) | Hard-coded `fontSize = N.sp` literals rebound to typography ramp tokens where the size is theme-coupled. Dev-only surfaces (DebugOverlay / DebugScreen) kept their literals with kdoc explaining why. |
-| [#482](https://github.com/techempower-org/storyvox/issues/482) | Audit verification — see "Verified false positives" below. |
+| [#478](https://github.com/techempower-org/candela/issues/478) | 7 `Switch` composables wrapped in `Modifier.toggleable(role = Role.Switch)` so TalkBack announces the row's label merged with the switch state (was: unlabeled "Switch, on/off"). |
+| [#485](https://github.com/techempower-org/candela/issues/485) | `BottomTabBar.TabCell` exposes `Role.Tab` + `selected = isSelected` so TalkBack can announce the current tab. |
+| [#484](https://github.com/techempower-org/candela/issues/484) | Two `CircularProgressIndicator` sites (sync OAuth handshake, fiction-detail epub export) tag themselves with `contentDescription = "Loading: <label>"` + `liveRegion = Polite` so users hear the spinner. |
+| [#481](https://github.com/techempower-org/candela/issues/481) | Sweep over 27 bare `Modifier.clickable` sites that lacked `Role` semantics. Each got a `Role.Button` / `Role.Switch` / `Role.Checkbox` + `onClickLabel` (action verb). |
+| [#483](https://github.com/techempower-org/candela/issues/483) | Hard-coded `fontSize = N.sp` literals rebound to typography ramp tokens where the size is theme-coupled. Dev-only surfaces (DebugOverlay / DebugScreen) kept their literals with kdoc explaining why. |
+| [#482](https://github.com/techempower-org/candela/issues/482) | Audit verification — see "Verified false positives" below. |
 
 ## Phase 2 — behavior (v0.5.43, sibling PR)
 
@@ -79,7 +79,7 @@ Wires the Settings → Accessibility toggles to actual rendering:
   the user opts in
 - "Learn more" → this page (the row was a TODO in Phase 1).
 
-## Verified false positives — issue [#482](https://github.com/techempower-org/storyvox/issues/482)
+## Verified false positives — issue [#482](https://github.com/techempower-org/candela/issues/482)
 
 The static audit flagged 64 `Icon` / `Image` / `IconButton` sites where
 `contentDescription` was either `null` or missing. We verified each;
@@ -101,7 +101,7 @@ No `contentDescription = ""` empty-string bugs (those would block
 TalkBack from reading the element at all). `null` is correctly used
 throughout to mark decoration.
 
-## Surfaces audited — issue [#487](https://github.com/techempower-org/storyvox/issues/487)
+## Surfaces audited — issue [#487](https://github.com/techempower-org/candela/issues/487)
 
 Rendered-surface audit on R83W80CAFZB (Samsung Galaxy Tab A7 Lite,
 800x1340 @ 213dpi) across 15 screens via `uiautomator dump`:
@@ -139,7 +139,7 @@ pattern fixed in #478. After Phase 2 these surfaces are clean.
 
 If TalkBack announces something confusing, a tap target is too small,
 contrast feels low, or motion makes you queasy — file at
-[github.com/techempower-org/storyvox/issues](https://github.com/techempower-org/storyvox/issues)
+[github.com/techempower-org/candela/issues](https://github.com/techempower-org/candela/issues)
 with the `accessibility` label and a screenshot or `uiautomator dump`
 snippet if you can. We treat accessibility regressions as high priority.
 

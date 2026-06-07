@@ -10,7 +10,7 @@ Candela ships **three local voice families**, with an **optional cloud backend**
 
 - **[Piper](https://github.com/rhasspy/piper)** *(local, in-process)* — single-speaker, compact, fast. Each voice is ~14–30 MB. Best for first-time installs and for fast turnaround on slow hardware.
 - **[Kokoro](https://github.com/hexgrad/kokoro)** *(local, in-process)* — multi-speaker, ~330 MB single download, ships dozens of voice profiles in one model. Higher quality, slower to synthesize.
-- **KittenTTS** *(local, in-process — shipped v0.5.36, [#119](https://github.com/techempower-org/storyvox/issues/119))* — the lightest tier, ~24 MB shared across 8 en_US speakers. Designed for slow devices where Piper-high struggles. The "first chapter in 10 seconds" voice family.
+- **KittenTTS** *(local, in-process — shipped v0.5.36, [#119](https://github.com/techempower-org/candela/issues/119))* — the lightest tier, ~24 MB shared across 8 en_US speakers. Designed for slow devices where Piper-high struggles. The "first chapter in 10 seconds" voice family.
 - **[Azure Cognitive Services HD voices](https://learn.microsoft.com/azure/ai-services/speech-service/text-to-speech)** *(cloud, BYOK)* — opt-in, paid by you to Microsoft, never by Candela. Studio-grade narration with offline fallback to a local voice if your key fails or the network drops. See [Cloud voices](#cloud-voices-azure-hd-byok) below.
 
 Local voices run **in-process** via the [VoxSherpa-TTS](https://github.com/techempower-org/VoxSherpa-TTS) `:engine-lib` AAR, which wraps [k2-fsa/sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) for inference. No second APK, no system-TTS handoff, no per-character billing.
@@ -125,15 +125,15 @@ Candela uses SSML to drive the same per-voice **speed**, **pitch**, and **punctu
 
 Cache eviction priority weights Azure renders higher than local renders since they cost real money: the chapter PCM cache evicts local-engine outputs first when it needs space.
 
-Originally tracked in [#85](https://github.com/techempower-org/storyvox/issues/85); shipped across [#182](https://github.com/techempower-org/storyvox/issues/182)–[#186](https://github.com/techempower-org/storyvox/issues/186).
+Originally tracked in [#85](https://github.com/techempower-org/candela/issues/85); shipped across [#182](https://github.com/techempower-org/candela/issues/182)–[#186](https://github.com/techempower-org/candela/issues/186).
 
 ## Per-voice lexicon + Kokoro phonemizer override (shipped)
 
 Long-press the brass voice-settings icon on the play screen → **Advanced expander**:
 
-- **Per-voice lexicon override** ([#197](https://github.com/techempower-org/storyvox/issues/197)) — IPA pronunciation dictionaries per voice for the names that always come out wrong. Edit per voice; entries persist across reinstalls when InstantDB sync is on.
+- **Per-voice lexicon override** ([#197](https://github.com/techempower-org/candela/issues/197)) — IPA pronunciation dictionaries per voice for the names that always come out wrong. Edit per voice; entries persist across reinstalls when InstantDB sync is on.
 - **Kokoro phonemizer-lang override** — pin Kokoro to a specific language tag when the auto-detected one mispronounces proper nouns. Per-voice setting.
 
 ## Coming soon
 
-- **VoxSherpa-TTS knob exposure** ([research draft](https://github.com/techempower-org/storyvox/blob/main/docs/superpowers/specs/2026-05-08-voxsherpa-knobs-research.md)) — loudness normalization, breath pause, pitch envelope as user-tunable settings.
+- **VoxSherpa-TTS knob exposure** ([research draft](https://github.com/techempower-org/candela/blob/main/docs/superpowers/specs/2026-05-08-voxsherpa-knobs-research.md)) — loudness normalization, breath pause, pitch envelope as user-tunable settings.

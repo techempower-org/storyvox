@@ -162,7 +162,7 @@ sentences ──► VoiceEngine (Piper or Kokoro inference)
        └──────────────────┘
 ```
 
-The PCM cache (landed in v0.4.31) renders each chapter's audio to disk on first play, so replays are gapless on any device. See the [PCM cache design spec](https://github.com/techempower-org/storyvox/blob/main/docs/superpowers/specs/2026-05-07-pcm-cache-design.md) for the full pipeline diagram and cache-key rules.
+The PCM cache (landed in v0.4.31) renders each chapter's audio to disk on first play, so replays are gapless on any device. See the [PCM cache design spec](https://github.com/techempower-org/candela/blob/main/docs/superpowers/specs/2026-05-07-pcm-cache-design.md) for the full pipeline diagram and cache-key rules.
 
 For tuning tradeoffs (warm-up wait, catch-up pause, buffer headroom, full pre-render, punctuation cadence, multi-engine sliders), see **Settings → Performance** in the app.
 
@@ -194,11 +194,11 @@ For users who want studio-grade narration on slow devices, `:source-azure` wires
 
 The `docs/superpowers/specs/` directory in the repo holds the canonical design specs:
 
-- [`2026-05-05-storyvox-design.md`](https://github.com/techempower-org/storyvox/blob/main/docs/superpowers/specs/2026-05-05-storyvox-design.md) — original architecture
-- [`2026-05-06-github-source-design.md`](https://github.com/techempower-org/storyvox/blob/main/docs/superpowers/specs/2026-05-06-github-source-design.md) — GitHub fiction source
-- [`2026-05-07-pcm-cache-design.md`](https://github.com/techempower-org/storyvox/blob/main/docs/superpowers/specs/2026-05-07-pcm-cache-design.md) — chapter PCM cache
-- [`2026-05-08-azure-hd-voices-design.md`](https://github.com/techempower-org/storyvox/blob/main/docs/superpowers/specs/2026-05-08-azure-hd-voices-design.md) — Azure HD voices (shipped v0.4.61–v0.4.66)
-- [`2026-05-08-github-oauth-design.md`](https://github.com/techempower-org/storyvox/blob/main/docs/superpowers/specs/2026-05-08-github-oauth-design.md) — GitHub OAuth Device Flow (shipped)
-- [`2026-05-08-settings-redesign-design.md`](https://github.com/techempower-org/storyvox/blob/main/docs/superpowers/specs/2026-05-08-settings-redesign-design.md) — Settings UI redesign
-- [`2026-05-08-voxsherpa-knobs-research.md`](https://github.com/techempower-org/storyvox/blob/main/docs/superpowers/specs/2026-05-08-voxsherpa-knobs-research.md) — VoxSherpa knobs research
-- [`2026-05-08-mempalace-integration-design.md`](https://github.com/techempower-org/storyvox/blob/main/docs/superpowers/specs/2026-05-08-mempalace-integration-design.md) — MemPalace as fiction source
+- [`2026-05-05-storyvox-design.md`](https://github.com/techempower-org/candela/blob/main/docs/superpowers/specs/2026-05-05-storyvox-design.md) — original architecture
+- [`2026-05-06-github-source-design.md`](https://github.com/techempower-org/candela/blob/main/docs/superpowers/specs/2026-05-06-github-source-design.md) — GitHub fiction source
+- [`2026-05-07-pcm-cache-design.md`](https://github.com/techempower-org/candela/blob/main/docs/superpowers/specs/2026-05-07-pcm-cache-design.md) — chapter PCM cache
+- [`2026-05-08-azure-hd-voices-design.md`](https://github.com/techempower-org/candela/blob/main/docs/superpowers/specs/2026-05-08-azure-hd-voices-design.md) — Azure HD voices (shipped v0.4.61–v0.4.66)
+- [`2026-05-08-github-oauth-design.md`](https://github.com/techempower-org/candela/blob/main/docs/superpowers/specs/2026-05-08-github-oauth-design.md) — GitHub OAuth Device Flow (shipped)
+- [`2026-05-08-settings-redesign-design.md`](https://github.com/techempower-org/candela/blob/main/docs/superpowers/specs/2026-05-08-settings-redesign-design.md) — Settings UI redesign
+- [`2026-05-08-voxsherpa-knobs-research.md`](https://github.com/techempower-org/candela/blob/main/docs/superpowers/specs/2026-05-08-voxsherpa-knobs-research.md) — VoxSherpa knobs research
+- [`2026-05-08-mempalace-integration-design.md`](https://github.com/techempower-org/candela/blob/main/docs/superpowers/specs/2026-05-08-mempalace-integration-design.md) — MemPalace as fiction source
