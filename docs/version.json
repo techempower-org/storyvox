@@ -1,12 +1,8 @@
 {
   "name": "Candela",
   "description": "TechEmpower's accessible resource app — a neural-voice audiobook player for any text you have, with offline TTS, optional Azure HD cloud voices, and the Library Nocturne aesthetic",
-  "version": "1.1.3",
-  "hash": "7b511fa2",
-  "branch": "main",
-  "dirty": false,
-  "built": "2026-06-07T00:00:00Z",
   "realm": "fantasy",
   "repo": "https://github.com/techempower-org/candela",
-  "commit_url": "https://github.com/techempower-org/candela/commit/7b511fa2"
+  "releases": "https://github.com/techempower-org/candela/releases/latest",
+  "note": "Version/build fields intentionally omitted: this file is served STATIC by GitHub Pages (legacy Jekyll, no build-time regeneration), so a pinned version would silently restale every release. The live current version is always at the releases URL above. The footer 'sigil bound' mark degrades gracefully when no version is present."
 }

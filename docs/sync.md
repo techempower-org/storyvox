@@ -177,7 +177,7 @@ One-time, in [the InstantDB dashboard](https://www.instantdb.com):
 
 1. Create an account (magic-link, no password to remember).
 2. Create a new app. Note the **App ID** (UUID-shaped).
-3. In the storyvox repo's `local.properties` (gitignored), add:
+3. In the Candela repo's `local.properties` (gitignored), add:
    ```
    INSTANTDB_APP_ID=00000000-0000-0000-0000-000000000000
    ```

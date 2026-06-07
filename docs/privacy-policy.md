@@ -87,7 +87,7 @@ WebView cookies from AO3 and Royal Road logins are stored in Android's
 ### 2.3 Voice downloads
 
 The first time you pick a voice, Candela downloads it from GitHub Releases
-under the `voices-v2` tag of the storyvox repository (or from the on-device
+under the `voices-v2` tag of the Candela repository (or from the on-device
 KittenTTS bundle, which is in-tree). The voice file itself is hosted on
 GitHub's CDN; the download request goes directly to
 `github.com` / `objects.githubusercontent.com`. GitHub can see your IP for
@@ -223,7 +223,7 @@ delete the record.
   which means there's no analytics endpoint that could be compromised to
   exfiltrate user data.
 - **Open source.** Anyone can audit Candela's network behavior at
-  [github.com/techempower-org/storyvox](https://github.com/techempower-org/storyvox).
+  [github.com/techempower-org/candela](https://github.com/techempower-org/candela).
   If you spot a privacy bug, file an issue or email us.
 
 ---
@@ -254,7 +254,7 @@ statutory timeframe.
 
 We'll post material changes to this page with an updated "Effective date"
 above. The previous versions are visible in the git history at
-`docs/privacy-policy.md` in the storyvox repository — the policy itself is
+`docs/privacy-policy.md` in the Candela repository — the policy itself is
 versioned alongside the app.
 
 For substantive changes (new third-party service, new data collected, etc.)
@@ -268,8 +268,8 @@ that introduces the change, and surface a one-time notice in-app.
 For questions, requests, or concerns about your privacy in Candela:
 
 - **Email:** _DRAFT — JP to fill in: claude2@techempower.org or jp@jphein.com_
-- **GitHub issues:** [github.com/techempower-org/storyvox/issues](https://github.com/techempower-org/storyvox/issues)
+- **GitHub issues:** [github.com/techempower-org/candela/issues](https://github.com/techempower-org/candela/issues)
   (public; do not include private information)
 
 Candela is operated by **TechEmpower**, a 501(c)(3) nonprofit. The app is
-licensed under the [GNU General Public License v3.0](https://github.com/techempower-org/storyvox/blob/main/LICENSE).
+licensed under the [GNU General Public License v3.0](https://github.com/techempower-org/candela/blob/main/LICENSE).

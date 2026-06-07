@@ -40,7 +40,7 @@ When you add a new upstream voice, also add a `CatalogEntry` to `core-playback/s
 
 `.github/workflows/voice-catalog-check.yml` runs on the 1st of every month (and on manual dispatch). It performs the same diff as `--check-only` and, if there's drift, files a GitHub issue listing the new upstream voices. It does not auto-publish — refreshing `voices-v2` requires write access to `techempower-org/VoxSherpa-TTS` which the default `GITHUB_TOKEN` doesn't have.
 
-If the issue comes in: pull the storyvox repo, run `./scripts/voices/refresh-voices-v2.sh`, edit `VoiceCatalog.kt` to add the new entries, ship.
+If the issue comes in: pull the Candela repo, run `./scripts/voices/refresh-voices-v2.sh`, edit `VoiceCatalog.kt` to add the new entries, ship.
 
 ## Why we don't auto-update the in-app catalog
 
