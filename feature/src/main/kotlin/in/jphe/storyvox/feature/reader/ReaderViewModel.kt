@@ -5,6 +5,8 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import `in`.jphe.storyvox.data.db.entity.Annotation
+import `in`.jphe.storyvox.data.repository.AnnotationRepository
 import `in`.jphe.storyvox.data.repository.ContinueListeningEntry
 import `in`.jphe.storyvox.data.repository.PlaybackPositionRepository
 import `in`.jphe.storyvox.data.repository.playback.PlaybackResumePolicyConfig
@@ -179,6 +181,15 @@ class ReaderViewModel @Inject constructor(
      */
     private val resumePolicy: PlaybackResumePolicyConfig,
     private val fictionRepo: FictionRepositoryUi,
+    /**
+     * Issue #999 phase 2 — read/write surface for in-reader text highlights.
+     * The reader observes the loaded chapter's highlights ([chapterHighlights])
+     * to render the spans, and writes via [createHighlight] / [updateHighlight]
+     * / [deleteHighlight]. Injected as the core-data [AnnotationRepository]
+     * directly — the same seam [FictionDetailViewModel] already uses for the
+     * "Highlights & notes" list, so phase 2 doesn't add a parallel `*Ui` port.
+     */
+    private val annotationRepo: AnnotationRepository,
     savedState: SavedStateHandle,
 ) : ViewModel() {
 
@@ -497,6 +508,23 @@ class ReaderViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     /**
+     * Issue #999 phase 2 — the loaded chapter's saved highlights, observed
+     * per-chapter so the reader renders only the current chapter's spans and
+     * the observer re-subscribes on a chapter switch (not on every fiction
+     * row). Empty while no chapter is loaded. [ReaderTextView] maps each row
+     * to a `(charRange, fillColour)` for [SentenceHighlight]'s background span
+     * layer, and to the tap-resolution lists for `annotationIdAtOffset`.
+     */
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    val chapterHighlights: StateFlow<List<Annotation>> = playback.state
+        .map { it.chapterId }
+        .distinctUntilChanged()
+        .flatMapLatest { id ->
+            if (id.isNullOrBlank()) flowOf(emptyList()) else annotationRepo.observeForChapter(id)
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /**
      * Issue #946 — magical reader auto-scroll toggle. Default true so
      * existing users keep their read-along behavior; flipping to false
      * frees the chapter body for manual scrolling while audio continues.
@@ -621,6 +649,73 @@ class ReaderViewModel @Inject constructor(
 
     fun seekTo(ms: Long) = playback.seekTo(ms)
     fun seekToChar(charOffset: Int) = playback.seekToChar(charOffset)
+
+    /**
+     * Issue #999 phase 2 — create a highlight over the user's text selection.
+     * The reader hands us the normalised `[startOffset, endOffset)` range (via
+     * `normalizeSelection`), the [quotedText] snapshot, the chosen palette
+     * [colorName], and an optional [note]. We mint a client-generated UUID
+     * (the stable cross-device sync key — see [Annotation]'s identity note) and
+     * upsert. fictionId / chapterId come from the live playback state; a
+     * blank-id window (cold-load) drops the write rather than persisting an
+     * orphan FK. Fire-and-forget on `viewModelScope`; the [chapterHighlights]
+     * observer re-emits so the new span renders without an explicit refresh.
+     */
+    fun createHighlight(
+        startOffset: Int,
+        endOffset: Int,
+        quotedText: String,
+        colorName: String,
+        note: String? = null,
+    ) {
+        val state = uiState.value.playback ?: return
+        val fictionId = state.fictionId ?: return
+        val chapterId = state.chapterId ?: return
+        if (endOffset <= startOffset) return
+        val now = System.currentTimeMillis()
+        viewModelScope.launch {
+            annotationRepo.upsert(
+                Annotation(
+                    id = java.util.UUID.randomUUID().toString(),
+                    fictionId = fictionId,
+                    chapterId = chapterId,
+                    startOffset = startOffset,
+                    endOffset = endOffset,
+                    color = colorName,
+                    note = note?.takeIf { it.isNotBlank() },
+                    quotedText = quotedText,
+                    createdAt = now,
+                    updatedAt = now,
+                ),
+            )
+        }
+    }
+
+    /**
+     * Issue #999 phase 2 — edit an existing highlight's colour and/or note.
+     * REPLACE-on-id keeps it one row (no duplicate); [createdAt] and the
+     * offsets/quote are preserved from [existing] so an edit never moves or
+     * re-quotes the highlight — only [updatedAt] bumps, which orders the LWW
+     * sync and the per-fiction list. The reader passes the current [Annotation]
+     * it resolved from the tap, so we don't re-read the DAO on the edit path.
+     */
+    fun updateHighlight(existing: Annotation, colorName: String, note: String?) {
+        viewModelScope.launch {
+            annotationRepo.upsert(
+                existing.copy(
+                    color = colorName,
+                    note = note?.takeIf { it.isNotBlank() },
+                    updatedAt = System.currentTimeMillis(),
+                ),
+            )
+        }
+    }
+
+    /** Issue #999 phase 2 — delete a highlight by id (the edit sheet's Delete). */
+    fun deleteHighlight(id: String) {
+        viewModelScope.launch { annotationRepo.delete(id) }
+    }
+
     fun skipForward() = playback.skipForward()
     fun skipBack() = playback.skipBack()
     fun nextChapter() = playback.nextChapter()

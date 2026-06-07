@@ -180,6 +180,17 @@
     <!-- TalkBack summary of the result counter -->
     <string name="reader_search_count_description">Match %1$d of %2$d</string>
 
+    <!-- Reader / in-text highlights (#999 phase 2) -->
+    <string name="reader_highlight_create_title">Highlight</string>
+    <string name="reader_highlight_edit_title">Edit highlight</string>
+    <string name="reader_highlight_note_label">Note (optional)</string>
+    <string name="reader_highlight_confirm">Highlight</string>
+    <string name="reader_highlight_save">Save</string>
+    <string name="reader_highlight_delete">Delete</string>
+    <!-- TalkBack labels for the colour-swatch chips; %1$s is the colour name -->
+    <string name="reader_highlight_color_selected">%1$s highlight colour, selected</string>
+    <string name="reader_highlight_color_unselected">%1$s highlight colour</string>
+
     <!-- Reader / ResumePrompt -->
     <string name="reader_from_the_start">From the start</string>
     <string name="reader_start_listening">▶  Start listening</string>

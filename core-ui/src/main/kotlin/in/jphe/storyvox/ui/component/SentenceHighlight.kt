@@ -2,6 +2,7 @@ package `in`.jphe.storyvox.ui.component
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.animateIntAsState
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -11,6 +12,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
@@ -55,6 +57,13 @@ import `in`.jphe.storyvox.ui.theme.LocalReducedMotion
  * @param wordFill optional (#994) — colour for the per-word fill. Default null lets it derive from the
  *                active reading-theme accent (or MaterialTheme.primary when inactive); a non-null value
  *                is the user's custom highlight colour (issue #994 "customizable highlight color").
+ * @param savedHighlights optional (#999 phase 2) — persisted user highlights for this chapter, each a
+ *                UTF-16 char range + the (already-translucent) fill colour to paint behind it. Drawn as
+ *                *background* spans, orthogonal to the spoken-sentence underline (what's being *read*),
+ *                the #998 search fills (what was *found*), and the #994 word fill. End offset of each
+ *                range is end-inclusive (matching #998), so a saved `[startOffset, endOffset)` annotation
+ *                is passed as `startOffset..(endOffset - 1)`. Empty (the default) keeps every existing
+ *                callsite — AudiobookView, previews, tests — a no-op.
  */
 @Composable
 fun SentenceHighlight(
@@ -70,6 +79,27 @@ fun SentenceHighlight(
     wordStart: Int = -1,
     wordEnd: Int = -1,
     wordFill: androidx.compose.ui.graphics.Color? = null,
+    savedHighlights: List<Pair<IntRange, androidx.compose.ui.graphics.Color>> = emptyList(),
+    /**
+     * Issue #999 phase 2 — long-press-drag text selection for creating a
+     * highlight. When non-null, a long-press anchors a selection at the word
+     * under the press, and dragging extends it; each move emits
+     * `(anchorOffset, focusOffset)` as raw UTF-16 char offsets (un-ordered —
+     * the reader normalises them via `normalizeSelection`). Drives the
+     * in-progress selection wash drawn behind the text. Null (the default)
+     * disables selection so the audiobook view / previews keep today's
+     * long-press-to-look-up gesture. When both this and [onLongPressWord] are
+     * set, a long-press-*drag* selects while a long-press-*tap* (no drag) still
+     * looks up — the two don't collide because they live on separate detectors.
+     */
+    onSelectionDrag: ((anchorOffset: Int, focusOffset: Int) -> Unit)? = null,
+    /** Issue #999 phase 2 — fired when the selection drag lifts, signalling the
+     *  reader to show the highlight toolbar for the current selection. */
+    onSelectionFinished: (() -> Unit)? = null,
+    /** Issue #999 phase 2 — the in-progress selection's UTF-16 char range
+     *  (end-inclusive, like [savedHighlights]) to wash behind the text while
+     *  the user drags. Null = no active selection. */
+    activeSelection: IntRange? = null,
 ) {
     // #993 — when a reading theme is active, the chapter text uses the
     // theme's foreground and the sentence underline uses its accent; otherwise
@@ -110,8 +140,29 @@ fun SentenceHighlight(
     val annotated: AnnotatedString = remember(
         baseAnnotated, highlightStart, highlightEnd, onSurface,
         searchMatches, activeMatchIndex, matchFill, activeMatchFill,
+        savedHighlights,
     ) {
-        val spans = ArrayList<AnnotatedString.Range<SpanStyle>>(searchMatches.size + 1)
+        val spans = ArrayList<AnnotatedString.Range<SpanStyle>>(
+            searchMatches.size + savedHighlights.size + 1,
+        )
+
+        // #999 phase 2 — persisted highlight background fills, added FIRST so
+        // the search-hit fills and the spoken-sentence span layer on top of a
+        // saved highlight when they coincide. Each range is end-inclusive
+        // (#998 convention), so the AnnotatedString end (exclusive) is last + 1.
+        savedHighlights.forEach { (range, fillColor) ->
+            val start = range.first.coerceIn(0, text.length)
+            val end = (range.last + 1).coerceIn(start, text.length)
+            if (end > start) {
+                spans.add(
+                    AnnotatedString.Range(
+                        item = SpanStyle(background = fillColor),
+                        start = start,
+                        end = end,
+                    ),
+                )
+            }
+        }
 
         // Sentence-being-read span (bold, on-surface). Unchanged from before.
         if (highlightEnd > highlightStart &&
@@ -187,6 +238,13 @@ fun SentenceHighlight(
     val drawStart = if (reducedMotion) highlightStart else animatedStart
     val drawEnd = if (reducedMotion) highlightEnd else animatedEnd
 
+    // #999 phase 2 — latest selection callbacks funnelled through
+    // rememberUpdatedState (hoisted to the composable body so the remember is
+    // unconditional), letting the selection pointerInput key only on `text`
+    // and never restart mid-drag when these lambdas change identity.
+    val currentSelectionDrag = rememberUpdatedState(onSelectionDrag)
+    val currentSelectionFinished = rememberUpdatedState(onSelectionFinished)
+
     Text(
         text = annotated,
         // Reader-surface typography (#992): overlay the user's font / size /
@@ -249,8 +307,92 @@ fun SentenceHighlight(
                     Modifier
                 }
             )
+            // #999 phase 2 — long-press-drag text selection for creating a
+            // highlight. Separate detector from the tap/long-press above so
+            // the two never collide: a long-press that does NOT drag falls
+            // through to the look-up (#188); a long-press that DOES drag
+            // selects a range. Anchored at the word boundary under the press
+            // (so a clumsy press still grabs a whole word), then extended to
+            // the dragged char offset. All coordinates resolve through the
+            // same captured `TextLayoutResult.getOffsetForPosition` the rest
+            // of the reader uses, so the emitted offsets are in chapter-body
+            // UTF-16 space — the exact coordinate `Annotation` stores. Keyed
+            // on `text` so a chapter switch re-installs with fresh length
+            // clamps.
+            .then(
+                if (onSelectionDrag != null) {
+                    // Key the pointerInput ONLY on `text` (so a chapter switch
+                    // re-installs with fresh length clamps); the latest
+                    // callbacks come from the hoisted rememberUpdatedState
+                    // refs, so a drag-driven recomposition never restarts the
+                    // gesture detector mid-drag.
+                    Modifier.pointerInput(text) {
+                        var anchorOffset = 0
+                        detectDragGesturesAfterLongPress(
+                            onDragStart = { start ->
+                                val l = layout
+                                if (l != null && text.isNotEmpty()) {
+                                    val pressed = l.getOffsetForPosition(start)
+                                        .coerceIn(0, (text.length - 1).coerceAtLeast(0))
+                                    // Anchor at the word boundary so the
+                                    // selection begins on a whole word, not
+                                    // mid-glyph.
+                                    val word = l.getWordBoundary(pressed)
+                                    anchorOffset = word.start.coerceIn(0, text.length)
+                                    val focus = word.end.coerceIn(0, text.length)
+                                    currentSelectionDrag.value?.invoke(anchorOffset, focus)
+                                }
+                            },
+                            onDrag = { change, _ ->
+                                val l = layout
+                                if (l != null && text.isNotEmpty()) {
+                                    val focus = l.getOffsetForPosition(change.position)
+                                        .coerceIn(0, text.length)
+                                    currentSelectionDrag.value?.invoke(anchorOffset, focus)
+                                }
+                                change.consume()
+                            },
+                            onDragEnd = { currentSelectionFinished.value?.invoke() },
+                            onDragCancel = { currentSelectionFinished.value?.invoke() },
+                        )
+                    }
+                } else {
+                    Modifier
+                }
+            )
             .drawBehind {
                 val l = layout ?: return@drawBehind
+
+                // #999 phase 2 — in-progress selection wash. Drawn FIRST
+                // (under the word fill + sentence underline) as a translucent
+                // accent rect spanning the active selection, segmented per
+                // visible line exactly like the underline. Null selection =
+                // no-op, so non-selecting callsites are unaffected.
+                activeSelection?.let { sel ->
+                    val sStart = sel.first.coerceIn(0, text.length)
+                    val sEnd = (sel.last + 1).coerceIn(sStart, text.length)
+                    if (sEnd > sStart) {
+                        val selFill = brass.copy(alpha = 0.35f)
+                        val sFirst = l.getLineForOffset(sStart)
+                        val sLast = l.getLineForOffset(sEnd.coerceAtLeast(sStart + 1) - 1)
+                        for (line in sFirst..sLast) {
+                            val lineStart = l.getLineStart(line)
+                            val lineEnd = l.getLineEnd(line, visibleEnd = true)
+                            val segStart = maxOf(sStart, lineStart)
+                            val segEnd = minOf(sEnd, lineEnd)
+                            if (segEnd <= segStart) continue
+                            val xStart = l.getHorizontalPosition(segStart, usePrimaryDirection = true)
+                            val xEnd = l.getHorizontalPosition(segEnd, usePrimaryDirection = true)
+                            val top = l.getLineTop(line)
+                            val bottom = l.getLineBottom(line)
+                            drawRect(
+                                color = selFill,
+                                topLeft = Offset(xStart, top),
+                                size = Size(xEnd - xStart, bottom - top),
+                            )
+                        }
+                    }
+                }
 
                 // #994 — per-word karaoke fill, drawn FIRST so the spoken-
                 // sentence underline (below) sits on top of the wash. Full

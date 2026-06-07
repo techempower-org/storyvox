@@ -8,6 +8,9 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -69,6 +72,7 @@ import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextLayoutResult
@@ -199,6 +203,17 @@ fun ReaderTextView(
     /** Issue #994 — custom per-word highlight colour (ARGB int). 0 (default)
      *  derives from the reading-theme accent. */
     wordHighlightArgb: Int = 0,
+    /** Issue #999 phase 2 — the loaded chapter's saved highlights to render as
+     *  background spans + make tappable for edit/delete. Empty (default) keeps
+     *  preview/test/audiobook callsites unchanged. */
+    savedHighlights: List<`in`.jphe.storyvox.data.db.entity.Annotation> = emptyList(),
+    /** Issue #999 phase 2 — persist a new highlight. Args:
+     *  (startOffset, endOffset, quotedText, colorName, note). No-op default. */
+    onCreateHighlight: (Int, Int, String, String, String?) -> Unit = { _, _, _, _, _ -> },
+    /** Issue #999 phase 2 — edit an existing highlight's colour / note. */
+    onUpdateHighlight: (`in`.jphe.storyvox.data.db.entity.Annotation, String, String?) -> Unit = { _, _, _ -> },
+    /** Issue #999 phase 2 — delete a highlight by id. */
+    onDeleteHighlight: (String) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val spacing = LocalSpacing.current
@@ -218,6 +233,26 @@ fun ReaderTextView(
     // is a low-level rendering primitive shared with the audiobook view —
     // putting the popup here keeps that primitive stateless.
     var lookupWord by remember { mutableStateOf<String?>(null) }
+
+    // Issue #999 phase 2 — in-reader highlight state.
+    //  - selectionRange: the live drag selection (raw anchor/focus, normalised
+    //    on the fly), null when no drag is in progress.
+    //  - pendingSelection: the normalised range whose create-toolbar is showing
+    //    after the drag lifts.
+    //  - editing: the saved Annotation whose edit/delete sheet is open (tapped
+    //    an existing highlight).
+    var selectionAnchor by remember { mutableIntStateOf(-1) }
+    var selectionFocus by remember { mutableIntStateOf(-1) }
+    var pendingSelection by remember { mutableStateOf<TextSelectionRange?>(null) }
+    var editingHighlight by remember {
+        mutableStateOf<`in`.jphe.storyvox.data.db.entity.Annotation?>(null)
+    }
+    // Live normalised selection range (for the wash + toolbar). Recomputed
+    // whenever the drag anchor/focus move.
+    val liveSelection: TextSelectionRange? = remember(selectionAnchor, selectionFocus, chapterText) {
+        if (selectionAnchor < 0 || selectionFocus < 0) null
+        else normalizeSelection(selectionAnchor, selectionFocus, chapterText)
+    }
 
     // Manual-scroll grace: each time the user starts dragging we stamp wall-clock time;
     // auto-scroll respects the grace window before resuming.
@@ -456,11 +491,48 @@ fun ReaderTextView(
                         highlightMode == HighlightMode.Off
                     val customWordFill =
                         if (wordHighlightArgb != 0) Color(wordHighlightArgb) else null
+
+                    // #999 phase 2 — map saved annotations to background
+                    // spans. Each annotation's `[startOffset, endOffset)`
+                    // becomes the end-inclusive range SentenceHighlight wants
+                    // (last = endOffset - 1) + the palette fill colour. Skipped
+                    // when the range no longer fits the current body (a
+                    // re-fetch shifted the text) — the durable quotedText still
+                    // shows on the FictionDetail list, but drawing the wash at
+                    // the wrong glyphs would be worse than not drawing it
+                    // (per Annotation's range-model note).
+                    val savedSpans = remember(savedHighlights, chapterText) {
+                        savedHighlights.mapNotNull { ann ->
+                            val s = ann.startOffset
+                            val e = ann.endOffset
+                            if (s in 0..chapterText.length && e in (s + 1)..chapterText.length) {
+                                (s..(e - 1)) to `in`.jphe.storyvox.ui.theme.HighlightColor
+                                    .fromName(ann.color).fill
+                            } else {
+                                null
+                            }
+                        }
+                    }
+
                     SentenceHighlight(
                         text = chapterText,
                         highlightStart = if (underlineSuppressed) 0 else state.sentenceStart,
                         highlightEnd = if (underlineSuppressed) 0 else state.sentenceEnd,
-                        onTapWord = onSeekToChar,
+                        // #999 phase 2 — a tap first checks whether it landed
+                        // on a saved highlight (open its edit/delete sheet);
+                        // only a tap that misses every highlight falls through
+                        // to tap-to-seek. The resolution uses the same
+                        // char-offset coordinate the highlights were stored in.
+                        onTapWord = { charIndex ->
+                            val hitId = annotationIdAtOffset(
+                                tappedOffset = charIndex,
+                                ids = savedHighlights.map { it.id },
+                                starts = savedHighlights.map { it.startOffset },
+                                ends = savedHighlights.map { it.endOffset },
+                            )
+                            val hit = hitId?.let { id -> savedHighlights.firstOrNull { it.id == id } }
+                            if (hit != null) editingHighlight = hit else onSeekToChar(charIndex)
+                        },
                         onLongPressWord = { word -> lookupWord = word },
                         onLayout = { layout -> textLayout = layout },
                         // #998 — paint in-text search hits; the active one
@@ -471,6 +543,21 @@ fun ReaderTextView(
                         wordStart = wordRange?.first ?: -1,
                         wordEnd = wordRange?.let { it.last + 1 } ?: -1,
                         wordFill = customWordFill,
+                        // #999 phase 2 — render saved highlights + the live
+                        // selection wash, and capture the drag selection.
+                        savedHighlights = savedSpans,
+                        activeSelection = liveSelection?.let { it.start..(it.end - 1) },
+                        onSelectionDrag = { anchor, focus ->
+                            selectionAnchor = anchor
+                            selectionFocus = focus
+                            // A new drag supersedes any showing toolbar.
+                            pendingSelection = null
+                        },
+                        onSelectionFinished = {
+                            pendingSelection = liveSelection
+                            selectionAnchor = -1
+                            selectionFocus = -1
+                        },
                     )
                 } // Box
                 } // CompositionLocalProvider(LocalReaderTypography) — #992
@@ -765,6 +852,41 @@ fun ReaderTextView(
             )
         }
 
+        // Issue #999 phase 2 — highlight create toolbar. Shown after a
+        // selection drag lifts (pendingSelection set). A compact bottom sheet
+        // with the colour palette + an optional note field + Highlight /
+        // Cancel. Persists via onCreateHighlight with the normalised offsets
+        // and quoted text. Dismiss (or save) clears the pending selection so
+        // the wash + toolbar both vanish.
+        pendingSelection?.let { sel ->
+            HighlightCreateSheet(
+                quotedText = sel.quotedText,
+                onConfirm = { colorName, note ->
+                    onCreateHighlight(sel.start, sel.end, sel.quotedText, colorName, note)
+                    pendingSelection = null
+                },
+                onDismiss = { pendingSelection = null },
+            )
+        }
+
+        // Issue #999 phase 2 — highlight edit/delete sheet. Shown when the
+        // user taps a saved highlight (editingHighlight set). Pre-fills the
+        // current colour + note; Save edits in place, Delete removes it.
+        editingHighlight?.let { ann ->
+            HighlightEditSheet(
+                annotation = ann,
+                onSave = { colorName, note ->
+                    onUpdateHighlight(ann, colorName, note)
+                    editingHighlight = null
+                },
+                onDelete = {
+                    onDeleteHighlight(ann.id)
+                    editingHighlight = null
+                },
+                onDismiss = { editingHighlight = null },
+            )
+        }
+
         // Issue #998 — find-in-text bar. Slides down from the top as a
         // floating overlay (it doesn't reflow the immersive body or break
         // the swipe shell) when the search FAB is toggled on. Holds the
@@ -889,6 +1011,227 @@ private fun ReaderSearchBar(
                     contentDescription = stringResource(R.string.reader_search_close),
                 )
             }
+        }
+    }
+}
+
+/**
+ * Issue #999 phase 2 — the create-highlight bottom sheet. Shown after a
+ * selection drag lifts. A brass-tinted [ModalBottomSheet] holding:
+ *  - the selected quote (so the user confirms *what* they're highlighting),
+ *  - a row of colour-swatch chips (the small palette, reusing the reading
+ *    theme's warm tones via [HighlightColor]),
+ *  - an optional note field,
+ *  - a Highlight (confirm) + Cancel action pair.
+ *
+ * TalkBack: each swatch chip carries a `contentDescription` naming its colour
+ * and selected state, and the confirm button reads "Highlight". The sheet
+ * itself is a focus-claiming surface, so the selection action is reachable
+ * by swipe (phase-2 accessibility requirement).
+ */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+private fun HighlightCreateSheet(
+    quotedText: String,
+    onConfirm: (colorName: String, note: String?) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val spacing = LocalSpacing.current
+    val sheetState = androidx.compose.material3.rememberModalBottomSheetState(
+        skipPartiallyExpanded = true,
+    )
+    var selectedColor by remember {
+        mutableStateOf(`in`.jphe.storyvox.ui.theme.HighlightColor.Default)
+    }
+    var note by remember { mutableStateOf("") }
+
+    androidx.compose.material3.ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = spacing.lg, vertical = spacing.md)
+                .testTag(TestTags.HighlightSheet),
+            verticalArrangement = Arrangement.spacedBy(spacing.sm),
+        ) {
+            Text(
+                text = stringResource(R.string.reader_highlight_create_title),
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.primary,
+            )
+            Text(
+                text = "“" + quotedText.trim().take(160) +
+                    (if (quotedText.trim().length > 160) "…" else "") + "”",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 4,
+            )
+            HighlightColorRow(
+                selected = selectedColor,
+                onSelect = { selectedColor = it },
+            )
+            OutlinedTextField(
+                value = note,
+                onValueChange = { note = it },
+                label = { Text(stringResource(R.string.reader_highlight_note_label)) },
+                modifier = Modifier.fillMaxWidth().testTag(TestTags.HighlightNoteField),
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+            ) {
+                TextButton(onClick = onDismiss) {
+                    Text(stringResource(R.string.reader_cancel))
+                }
+                Spacer(Modifier.size(spacing.sm))
+                TextButton(
+                    onClick = { onConfirm(selectedColor.name, note) },
+                    modifier = Modifier.testTag(TestTags.HighlightConfirm),
+                ) {
+                    Text(stringResource(R.string.reader_highlight_confirm))
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Issue #999 phase 2 — the edit/delete bottom sheet for a saved highlight,
+ * opened by tapping an existing highlight. Pre-fills the stored colour + note;
+ * Save edits in place (REPLACE-on-id), Delete removes the row. Same brass
+ * surface + TalkBack-reachable affordances as the create sheet.
+ */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+private fun HighlightEditSheet(
+    annotation: `in`.jphe.storyvox.data.db.entity.Annotation,
+    onSave: (colorName: String, note: String?) -> Unit,
+    onDelete: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val spacing = LocalSpacing.current
+    val sheetState = androidx.compose.material3.rememberModalBottomSheetState(
+        skipPartiallyExpanded = true,
+    )
+    var selectedColor by remember(annotation.id) {
+        mutableStateOf(`in`.jphe.storyvox.ui.theme.HighlightColor.fromName(annotation.color))
+    }
+    var note by remember(annotation.id) { mutableStateOf(annotation.note.orEmpty()) }
+
+    androidx.compose.material3.ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = spacing.lg, vertical = spacing.md)
+                .testTag(TestTags.HighlightEditSheet),
+            verticalArrangement = Arrangement.spacedBy(spacing.sm),
+        ) {
+            Text(
+                text = stringResource(R.string.reader_highlight_edit_title),
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.primary,
+            )
+            Text(
+                text = "“" + annotation.quotedText.trim().take(160) +
+                    (if (annotation.quotedText.trim().length > 160) "…" else "") + "”",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 4,
+            )
+            HighlightColorRow(
+                selected = selectedColor,
+                onSelect = { selectedColor = it },
+            )
+            OutlinedTextField(
+                value = note,
+                onValueChange = { note = it },
+                label = { Text(stringResource(R.string.reader_highlight_note_label)) },
+                modifier = Modifier.fillMaxWidth().testTag(TestTags.HighlightNoteField),
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                TextButton(
+                    onClick = onDelete,
+                    modifier = Modifier.testTag(TestTags.HighlightDelete),
+                ) {
+                    Text(stringResource(R.string.reader_highlight_delete))
+                }
+                Spacer(Modifier.weight(1f))
+                TextButton(onClick = onDismiss) {
+                    Text(stringResource(R.string.reader_cancel))
+                }
+                Spacer(Modifier.size(spacing.sm))
+                TextButton(
+                    onClick = { onSave(selectedColor.name, note) },
+                    modifier = Modifier.testTag(TestTags.HighlightSave),
+                ) {
+                    Text(stringResource(R.string.reader_highlight_save))
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Issue #999 phase 2 — the colour-swatch picker row shared by the create and
+ * edit sheets. One tappable circle per [HighlightColor]; the selected one
+ * gets a brass ring. Each carries a TalkBack [contentDescription] naming the
+ * colour + whether it's selected.
+ */
+@Composable
+private fun HighlightColorRow(
+    selected: `in`.jphe.storyvox.ui.theme.HighlightColor,
+    onSelect: (`in`.jphe.storyvox.ui.theme.HighlightColor) -> Unit,
+) {
+    val spacing = LocalSpacing.current
+    Row(
+        modifier = Modifier.fillMaxWidth().testTag(TestTags.HighlightPalette),
+        horizontalArrangement = Arrangement.spacedBy(spacing.sm),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        `in`.jphe.storyvox.ui.theme.HighlightColor.entries.forEach { color ->
+            val isSelected = color == selected
+            val ringColor = if (isSelected) {
+                MaterialTheme.colorScheme.primary
+            } else {
+                Color.Transparent
+            }
+            val label = stringResource(
+                if (isSelected) {
+                    R.string.reader_highlight_color_selected
+                } else {
+                    R.string.reader_highlight_color_unselected
+                },
+                color.name,
+            )
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .background(
+                        color = ringColor,
+                        shape = CircleShape,
+                    )
+                    .padding(4.dp)
+                    .background(
+                        color = color.swatch,
+                        shape = CircleShape,
+                    )
+                    .selectable(
+                        selected = isSelected,
+                        role = Role.RadioButton,
+                        onClick = { onSelect(color) },
+                    )
+                    .semantics { contentDescription = label },
+            )
         }
     }
 }

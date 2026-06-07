@@ -13,9 +13,10 @@ import kotlinx.coroutines.flow.Flow
  * feature module observes/deletes annotations without importing Room DAOs
  * directly (the convention every feature ViewModel here follows).
  *
- * Writes (create/edit an annotation from the reader select-drag overlay) land
- * in #999's phase-2 fast-follow; this v1 surface is read + delete only, which
- * is all the FictionDetail list needs. The export path goes through
+ * Phase 2 (#999 fast-follow, this PR) adds the *write* surface the in-reader
+ * select-text highlight overlay needs — [observeForChapter] for the per-chapter
+ * render layer and [upsert] for create/edit. The FictionDetail list still uses
+ * [observeForFiction] + [delete] unchanged. The export path goes through
  * [in.jphe.storyvox.data.annotation.ExportAnnotationsUseCase], not this repo.
  */
 interface AnnotationRepository {
@@ -23,6 +24,22 @@ interface AnnotationRepository {
     /** Live feed of every annotation for [fictionId], chapter-index then
      *  start-offset ordered (the DAO's JOIN-ed query) — the list surface. */
     fun observeForFiction(fictionId: String): Flow<List<Annotation>>
+
+    /**
+     * Issue #999 phase 2 — this chapter's annotations, start-offset ordered,
+     * for the reader's highlight-render overlay. The reader observes only the
+     * loaded chapter (not the whole fiction) so the span list stays small and
+     * the observer churns only on a chapter switch.
+     */
+    fun observeForChapter(chapterId: String): Flow<List<Annotation>>
+
+    /**
+     * Issue #999 phase 2 — create or edit an annotation. Insert is REPLACE on
+     * the [Annotation.id] primary key, so re-saving the same id (an edit to a
+     * note or colour) overwrites the row in place rather than duplicating it —
+     * the idempotent-on-id contract the DAO and [AnnotationsSyncer] share.
+     */
+    suspend fun upsert(annotation: Annotation)
 
     /** Delete a single annotation by its UUID — the list's per-row delete. */
     suspend fun delete(id: String)
@@ -35,6 +52,13 @@ class AnnotationRepositoryImpl @Inject constructor(
 
     override fun observeForFiction(fictionId: String): Flow<List<Annotation>> =
         dao.observeForFiction(fictionId)
+
+    override fun observeForChapter(chapterId: String): Flow<List<Annotation>> =
+        dao.observeForChapter(chapterId)
+
+    override suspend fun upsert(annotation: Annotation) {
+        dao.upsert(annotation)
+    }
 
     override suspend fun delete(id: String) {
         dao.deleteById(id)

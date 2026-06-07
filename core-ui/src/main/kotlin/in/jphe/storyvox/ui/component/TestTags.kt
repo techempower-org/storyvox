@@ -56,6 +56,21 @@ object TestTags {
     const val ReaderPlay = "reader-play"
     const val ReaderBack = "reader-back"
 
+    // ── Reader highlights (#1079 phase 2) ────────────────────────────────
+    // The select-text → highlight flow. A Maestro flow drives: drag-select
+    // body text → [HighlightSheet] appears → pick a swatch in
+    // [HighlightPalette] (+ optional [HighlightNoteField]) → [HighlightConfirm];
+    // then tap a saved highlight → [HighlightEditSheet] → [HighlightSave] or
+    // [HighlightDelete]. Tagged on the sheet container + each control so the
+    // flow selects them without depending on visible copy.
+    const val HighlightSheet = "highlight-sheet"
+    const val HighlightEditSheet = "highlight-edit-sheet"
+    const val HighlightPalette = "highlight-palette"
+    const val HighlightNoteField = "highlight-note-field"
+    const val HighlightConfirm = "highlight-confirm"
+    const val HighlightSave = "highlight-save"
+    const val HighlightDelete = "highlight-delete"
+
     // ── Voices ───────────────────────────────────────────────────────────
     const val VoiceList = "voice-list"
 

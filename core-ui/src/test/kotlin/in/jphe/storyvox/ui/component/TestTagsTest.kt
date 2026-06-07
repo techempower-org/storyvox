@@ -58,4 +58,19 @@ class TestTagsTest {
         assertEquals("dialog-confirm", TestTags.DialogConfirm)
         assertEquals("dialog-dismiss", TestTags.DialogDismiss)
     }
+
+    @Test
+    fun `highlight selector strings are stable and kebab-case`() {
+        // #1079 phase 2 — the in-reader highlight flow (select → create
+        // sheet → confirm; tap → edit sheet → save/delete). The Maestro
+        // highlight flow drives these exact strings, so pin them here: a
+        // rename breaks the flow far from the cause.
+        assertEquals("highlight-sheet", TestTags.HighlightSheet)
+        assertEquals("highlight-edit-sheet", TestTags.HighlightEditSheet)
+        assertEquals("highlight-palette", TestTags.HighlightPalette)
+        assertEquals("highlight-note-field", TestTags.HighlightNoteField)
+        assertEquals("highlight-confirm", TestTags.HighlightConfirm)
+        assertEquals("highlight-save", TestTags.HighlightSave)
+        assertEquals("highlight-delete", TestTags.HighlightDelete)
+    }
 }

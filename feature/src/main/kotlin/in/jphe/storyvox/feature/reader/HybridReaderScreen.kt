@@ -95,6 +95,8 @@ fun HybridReaderScreen(
     val readerTypography by viewModel.readerTypography.collectAsStateWithLifecycle()
     val highlightMode by viewModel.highlightMode.collectAsStateWithLifecycle()
     val wordHighlightArgb by viewModel.wordHighlightArgb.collectAsStateWithLifecycle()
+    // Issue #999 phase 2 — the loaded chapter's saved highlights.
+    val chapterHighlights by viewModel.chapterHighlights.collectAsStateWithLifecycle()
     val playback = state.playback
 
     // Chapter-completion celebration. The VM's confettiTrigger fires
@@ -355,6 +357,15 @@ fun HybridReaderScreen(
                 // Issue #994 — per-word karaoke highlight mode + custom colour.
                 highlightMode = highlightMode,
                 wordHighlightArgb = wordHighlightArgb,
+                // Issue #999 phase 2 — in-reader select-text highlights.
+                // The VM observes this chapter's annotations and exposes the
+                // create / edit / delete verbs; ReaderTextView renders the
+                // spans, drives the selection toolbar, and routes taps on a
+                // saved highlight to its edit/delete sheet.
+                savedHighlights = chapterHighlights,
+                onCreateHighlight = viewModel::createHighlight,
+                onUpdateHighlight = viewModel::updateHighlight,
+                onDeleteHighlight = viewModel::deleteHighlight,
             )
         },
     )
