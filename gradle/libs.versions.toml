@@ -108,7 +108,7 @@ documentfile = "1.1.0"
 # settings. CameraX drives the capture surface; the gallery-pick
 # alternative needs no extra dep (ActivityResultContracts.GetContent).
 mlkit-text-recognition = "16.0.1"
-camerax = "1.4.2"
+camerax = "1.6.1"
 
 [libraries]
 # AndroidX core
